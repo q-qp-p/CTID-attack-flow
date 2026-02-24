@@ -2,6 +2,13 @@ import { BoolEnum } from "./BoolEnum";
 import { AnchorConfiguration } from "./AnchorFormat";
 import { DiagramObjectType, PropertyType } from "@OpenChart/DiagramModel";
 import type { DiagramObjectTemplate } from "@OpenChart/DiagramModel";
+import {
+    ThreatActorRoleOv,
+    ThreatActorTypeOv,
+    ThreatActorSophisticationOv,
+    AttackMotivationOv,
+    AttackResourceLevelOv
+} from "./StixOpenVocabularies";
 
 export const StixObjects: DiagramObjectTemplate[] = [
     {
@@ -639,6 +646,11 @@ export const StixObjects: DiagramObjectTemplate[] = [
                         validator: {
                             is_required: true
                         }
+                    },
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: ThreatActorTypeOv
                     }
                 }
             },
@@ -654,28 +666,64 @@ export const StixObjects: DiagramObjectTemplate[] = [
             },
             roles: {
                 type: PropertyType.List,
-                form: { type: PropertyType.String }
+                form: {
+                    type: PropertyType.String,
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: ThreatActorRoleOv
+                    }
+                }
             },
             goals: {
                 type: PropertyType.List,
                 form: { type: PropertyType.String }
             },
             sophistication: {
-                type: PropertyType.String
+                type: PropertyType.String,
+                options: {
+                    type: PropertyType.List,
+                    form: { type: PropertyType.String },
+                    default: ThreatActorSophisticationOv
+                }
             },
             resource_level: {
-                type: PropertyType.String
+                type: PropertyType.String,
+                options: {
+                    type: PropertyType.List,
+                    form: { type: PropertyType.String },
+                    default: AttackResourceLevelOv
+                }
             },
             primary_motivation: {
-                type: PropertyType.String
+                type: PropertyType.String,
+                options: {
+                    type: PropertyType.List,
+                    form: { type: PropertyType.String },
+                    default: AttackMotivationOv
+                }
             },
             secondary_motivations: {
                 type: PropertyType.List,
-                form: { type: PropertyType.String }
+                form: {
+                    type: PropertyType.String,
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: AttackMotivationOv
+                    }
+                }
             },
             personal_motivations: {
                 type: PropertyType.List,
-                form: { type: PropertyType.String }
+                form: {
+                    type: PropertyType.String,
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: AttackMotivationOv
+                    }
+                }
             }
         },
         anchors: AnchorConfiguration
