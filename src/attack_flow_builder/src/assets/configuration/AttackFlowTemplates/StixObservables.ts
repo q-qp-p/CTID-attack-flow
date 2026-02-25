@@ -2,6 +2,7 @@ import { BoolEnum } from "./BoolEnum";
 import { AnchorConfiguration } from "./AnchorFormat";
 import { DiagramObjectType, PropertyType } from "@OpenChart/DiagramModel";
 import type { DiagramObjectTemplate } from "@OpenChart/DiagramModel";
+import { AccountTypeOv } from "./StixOpenVocabularies";
 
 export const StixObservables: DiagramObjectTemplate[] = [
     {
@@ -470,7 +471,12 @@ export const StixObservables: DiagramObjectTemplate[] = [
                 type: PropertyType.String
             },
             account_type: {
-                type: PropertyType.String
+                type: PropertyType.String,
+                options: {
+                    type: PropertyType.List,
+                    form: { type: PropertyType.String },
+                    default: AccountTypeOv
+                }
             },
             display_name: {
                 type: PropertyType.String,

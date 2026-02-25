@@ -7,7 +7,21 @@ import {
     ThreatActorTypeOv,
     ThreatActorSophisticationOv,
     AttackMotivationOv,
-    AttackResourceLevelOv
+    AttackResourceLevelOv,
+    GroupingContextOv,
+    ReportTypeOv,
+    RegionOv,
+    MalwareTypeOv,
+    ImplementationLanguageOv,
+    MalwareCapabilitiesOv,
+    ProcessorArchitectureOv,
+    ToolTypeOv,
+    MalwareResultOv,
+    IdentityClassOv,
+    IndustrySectorOv,
+    IndicatorTypeOv,
+    PatternTypeOv,
+    InfrastructureTypeOv
 } from "./StixOpenVocabularies";
 
 export const StixObjects: DiagramObjectTemplate[] = [
@@ -120,7 +134,12 @@ export const StixObjects: DiagramObjectTemplate[] = [
                 type: PropertyType.String
             },
             context: {
-                type: PropertyType.String
+                type: PropertyType.String,
+                options: {
+                    type: PropertyType.List,
+                    form: { type: PropertyType.String },
+                    default: GroupingContextOv
+                }
             }
         },
         anchors: AnchorConfiguration
@@ -152,11 +171,23 @@ export const StixObjects: DiagramObjectTemplate[] = [
                     validator: {
                         is_required: true
                     }
+                },
+                options: {
+                    type: PropertyType.List,
+                    form: { type: PropertyType.String },
+                    default: IdentityClassOv
                 }
             },
             sectors: {
                 type: PropertyType.List,
-                form: { type: PropertyType.String }
+                form: {
+                    type: PropertyType.String,
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: IndustrySectorOv
+                    }
+                }
             },
             contact_information: {
                 type: PropertyType.String
@@ -184,6 +215,11 @@ export const StixObjects: DiagramObjectTemplate[] = [
                         validator: {
                             is_required: true
                         }
+                    },
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: IndicatorTypeOv
                     }
                 }
             },
@@ -201,6 +237,11 @@ export const StixObjects: DiagramObjectTemplate[] = [
                     validator: {
                         is_required: true
                     }
+                },
+                options: {
+                    type: PropertyType.List,
+                    form: { type: PropertyType.String },
+                    default: PatternTypeOv
                 }
             },
             pattern_version: {
@@ -249,6 +290,11 @@ export const StixObjects: DiagramObjectTemplate[] = [
                         validator: {
                             is_required: true
                         }
+                    },
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: InfrastructureTypeOv
                     }
                 }
             },
@@ -346,7 +392,12 @@ export const StixObjects: DiagramObjectTemplate[] = [
                 type: PropertyType.Float
             },
             region: {
-                type: PropertyType.String
+                type: PropertyType.String,
+                options: {
+                    type: PropertyType.List,
+                    form: { type: PropertyType.String },
+                    default: RegionOv
+                }
             },
             country: {
                 type: PropertyType.String
@@ -386,6 +437,11 @@ export const StixObjects: DiagramObjectTemplate[] = [
                         validator: {
                             is_required: true
                         }
+                    },
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: MalwareTypeOv
                     }
                 }
             },
@@ -417,15 +473,36 @@ export const StixObjects: DiagramObjectTemplate[] = [
             },
             architecture_execution_envs: {
                 type: PropertyType.List,
-                form: { type: PropertyType.String }
+                form: {
+                    type: PropertyType.String,
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: ProcessorArchitectureOv
+                    }
+                }
             },
             implementation_languages: {
                 type: PropertyType.List,
-                form: { type: PropertyType.String }
+                form: {
+                    type: PropertyType.String,
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: ImplementationLanguageOv
+                    }
+                }
             },
             capabilities: {
                 type: PropertyType.List,
-                form: { type: PropertyType.String }
+                form: {
+                    type: PropertyType.String,
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: MalwareCapabilitiesOv
+                    }
+                }
             }
         },
         anchors: AnchorConfiguration
@@ -476,12 +553,7 @@ export const StixObjects: DiagramObjectTemplate[] = [
                     form: {
                         type: PropertyType.String
                     },
-                    default: [
-                        ["malicious", "Malicious"],
-                        ["suspicious", "Suspicious"],
-                        ["benign", "Benign"],
-                        ["unknown", "Unknown"]
-                    ]
+                    default: MalwareResultOv
                 },
                 default: null
             }
@@ -607,6 +679,11 @@ export const StixObjects: DiagramObjectTemplate[] = [
                         validator: {
                             is_required: true
                         }
+                    },
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: ReportTypeOv
                     }
                 }
             },
@@ -753,6 +830,11 @@ export const StixObjects: DiagramObjectTemplate[] = [
                         validator: {
                             is_required: true
                         }
+                    },
+                    options: {
+                        type: PropertyType.List,
+                        form: { type: PropertyType.String },
+                        default: ToolTypeOv
                     }
                 }
             },
