@@ -22,7 +22,7 @@ def get_value_str(definition: dict) -> str:
     result = "[\n"
     options = definition["enum"]
     for o in options:
-        result += f"\t['{o}', '{kebab_to_title(o)}'],\n"
+        result += f"\t[\"{o}\", \"{kebab_to_title(o)}\"],\n"
     result += "];"
     return result
 
