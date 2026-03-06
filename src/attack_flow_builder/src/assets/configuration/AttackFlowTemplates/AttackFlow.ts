@@ -77,7 +77,7 @@ export const AttackFlow: CanvasTemplate = {
                     ["tlp-green", "TLP:GREEN"],
                     ["tlp-clear", "TLP:CLEAR"]
                 ]
-            },
+            }
         },
         external_references: {
             type: PropertyType.List,

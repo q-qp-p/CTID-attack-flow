@@ -1,26 +1,26 @@
 <template>
   <div class="app-title-bar-container">
     <TitleBar
-        class="app-title-bar-element"
-        :menus="menus"
-        @select="onItemSelect"
+      class="app-title-bar-element"
+      :menus="menus"
+      @select="onItemSelect"
     >
-        <template #icon>
+      <template #icon>
         <span class="logo">
-            <img
+          <img
             alt="Logo"
             title="Logo"
             :src="icon"
-            >
+          >
         </span>
-        </template>
+      </template>
     </TitleBar>
     <div
-        class="tlp-marking"
-        v-if="tlpMarking && tlpMarking.value"
-        :data-value="tlpMarking.value"
+      class="tlp-marking"
+      v-if="tlpMarking && tlpMarking.value"
+      :data-value="tlpMarking.value"
     >
-        {{ tlpMarking.toString() }}
+      {{ tlpMarking.toString() }}
     </div>
   </div>
 </template>
