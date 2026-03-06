@@ -1,5 +1,5 @@
 <template>
-  <div class="title-bar-control">
+  <ul class="title-bar-control">
     <li class="icon">
       <slot name="icon" />
     </li>
@@ -18,7 +18,7 @@
         v-if="isActive(menu)"
       />
     </li>
-  </div>
+  </ul>
 </template>
 
 <script lang="ts">
