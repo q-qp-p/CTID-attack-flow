@@ -127,7 +127,7 @@ export default defineComponent({
 .tlp-marking[data-value="tlp-red"] {
     color: #FF2B2B;
 }
-.tlp-marking[data-value="tlp-amber"] {
+.tlp-marking[data-value="tlp-amber"], .tlp-marking[data-value="tlp-amber-strict"] {
     color: #FFC000;
 }
 .tlp-marking[data-value="tlp-green"] {

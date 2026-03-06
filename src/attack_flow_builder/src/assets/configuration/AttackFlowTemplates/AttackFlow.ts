@@ -73,6 +73,7 @@ export const AttackFlow: CanvasTemplate = {
                 default: [
                     ["tlp-red", "TLP:RED"],
                     ["tlp-amber", "TLP:AMBER"],
+                    ["tlp-amber-strict", "TLP:AMBER+STRICT"],
                     ["tlp-green", "TLP:GREEN"],
                     ["tlp-clear", "TLP:CLEAR"]
                 ]
