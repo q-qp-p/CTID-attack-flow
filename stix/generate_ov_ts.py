@@ -14,15 +14,11 @@ def kebab_to_pascal(kebab_str: str) -> str:
     s = re.sub(r"(-)+", " ", kebab_str).title().replace(" ", "")
     return s
 
-def kebab_to_title(kebab_str: str) -> str:
-    s = re.sub(r"(-)+", " ", kebab_str).title()
-    return s
-
 def get_value_str(definition: dict) -> str:
     result = "[\n"
     options = definition["enum"]
     for o in options:
-        result += f"\t[\"{o}\", \"{kebab_to_title(o)}\"],\n"
+        result += f"\t[\"{o}\", \"{o}\"],\n"
     result += "];"
     return result
 
