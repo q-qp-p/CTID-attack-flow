@@ -16,11 +16,12 @@
       </template>
     </TitleBar>
     <div
-      class="tlp-marking"
-      v-if="tlpMarking && tlpMarking.value"
-      :data-value="tlpMarking.value"
+      class="classification-marking"
+      v-if="classificationMarking && classificationMarking.value"
+      :data-value="classificationMarking.value"
     >
-      {{ tlpMarking.toString() }}
+      {{ classificationMarking?.toString() }}
+      <span v-if="classificationGroup?.value">&nbsp;- {{ classificationGroup.value }}</span>
     </div>
   </div>
 </template>
@@ -35,7 +36,7 @@ import type { CommandEmitter } from "@/assets/scripts/Application";
 import type { ContextMenuSubmenu } from "@/assets/scripts/Browser";
 // Components
 import TitleBar from "@/components/Controls/TitleBar.vue";
-import { EnumProperty } from "@/assets/scripts/OpenChart/DiagramModel";
+import { EnumProperty, StringProperty, TupleProperty } from "@/assets/scripts/OpenChart/DiagramModel";
 
 export default defineComponent({
   name: "AppTitleBar",
@@ -62,10 +63,25 @@ export default defineComponent({
       ]
     },
 
-    tlpMarking(): EnumProperty | undefined {
-        return this.application.activeEditor.file.canvas.properties
-            .get("tlp_marking")
+    classificationMarking(): EnumProperty | undefined {
+        const tup : TupleProperty | undefined = this.application.activeEditor.file.canvas.properties.get("classification")
+        if (!tup) {
+            return undefined;
+        }
+        const result : EnumProperty | undefined = tup?.value.get("marking") as EnumProperty;
+        return result
+    },
+
+    classificationGroup(): StringProperty | undefined {
+        const tup : TupleProperty | undefined = this.application.activeEditor.file.canvas.properties.get("classification")
+        if (!tup) {
+            return undefined;
+        }
+        const result : StringProperty | undefined = tup?.value.get("group") as StringProperty;
+        return result
     }
+
+    
 
   },
   methods: {
@@ -111,7 +127,7 @@ export default defineComponent({
     z-index: 2; /* Make sure find-dialog hides underneath title bar. */
 }
 
-.tlp-marking {
+.classification-marking {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
@@ -119,21 +135,25 @@ export default defineComponent({
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: black;
     font-weight: 600;
     padding: 0 5px 0 5px;
+    color: white;
 }
 
-.tlp-marking[data-value="tlp-red"] {
+.classification-marking[data-value="tlp-red"] {
+    background-color: black;
     color: #FF2B2B;
 }
-.tlp-marking[data-value="tlp-amber"], .tlp-marking[data-value="tlp-amber-strict"] {
+.classification-marking[data-value="tlp-amber"], .classification-marking[data-value="tlp-amber-strict"] {
+    background-color: black;
     color: #FFC000;
 }
-.tlp-marking[data-value="tlp-green"] {
+.classification-marking[data-value="tlp-green"] {
+    background-color: black;
     color: #33FF00;
 }
-.tlp-marking[data-value="tlp-clear"] {
+.classification-marking[data-value="tlp-clear"] {
+    background-color: black;
     color: #FFFFFF;
 }
 

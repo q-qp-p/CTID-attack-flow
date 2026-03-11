@@ -62,21 +62,30 @@ export const AttackFlow: CanvasTemplate = {
             },
             default: "incident"
         },
-        tlp_marking: {
-            type: PropertyType.Enum,
-            name: "TLP Marking",
-            options: {
-                type: PropertyType.List,
-                form: {
-                    type: PropertyType.String
+        classification: {
+            type: PropertyType.Tuple,
+            form: {
+                marking: {
+                    type: PropertyType.Enum,
+                    options: {
+                        type: PropertyType.List,
+                        form: {
+                            type: PropertyType.String
+                        },
+                        default: [
+                            ["tlp-red", "TLP:RED"],
+                            ["tlp-amber", "TLP:AMBER"],
+                            ["tlp-amber-strict", "TLP:AMBER+STRICT"],
+                            ["tlp-green", "TLP:GREEN"],
+                            ["tlp-clear", "TLP:CLEAR"],
+                            ["unclassified", "UNCLASSIFIED"],
+                            ["fouo", "FOUO"]
+                        ]
+                    }
                 },
-                default: [
-                    ["tlp-red", "TLP:RED"],
-                    ["tlp-amber", "TLP:AMBER"],
-                    ["tlp-amber-strict", "TLP:AMBER+STRICT"],
-                    ["tlp-green", "TLP:GREEN"],
-                    ["tlp-clear", "TLP:CLEAR"]
-                ]
+                group: {
+                    type: PropertyType.String
+                }
             }
         },
         external_references: {
