@@ -59,6 +59,7 @@ import AppHotkeyBox from "@/components/Elements/AppHotkeyBox.vue";
 import BlockDiagram from "@/components/Elements/BlockDiagram.vue";
 import AppFooterBar from "@/components/Elements/AppFooterBar.vue";
 import EditorSidebar from "@/components/Elements/EditorSidebar.vue";
+import LocalStorageManager from "./LocalStorageManager";
 
 const Handle = {
   None   : 0,
@@ -208,6 +209,8 @@ export default defineComponent({
     } else {
       settings = await (await fetch("./settings_win.json")).json();
     }
+
+    settings["view"]["diagram"]["theme"] = LocalStorageManager.getThemeId();
     
     // Load settings
     this.execute(AppCommand.loadSettings(ctx, settings));

@@ -10,6 +10,7 @@ import { useApplicationStore } from "./ApplicationStore";
 import type { CommandEmitter } from "@/assets/scripts/Application";
 import type { DiagramObjectTemplate } from "@OpenChart/DiagramModel";
 import type { ContextMenu, ContextMenuItem, ContextMenuSection, ContextMenuSubmenu } from "@/assets/scripts/Browser";
+import LocalStorageManager from "@/LocalStorageManager";
 
 export const useContextMenuStore = defineStore("contextMenuStore", {
     getters: {
@@ -670,7 +671,10 @@ export const useContextMenuStore = defineStore("contextMenuStore", {
                     text: theme.name,
                     type: MenuType.Toggle,
                     value: active.id === theme.id,
-                    data: () => AppCommands.setTheme(app, theme.id)
+                    data: () => {
+                        LocalStorageManager.setThemeId(theme.id);
+                        return AppCommands.setTheme(app, theme.id);
+                    }
                 });
             }
             // Return menu

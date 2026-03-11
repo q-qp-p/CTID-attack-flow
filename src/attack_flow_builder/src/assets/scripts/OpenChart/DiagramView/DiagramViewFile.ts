@@ -139,7 +139,6 @@ export class DiagramViewFile extends DiagramModelFile {
         const model = super.toExport();
         return {
             schema  : model.schema,
-            theme   : this.factory.theme.id,
             objects : model.objects,
             layout  : ManualLayoutEngine.generatePositionMap([this.canvas]),
             camera  : this.camera
