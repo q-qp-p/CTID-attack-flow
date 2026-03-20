@@ -21,7 +21,7 @@
       :data-value="classificationMarking.value"
     >
       {{ classificationMarking?.toString() }}
-      <span v-if="classificationGroup?.value">&nbsp;- {{ classificationGroup.value }}</span>
+      <span v-if="classificationGroup?.value">:{{ classificationGroup.value }}</span>
     </div>
   </div>
 </template>
