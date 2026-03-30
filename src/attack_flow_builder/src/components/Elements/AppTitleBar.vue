@@ -127,6 +127,7 @@ export default defineComponent({
     z-index: 2; /* Make sure find-dialog hides underneath title bar. */
 }
 
+/* Styling similar to classification markings in DiagramImage.ts. Change both together. */
 .classification-marking {
     position: absolute;
     left: 50%;
