@@ -75,6 +75,27 @@ export class DiagramViewFile extends DiagramModelFile {
     }
 
     /**
+     * Set camera position to the average position of blocks in the diagram.
+     * Set k value to 0.25.
+     */
+    public centerAndZoomCamera(): void {
+        const totalPosition = { x: 0, y: 0 };
+        for (const block of this.canvas.blocks) {
+            totalPosition.x += block.x;
+            totalPosition.y += block.y;
+        }
+        const numBlocks = this.canvas.blocks.length;
+        const averagePosition = { x: 0, y:0 };
+        if (numBlocks > 0) {
+            averagePosition.x = totalPosition.x / numBlocks;
+            averagePosition.y = totalPosition.y / numBlocks;
+        }
+        this.camera.x = averagePosition.x;
+        this.camera.y = averagePosition.y;
+        this.camera.k = 0.25;
+    }
+
+    /**
      * Clones the {@link DiagramViewFile}.
      * @param match
      *  A predicate which is applied to each child of the canvas. If the

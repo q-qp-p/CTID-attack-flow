@@ -4,7 +4,7 @@ import { DoNothing } from "../index.commands";
 import { AppCommand } from "../index.commands";
 import { stripExtension } from "@OpenChart/Utilities";
 import { StixToAttackFlowConverter } from "@/assets/scripts/StixToAttackFlow";
-import { DiagramObjectViewFactory, DiagramViewFile } from "@OpenChart/DiagramView";
+import { AutomaticLayoutEngine, DiagramObjectViewFactory, DiagramViewFile } from "@OpenChart/DiagramView";
 import {
     ClearFileRecoveryBank,
     ImportFile,
@@ -18,7 +18,7 @@ import {
 } from "./index.commands";
 import type { StixBundle } from "@/assets/scripts/StixToAttackFlow";
 import type { ApplicationStore } from "@/stores/ApplicationStore";
-import type { DiagramViewExport } from "@OpenChart/DiagramView";
+import type { DiagramLayoutEngine, DiagramViewExport } from "@OpenChart/DiagramView";
 import type { DiagramViewEditor } from "@/assets/scripts/OpenChart/DiagramEditor";
 
 
@@ -26,6 +26,7 @@ import type { DiagramViewEditor } from "@/assets/scripts/OpenChart/DiagramEditor
 //  1. Open Files  ////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+const autoLayoutEngine : DiagramLayoutEngine = new AutomaticLayoutEngine();
 
 /**
  * Loads an empty diagram file into the application.
@@ -41,6 +42,21 @@ export async function loadNewFile(
     const file = new DiagramViewFile(await getObjectFactory(context));
     // Return command
     return new LoadFile(context, file);
+}
+
+function isValidLayout(layoutObject: unknown): boolean {
+    return typeof layoutObject === "object" && layoutObject !== null &&
+        !Array.isArray(layoutObject) && Object.keys(layoutObject).length > 0;
+}
+
+function isValidCamera(cameraObject: unknown): boolean {
+    const isObject = typeof cameraObject === "object" && cameraObject !== null && !Array.isArray(cameraObject);
+    let validFields = false;
+    if (isObject) {
+        const fields = ["x", "y", "k"];
+        validFields = fields.every((f) => Object.prototype.hasOwnProperty.call(cameraObject, f));
+    }
+    return isObject && validFields;
 }
 
 /**
@@ -67,8 +83,11 @@ export async function loadExistingFile(
     // Construct file
     const viewFile = new DiagramViewFile(factory, jsonFile);
     // Run layout
-    if (!jsonFile.layout) {
-        // TODO: Run automated layout
+    if (!isValidLayout(jsonFile.layout)) {
+        viewFile.runLayout(autoLayoutEngine);
+    }
+    if (!isValidCamera(jsonFile.camera)) {
+        viewFile.centerAndZoomCamera();
     }
     // Return command
     return new LoadFile(context, viewFile, name);
@@ -215,8 +234,11 @@ export async function importExistingFile(
     // Construct file
     const viewFile = new DiagramViewFile(factory, jsonFile);
     // Run layout
-    if (!jsonFile.layout) {
-        // TODO: Run automated layout
+    if (!isValidLayout(jsonFile.layout)) {
+        viewFile.runLayout(autoLayoutEngine);
+    }
+    if (!isValidCamera(jsonFile.camera)) {
+        viewFile.centerAndZoomCamera();
     }
     // Import file
     return new ImportFile(context, editor, viewFile);
