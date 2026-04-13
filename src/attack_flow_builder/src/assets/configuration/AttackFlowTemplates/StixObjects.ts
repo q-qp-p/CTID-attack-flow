@@ -1,5 +1,6 @@
 import { BoolEnum } from "./BoolEnum";
 import { AnchorConfiguration } from "./AnchorFormat";
+import { TagsProperty } from "./TagsProperty";
 import { DiagramObjectType, PropertyType } from "@OpenChart/DiagramModel";
 import type { DiagramObjectTemplate } from "@OpenChart/DiagramModel";
 import {
@@ -49,7 +50,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
             kill_chain_phases: {
                 type: PropertyType.List,
                 form: { type: PropertyType.String }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -82,7 +84,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
             },
             objective: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -112,7 +115,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
             },
             action_bin: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -140,7 +144,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
                     form: { type: PropertyType.String },
                     default: GroupingContextOv
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -191,7 +196,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
             },
             contact_information: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -261,7 +267,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
             kill_chain_phases: {
                 type: PropertyType.List,
                 form: { type: PropertyType.String }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -311,7 +318,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
             },
             last_seen: {
                 type: PropertyType.Date
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -362,7 +370,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
             secondary_motivations: {
                 type: PropertyType.List,
                 form: { type: PropertyType.String }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -413,7 +422,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
             },
             postal_code: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -503,7 +513,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
                         default: MalwareCapabilitiesOv
                     }
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -556,7 +567,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
                     default: MalwareResultOv
                 },
                 default: null
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -580,7 +592,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
             authors: {
                 type: PropertyType.List,
                 form: { type: PropertyType.String }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -613,7 +626,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
                         is_required: true
                     }
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -650,7 +664,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
                         is_required: true
                     }
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -694,7 +709,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
                         is_required: true
                     }
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -801,7 +817,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
                         default: AttackMotivationOv
                     }
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -848,7 +865,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
             },
             tool_version: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -868,7 +886,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
             },
             description: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -906,7 +925,8 @@ export const StixObjects: DiagramObjectTemplate[] = [
                         type: PropertyType.String
                     }
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     }
