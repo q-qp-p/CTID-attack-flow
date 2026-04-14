@@ -122,7 +122,7 @@ export default defineComponent({
 }
 
 .field-name {
-  color: #a6a6a6;
+  color: var(--af-text-color-secondary);
   font-size: 9.5pt;
   font-weight: 500;
   margin-bottom: 6px;
@@ -139,7 +139,7 @@ export default defineComponent({
 .tuple-field-control {
   min-height: 30px;
   border-radius: 4px;
-  background: #2e2e2e;
+  background: var(--af-bg-color-secondary);
 }
 
 </style>

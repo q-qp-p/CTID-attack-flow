@@ -310,7 +310,7 @@ export default defineComponent({
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  color: #cccccc;
+  color: var(--af-text-color-primary);
   box-sizing: border-box;
   cursor: pointer;
 }
@@ -334,11 +334,11 @@ export default defineComponent({
 }
 
 .value-text.is-null {
-  color: #999;
+  color: var(--af-text-color-disabled);
 }
 
 .value-text:not(.is-null) {
-  color: #89a0ec;
+  color: var(--af-color-info);
   font-weight: 500;
 }
 
@@ -357,7 +357,7 @@ export default defineComponent({
 }
 
 .value-search::placeholder {
-  color: #999;
+  color: var(--af-text-color-disabled);
   opacity: 1;
 }
 

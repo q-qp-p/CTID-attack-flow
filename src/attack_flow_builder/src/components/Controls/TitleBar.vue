@@ -138,12 +138,12 @@ li:not(.icon) {
 }
 li:not(.icon):hover,
 li:not(.icon).focused {
-  color: #d1d1d1;
-  background: #383838;
+  color: var(--af-text-color-tertiary);
+  background: var(--af-bg-color-tertiary);
 }
 li.active {
-  color: #d1d1d1;
-  background: #383838;
+  color: var(--af-text-color-tertiary);
+  background: var(--af-bg-color-tertiary);
 }
 
 /** === Menu Dropdown Listings === */

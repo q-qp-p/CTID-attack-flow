@@ -356,7 +356,7 @@ export default defineComponent({
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  color: #cccccc;
+  color: var(--af-text-color-primary);
   box-sizing: border-box;
 }
 
@@ -387,7 +387,7 @@ textarea {
 }
 
 textarea::placeholder {
-  color: #999;
+  color: var(--af-text-color-disabled);
   opacity: 1;
 }
 

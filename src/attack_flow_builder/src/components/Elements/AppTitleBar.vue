@@ -138,7 +138,7 @@ export default defineComponent({
     align-items: center;
     font-weight: 600;
     padding: 0 5px 0 5px;
-    color: white;
+    color: var(--af-text-color-primary);
 }
 
 .classification-marking[data-value="tlp-red"] {

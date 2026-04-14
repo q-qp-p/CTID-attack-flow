@@ -140,7 +140,7 @@ export default defineComponent({
 }
 
 .tuple-table tr {
-  border-bottom: solid 1px #242424;
+  border-bottom: solid 1px var(--af-bg-color-primary);
 }
 
 .tuple-table tr:last-child {
@@ -152,13 +152,13 @@ export default defineComponent({
 }
 
 .tuple-table td.field-name {
-  color: #969696;
+  color: var(--af-text-color-secondary);
   font-size: 8.3pt;
   font-weight: 500;
   text-transform: uppercase;
   width: 0px;
   padding: 0px 8px;
-  border-right: solid 1px #242424;
+  border-right: solid 1px var(--af-bg-color-primary);
 }
 
 /** === No Properties === */

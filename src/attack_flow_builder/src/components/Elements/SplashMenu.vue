@@ -264,9 +264,9 @@ export default defineComponent({
   flex-direction: column;
   min-width: 640px;
   max-width: 740px;
-  border: solid 1px #383838;
+  border: solid 1px var(--af-border-color-primary);
   border-radius: 5px;
-  background: #242424;
+  background: var(--af-bg-color-primary);
   box-shadow: 0 0 10px 0 rgba(0,0,0,0.35);
   overflow: hidden;
 }
@@ -278,14 +278,19 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   padding: 18px 30px;
-  border-bottom: solid 1px #383838;
-  background: #2e2e2e;
+  border-bottom: solid 1px var(--af-border-color-primary);
+  background: var(--af-bg-color-secondary);
   pointer-events: none;
   user-select: none;
 }
 
 .application-info {
   color: #fff;
+}
+
+*[data-theme="blog_theme"] .application-info,
+*[data-theme="light_theme"] .application-info {
+    color: #000;
 }
 
 .application-info .application-name {
@@ -300,6 +305,11 @@ export default defineComponent({
 
 .organization {
   height: 27px;
+}
+
+*[data-theme="blog_theme"] .organization,
+*[data-theme="light_theme"] .organization {
+    filter: invert(1);
 }
 
 /** === Body === */
@@ -317,7 +327,7 @@ export default defineComponent({
 }
 
 .section-title {
-  color: #bfbfbf;
+  color: var(--af-text-color-secondary);
   font-size: 9.5pt;
   font-weight: 500;
   margin-left: 2px;
@@ -348,7 +358,7 @@ export default defineComponent({
 
 .file,
 .button {
-  border: solid 1px #383838;
+  border: solid 1px var(--af-border-color-primary);
   border-radius: 5px;
   box-sizing: border-box;
   user-select: none;
@@ -379,6 +389,7 @@ export default defineComponent({
 
 .file-icon {
   margin-right: 10px;
+  fill: var(--af-color-info);
 }
 
 .button-icon {
@@ -390,9 +401,13 @@ export default defineComponent({
   margin-right: 10px;
 }
 
+.button-icon svg {
+    fill: var(--af-color-info);
+}
+
 .file-title,
 .button-title {
-  color: #89a0ec;
+  color: var(--af-color-info);
   white-space: nowrap;
 }
 
@@ -407,24 +422,24 @@ export default defineComponent({
 }
 
 .file-date {
-  color: #bfbfbf;
+  color: var(--af-text-color-secondary);
   font-size: 11pt;
 }
 
 .button-description {
-  color: #bfbfbf;
+  color: var(--af-text-color-secondary);
   font-size: 10pt;
 }
 
 .delete-file {
   display: flex;
   align-items: center;
-  color: #89a0ec;
+  color: var(--af-color-info);
   font-size: 9.5pt;
   user-select: none;
   box-sizing: border-box;
   padding: 0px 10px;
-  border: solid 1px #383838;
+  border: solid 1px var(--af-border-color-primary);
   border-radius: 5px;
   margin-left: 8px;
 }
@@ -432,7 +447,7 @@ export default defineComponent({
 .file:hover,
 .button:hover,
 .delete-file:hover {
-  background: #383838;
+  background: var(--af-border-color-primary);
 }
 
 /** === Open File Section === */
@@ -469,7 +484,7 @@ export default defineComponent({
 /** === File Scrollbar === */
 
 .file-scrollbox:deep(.scroll-bar) {
-  border: 1px solid #383838;
+  border: 1px solid var(--af-border-color-primary);
   border-radius: 5px;
 }
 

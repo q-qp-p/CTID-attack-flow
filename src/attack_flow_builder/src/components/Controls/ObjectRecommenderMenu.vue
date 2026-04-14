@@ -177,7 +177,7 @@ export default defineComponent({
   width: 100%;
   font-size: 10pt;
   font-family: "Inter";
-  color: #cccccc;
+  color: var(--af-text-color-primary);
   background: none;
   border: none;
   border-radius: 3px;

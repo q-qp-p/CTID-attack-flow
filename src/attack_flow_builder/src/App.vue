@@ -2,6 +2,7 @@
   <AppHotkeyBox
     id="main"
     :class="applicationMode"
+    :data-theme="application.activeEditor.file.factory.theme.id"
   >
     <AppTitleBar
       id="app-title-bar"
@@ -273,6 +274,50 @@ export default defineComponent({
 
 /** === Global === */
 
+:root, [data-theme="dark_theme"] * {
+    --af-bg-color-primary: #242424;
+    --af-bg-color-secondary: #2e2e2e;
+    --af-bg-color-tertiary: #3b3b3b;
+    --af-bg-color-hover-action: #726de2;
+
+    --af-border-color-primary: #3d3d3d;
+    --af-border-color-secondary: #303030;
+    --af-border-color-tertiary: #474747;
+
+    --af-text-color-primary: #cccccc;
+    --af-text-color-secondary: #a6a6a6;
+    --af-text-color-tertiary: #d9d9d9;
+    --af-text-color-hover-action: #fff;
+    --af-text-color-disabled: #999;
+
+    --af-color-valid: #2bd463;
+    --af-color-warning: #e6d846;
+    --af-color-error: #ff4d4d;
+    --af-color-info: #89a0ec;
+}
+
+[data-theme="light_theme"] *, [data-theme="blog_theme"] * {
+    --af-bg-color-primary: #eaeaea;
+    --af-bg-color-secondary: #dbdbdb;
+    --af-bg-color-tertiary: #dcdcdc;
+    --af-bg-color-hover-action: #B8CBE0;
+
+    --af-border-color-primary: #d0d0d0;
+    --af-border-color-secondary: #cccccc;
+    --af-border-color-tertiary: #bbbbbb;
+
+    --af-text-color-primary: #000000;
+    --af-text-color-secondary: #5d5d5d;
+    --af-text-color-tertiary: #2f2f2f;
+    --af-text-color-hover-action: #4A4A4A;
+    --af-text-color-disabled: #555;
+
+    --af-color-valid: #1D7732;
+    --af-color-warning: #e5ac00;
+    --af-color-error: #dc3545;
+    --af-color-info: #2E5FAD;
+}
+
 html,
 body {
   width: 100%;
@@ -317,8 +362,8 @@ ul {
 #app-title-bar {
   flex-shrink: 0;
   height: 31px;
-  color: #9e9e9e;
-  background: #262626;
+  color: var(--af-text-color-secondary);
+  background: var(--af-bg-color-primary);
 }
 
 #app-body {
@@ -331,7 +376,7 @@ ul {
 #block-diagram {
   width: 100%;
   height: 100%;
-  border-top: solid 1px #333333;
+  border-top: solid 1px var(--af-border-color-secondary);
   box-sizing: border-box;
 }
 
@@ -345,11 +390,11 @@ ul {
 }
 
 #app-footer-bar {
-  color: #bfbfbf;
+  color: var(--af-text-color-primary);
   width: 100%;
   height: 100%;
-  border-top: solid 1px #333333;
-  background: #262626;
+  border-top: solid 1px var(--af-border-color-secondary);
+  background: var(--af-bg-color-primary);
 }
 
 .readonly #block-diagram {
@@ -377,7 +422,7 @@ ul {
 .resize-handle {
   position: absolute;
   display: block;
-  background: #726de2;
+  background: var(--af-bg-color-hover-action);
   transition: 0.15s opacity;
   opacity: 0;
   z-index: 1;

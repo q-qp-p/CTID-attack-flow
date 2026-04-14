@@ -162,10 +162,10 @@ export default defineComponent({
 .delete-button {
   display: flex;
   align-items: center;
-  color: #cccccc;
+  color: var(--af-text-color-primary);
   font-size: 9pt;
   font-family: inherit;
-  border: solid 1px #3d3d3d;
+  border: solid 1px var(--af-border-color-tertiary);
   border-radius: 3px;
   background: none;
 }
@@ -183,7 +183,7 @@ export default defineComponent({
 
 .create-button:hover,
 .delete-button:hover {
-  background: #303030;
+  background: var(--af-border-color-secondary);
 }
 
 .create-button span {

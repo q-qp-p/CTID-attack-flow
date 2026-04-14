@@ -96,11 +96,11 @@ export default defineComponent({
   flex: 1;
   display: flex;
   align-items: center;
-  color: #bfbfbf;
+  color: var(--af-text-color-primary);
   font-size: 10.5pt;
   user-select: none;
   padding: 7px 10px;
-  border: solid 1px #3d3d3d;
+  border: solid 1px var(--af-border-color-tertiary);
   border-radius: 3px;
   overflow: hidden;
 }
