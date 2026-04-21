@@ -151,7 +151,33 @@ export function getIncomingDirectionsWithParents(
 }
 
 /**
- * Get a set of siblings of a child on the same side of a parent node.
+ * Convert specific directions such as "ese" to general directions such as "e."
+ * @param dir The specific direction
+ * @returns The general direction
+ */
+function generalizeDir(dir: CardinalDirection) : CardinalDirection {
+    switch (dir) {
+        case "nnw":
+        case "n":
+        case "nne":
+            return "n";
+        case "ssw":
+        case "s":
+        case "sse":
+            return "s";
+        case "wnw":
+        case "w":
+        case "wsw":
+            return "w";
+        case "ene":
+        case "e":
+        case "ese":
+            return "e";
+    }
+}
+
+/**
+ * Get a set of siblings of a child on the same side of a parent block.
  * @param graph The graph as an adjacency list of outgoing edges.
  * @param incomingEdges The graph as an adjacency list of incoming edges.
  * @param parent The parent node.
@@ -166,14 +192,17 @@ export function getSiblingsOnSameSide(
 ): Set<BlockView> {
     const result = new Set<BlockView>();
 
-    const childDir = getIncomingDirectionsWithParents(child, incomingEdges).get(parent) as CardinalDirection;
+    const childDir = generalizeDir(
+        getIncomingDirectionsWithParents(child, incomingEdges).get(parent) as CardinalDirection);
+
 
     const allSiblings = new Set([...graph.get(parent) as Set<BlockView>]);
     if (allSiblings) {
         allSiblings.delete(child); // child is not a sibling of itself
 
         for (const s of allSiblings) {
-            const siblingDir = getIncomingDirectionsWithParents(s, incomingEdges).get(parent) as CardinalDirection;
+            const siblingDir = generalizeDir(
+                getIncomingDirectionsWithParents(s, incomingEdges).get(parent) as CardinalDirection);
             if (siblingDir === childDir) {
                 result.add(s);
             }

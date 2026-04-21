@@ -199,7 +199,7 @@ export default defineComponent({
   flex: 1;
   min-height: 30px;
   border-radius: 4px;
-  background: #2e2e2e;
+  background: var(--af-bg-color-secondary);
 }
 
 .dictionary-field-control {

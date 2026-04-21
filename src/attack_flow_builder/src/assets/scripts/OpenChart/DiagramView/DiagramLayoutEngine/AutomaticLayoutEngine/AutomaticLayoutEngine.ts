@@ -15,6 +15,12 @@ import {
     topologicalSort
 } from "../LayoutHelpers";
 
+const COMPONENT_MARGIN = 250;
+const BLOCK_SPACING_HORIZONTAL = 500;
+const BLOCK_SPACING_VERTICAL = 400;
+const COLLISION_RADIUS = 200;
+const COLLISION_STRENGTH = 0.07;
+
 // The source and target should be block instance strings.
 interface GraphLink extends d3.SimulationLinkDatum<d3.SimulationNodeDatum> {
     source: string; target: string;
@@ -55,19 +61,19 @@ export class AutomaticLayoutEngine implements DiagramLayoutEngine {
 
         let componentNum = 0;
         let componentOffset = 0;
-        const gap = 500;
         // Calculate positions for each component. Then offset the component as to not overlap with other components.
         for (const c of components) {
             this.positionNodes(c, lines);
 
             const bb = getBoundingBox(c);
-            const width = bb.maxX - bb.minX;
-            componentOffset += width + gap;
+            const width = (bb.maxX - bb.minX) + (COMPONENT_MARGIN * 2);
+            componentOffset += width / 2;
 
             if (componentNum > 0) {
                 for (const block of c) {
                     block.moveBy(componentOffset, 0);
                 }
+                componentOffset += width / 2;
             }
 
             componentNum += 1;
@@ -177,8 +183,13 @@ export class AutomaticLayoutEngine implements DiagramLayoutEngine {
         const initialPositions = new Map<BlockView, xyPair>();
         const rootPositions = new Set<string>();
         const sideChildren = new Set<BlockView>();
+        const lockedCenterNodes = new Set<BlockView>();
         for (const s of sortedNodes) {
             const parentsAndDirections = getIncomingDirectionsWithParents(s, incomingEdges);
+
+            if (parentsAndDirections.size < 1 && s.id === "action") {
+                lockedCenterNodes.add(s);
+            }
 
             const totalParentPos = { x: 0, y: 0 };
             const offset = { x: 0, y: 0 };
@@ -256,19 +267,33 @@ export class AutomaticLayoutEngine implements DiagramLayoutEngine {
                 y: avgParentPos.y + offset.y
             };
 
-            for (const dir of parentsAndDirections.values()) {
-                if (dir === "nnw" || dir === "ssw") {
-                    position.x -= 1;
-                } else if (dir === "nne" || dir === "sse") {
-                    position.x += 1;
-                } else if (dir === "wnw" || dir === "ene") {
-                    position.y -= 1;
-                } else if (dir === "wsw" || dir === "ese") {
-                    position.y += 1;
+            // If node has only one parent, offset the node based on the parent anchor it connects to.
+            // to make room for other siblings.
+            if (parentsAndDirections.size === 1) {
+                const [parent] = parentsAndDirections.keys();
+                const dir = parentsAndDirections.get(parent) as CardinalDirection;
+
+                const siblingsOnSameSide = getSiblingsOnSameSide(graph, incomingEdges, parent, s);
+                // If there is only one node on a side, keep it centered.
+                if (siblingsOnSameSide.size < 1) {
+                    if (["ssw", "s", "sse"].includes(dir)) {
+                        lockedCenterNodes.add(s);
+                    }
+                } else {
+                    if (dir === "nnw" || dir === "ssw") {
+                        position.x -= 1;
+                    } else if (dir === "nne" || dir === "sse") {
+                        position.x += 1;
+                    } else if (dir === "wnw" || dir === "ene") {
+                        position.y -= 1;
+                    } else if (dir === "wsw" || dir === "ese") {
+                        position.y += 1;
+                    }
                 }
             }
 
-            // Offset the node based on sibling positions.
+
+            // Offset the node if it conflicts with sibling positions.
             for (const [key, dir] of parentsAndDirections) {
                 const siblingsOnSameSide = getSiblingsOnSameSide(graph, incomingEdges, key, s);
                 const knownPositions = new Set<string>();
@@ -316,15 +341,16 @@ export class AutomaticLayoutEngine implements DiagramLayoutEngine {
                 rootPositions.add(positionKey);
             }
 
-            initialPositions.set(s as BlockView, position);
+            initialPositions.set(s, position);
         }
 
         const d3Nodes : MyD3Node[] = [];
 
-        // Pull side children toward parents before applying collision force.
+        // Pull side children toward parent before applying collision force.
         for (const sideChild of sideChildren) {
             const parents : Set<BlockView> | undefined = incomingEdges.get(sideChild);
-            if (!parents || parents.size < 1) { continue; }
+            // Only pull if there is one parent.
+            if (!parents || parents.size < 1 || parents.size > 1) { continue; }
             const firstParent = [...parents][0];
             const firstParentPos = initialPositions.get(firstParent) as xyPair;
             const childPos = initialPositions.get(sideChild) as xyPair;
@@ -342,17 +368,25 @@ export class AutomaticLayoutEngine implements DiagramLayoutEngine {
         // Initialize d3 nodes from calculated positions.
         for (const [key, value] of initialPositions) {
             instancesToNodes[key.instance] = key;
-            const pos_mult = 400;
-            d3Nodes.push({
-                id: key.instance,
-                x: value.x * pos_mult,
-                fy: value.y * pos_mult
-            });
+            if (lockedCenterNodes.has(key)) {
+                d3Nodes.push({
+                    id: key.instance,
+                    fx: value.x * BLOCK_SPACING_HORIZONTAL,
+                    fy: value.y * BLOCK_SPACING_VERTICAL
+                });
+            } else {
+                d3Nodes.push({
+                    id: key.instance,
+                    x: value.x * BLOCK_SPACING_HORIZONTAL,
+                    fy: value.y * BLOCK_SPACING_VERTICAL
+                });
+            }
+
         }
 
         // Apply collision force with d3 simulation.
         const simulation = d3.forceSimulation(d3Nodes)
-            .force("collide", d3.forceCollide(200).strength(0.07).iterations(2))
+            .force("collide", d3.forceCollide(COLLISION_RADIUS).strength(COLLISION_STRENGTH).iterations(2))
             .stop();
 
         for (let i = 0; i < 200; i++) {
