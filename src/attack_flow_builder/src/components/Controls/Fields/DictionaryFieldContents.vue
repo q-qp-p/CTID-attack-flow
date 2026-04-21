@@ -21,10 +21,10 @@
 <script lang="ts">
 // Dependencies
 import { defineAsyncComponent, defineComponent, type PropType } from "vue";
-import { 
-  DateProperty, DictionaryProperty, EnumProperty, 
+import {
+  DateProperty, DictionaryProperty, EnumProperty,
   FloatProperty, IntProperty, ListProperty, StringProperty,
-  ColorProperty, TupleProperty
+  ColorProperty, TupleProperty, MultiSelectProperty, TTPTupleProperty
 } from "@OpenChart/DiagramModel";
 import type { Property } from "@OpenChart/DiagramModel";
 import type { SynchronousEditorCommand } from "@OpenChart/DiagramEditor";
@@ -34,8 +34,10 @@ import ColorField from "./ColorField.vue";
 import ListField from "./ListField.vue";
 import EnumField from "./EnumField.vue";
 import TupleField from "./TupleField.vue";
+import TTPTupleField from "./TTPTupleField.vue";
 import NumberField from "./NumberField.vue";
 import DateTimeField from "./DateTimeField.vue";
+import MultiSelectField from "./MultiSelectField.vue";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const DictionaryField = defineAsyncComponent(() => import("./DictionaryField.vue")) as any;
 
@@ -86,10 +88,14 @@ export default defineComponent({
           return "DateTimeField";
         case EnumProperty.name:
           return "EnumField";
+        case MultiSelectProperty.name:
+          return "MultiSelectField";
         case ListProperty.name:
           return "ListField";
         case TupleProperty.name:
           return "TupleField";
+        case TTPTupleProperty.name:
+          return "TTPTupleField";
         case DictionaryProperty.name:
           return "DictionaryField";
       }
@@ -102,8 +108,10 @@ export default defineComponent({
     ListField,
     EnumField,
     TupleField,
+    TTPTupleField,
     NumberField,
     DateTimeField,
+    MultiSelectField,
     DictionaryField
   }
 });
@@ -136,7 +144,8 @@ export default defineComponent({
 .enum-field-control,
 .number-field-control,
 .datetime-field-control,
-.tuple-field-control {
+.tuple-field-control,
+.multiselect-field-control {
   min-height: 30px;
   border-radius: 4px;
   background: var(--af-bg-color-secondary);

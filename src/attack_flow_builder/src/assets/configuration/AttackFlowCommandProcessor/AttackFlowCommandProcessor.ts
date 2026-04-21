@@ -1,7 +1,7 @@
 import * as EditorCommands from "@OpenChart/DiagramEditor/Commands";
 import { SetStringProperty, SetTupleSubproperty } from "@OpenChart/DiagramEditor/Commands/index.commands";
 import { SynchronousEditorCommand } from "@OpenChart/DiagramEditor";
-import { RootProperty, StringProperty, TupleProperty } from "@OpenChart/DiagramModel";
+import { RootProperty, StringProperty, TTPTupleProperty } from "@OpenChart/DiagramModel";
 import type { SynchronousCommandProcessor } from "@OpenChart/DiagramEditor";
 
 export class AttackFlowCommandProcessor implements SynchronousCommandProcessor {
@@ -72,13 +72,13 @@ export class AttackFlowCommandProcessor implements SynchronousCommandProcessor {
     /**
      * Gets the name of selected tactic.
      * @param prop
-     *  The tactic's {@link TupleProperty}.
+     *  The tactic's {@link TTPTupleProperty}.
      * @param value
      *  The tactic's next value.
      * @returns
      *  The name of the selected tactic.
      */
-    public getTacticName(prop: TupleProperty, value?: string | null): string | null {
+    public getTacticName(prop: TTPTupleProperty, value?: string | null): string | null {
         const tact = prop.get("tactic", StringProperty);
         if (!tact) {
             return null;
@@ -112,13 +112,13 @@ export class AttackFlowCommandProcessor implements SynchronousCommandProcessor {
     /**
      * Gets the name of selected technique.
      * @param prop
-     *  The technique's {@link TupleProperty}.
+     *  The technique's {@link TTPTupleProperty}.
      * @param value
      *  The technique's next value.
      * @returns
      *  The name of the selected technique.
      */
-    public getTechniqueName(prop: TupleProperty, value?: string | null): string | null {
+    public getTechniqueName(prop: TTPTupleProperty, value?: string | null): string | null {
         const tech = prop.get("technique", StringProperty);
         if (!tech) {
             return null;

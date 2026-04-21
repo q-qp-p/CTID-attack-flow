@@ -1,5 +1,6 @@
 import { DiagramObjectType, PropertyType } from "@OpenChart/DiagramModel";
 import type { CanvasTemplate } from "@OpenChart/DiagramModel";
+import { TTP_FRAMEWORKS } from "./TTPFrameworkConstants";
 
 export const AttackFlow: CanvasTemplate = {
     name: "flow",
@@ -63,6 +64,7 @@ export const AttackFlow: CanvasTemplate = {
             default: "incident"
         },
         classification: {
+            name: "Banner Marking",
             type: PropertyType.Tuple,
             form: {
                 marking: {
@@ -86,6 +88,20 @@ export const AttackFlow: CanvasTemplate = {
                 group: {
                     type: PropertyType.String
                 }
+            }
+        },
+        ttp_frameworks: {
+            name: "TTP Frameworks",
+            type: PropertyType.MultiSelect,
+            options: {
+                type: PropertyType.List,
+                form: { type: PropertyType.String },
+                default: TTP_FRAMEWORKS
+            },
+            default: {
+                ENT: true,
+                MOB: true,
+                ICS: true
             }
         },
         external_references: {

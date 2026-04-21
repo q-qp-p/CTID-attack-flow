@@ -153,6 +153,10 @@ export default defineComponent({
     background-color: black;
     color: #33FF00;
 }
+.classification-marking[data-value="unclassified"] {
+  background-color: black;
+  color: #33FF00;
+}
 .classification-marking[data-value="tlp-clear"] {
     background-color: black;
     color: #FFFFFF;

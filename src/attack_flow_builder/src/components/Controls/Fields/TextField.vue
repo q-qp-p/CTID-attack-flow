@@ -66,6 +66,10 @@ export default defineComponent({
     featuredOptions: {
       type: Set as PropType<Set<string>>,
       required: false
+    },
+    visibleOptions: {
+      type: Set as PropType<Set<string>>,
+      required: false
     }
   },
   data() {
@@ -90,9 +94,11 @@ export default defineComponent({
       const options: OptionItem<string>[] = [];
       // Create suggestions
       const fo = this.featuredOptions;
+      const vo = this.visibleOptions;
       const v = this.value.toLocaleLowerCase();
       for(const [value, prop] of optionsProp.value) {
         const text = prop.toString();
+        if (vo && !vo.has(value)) { continue; }
         const feat = fo ? fo.has(value) : true;
         if(text.toLocaleLowerCase().includes(v)) {
           options.push({ value, text, feature: feat });

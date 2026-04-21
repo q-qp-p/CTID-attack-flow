@@ -17,7 +17,8 @@
             class="field-value"
             :is="getField(value)"
             :property="value"
-            :featured-options="property.validPropValues?.get(key)"
+            :featured-options="getFeaturedOptions(key)"
+            :visible-options="getVisibleOptions(key)"
             @execute="execute"
           />
         </td>
@@ -53,6 +54,14 @@ export default defineComponent({
     property: {
       type: Object as PropType<TupleProperty>,
       required: true
+    },
+    featuredOptionsMap: {
+      type: Object as PropType<Map<string, ReadonlySet<string>>>,
+      required: false
+    },
+    visibleOptionsMap: {
+      type: Object as PropType<Map<string, ReadonlySet<string>>>,
+      required: false
     }
   },
   data() {
@@ -106,6 +115,22 @@ export default defineComponent({
         case DateProperty.name:
           throw new Error("Date properties cannot be rendered at this time.");
       }
+    },
+
+    /**
+     * Returns a Set of featured options for a subkey, adapted for child fields.
+     */
+    getFeaturedOptions(key: string): Set<string> | undefined {
+      const ro = this.featuredOptionsMap?.get(key) ?? this.property.validPropValues?.get(key);
+      return ro ? new Set(ro) : undefined;
+    },
+
+    /**
+     * Returns a Set of visible options for a subkey, used to filter displayed options.
+     */
+    getVisibleOptions(key: string): Set<string> | undefined {
+      const ro = this.visibleOptionsMap?.get(key);
+      return ro ? new Set(ro) : undefined;
     }
 
   },

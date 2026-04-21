@@ -6,7 +6,8 @@ import {
     SetNumberProperty,
     SetDatePropertyTime,
     SetDatePropertyTimezone,
-    SetTupleSubproperty
+    SetTupleSubproperty,
+    SetMultiSelectProperty
 } from "./index.commands";
 import type { DateTime } from "luxon";
 import type {
@@ -16,7 +17,8 @@ import type {
     IntProperty,
     ListProperty,
     StringProperty,
-    TupleProperty
+    TupleProperty,
+    MultiSelectProperty
 } from "@OpenChart/DiagramModel";
 import type { SynchronousEditorCommand } from "../SynchronousEditorCommand";
 
@@ -109,6 +111,21 @@ export function setTupleSubproperty(
     property: TupleProperty, value: SynchronousEditorCommand
 ): SetTupleSubproperty {
     return new SetTupleSubproperty(property, value);
+}
+
+/**
+ * Sets the selection of a {@link MultiSelectProperty}.
+ * @param property
+ *  The {@link MultiSelectProperty}.
+ * @param values
+ *  The new selected ids.
+ * @returns
+ *  A command that represents the action.
+ */
+export function setMultiSelectProperty(
+    property: MultiSelectProperty, values: string[]
+): SetMultiSelectProperty {
+    return new SetMultiSelectProperty(property, values);
 }
 
 /**
