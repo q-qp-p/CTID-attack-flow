@@ -29,7 +29,9 @@ export class SpawnObject extends GroupCommand {
     constructor(file: DiagramViewFile, id: string, x: number, y: number, fromCorner: boolean = false) {
         super();
         // Create object
-        this.object = file.factory.createNewDiagramObject(id);
+        this.object = this.createObject(file, id);
+        // Configure object
+        this.configureObject(this.object, id);
         // Calculate object size
         this.object.calculateLayout();
         // Calculate coordinate
@@ -50,5 +52,27 @@ export class SpawnObject extends GroupCommand {
         // Add object to group
         this.do(addObjectToGroup(this.object, file.canvas));
     }
+
+    /**
+     * Creates the object to spawn.
+     * @param file
+     *  The diagram file.
+     * @param id
+     *  The object's id.
+     * @returns
+     *  The object to spawn.
+     */
+    protected createObject(file: DiagramViewFile, id: string): DiagramObjectView {
+        return file.factory.createNewDiagramObject(id);
+    }
+
+    /**
+     * Configures the object before layout and placement.
+     * @param object
+     *  The object to spawn.
+     * @param id
+     *  The object's id.
+     */
+    protected configureObject(_object: DiagramObjectView, _id: string): void {}
 
 }

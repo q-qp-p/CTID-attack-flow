@@ -4,6 +4,7 @@ import { SelectionAnimation } from "./Animations";
 import { DictionaryProperty, ListProperty, SemanticAnalyzer, traverse } from "@OpenChart/DiagramModel";
 import {
     MoveCameraToObjects,
+    SpawnAction,
     SpawnObject
 } from "../ViewFile/index.commands";
 import {
@@ -160,6 +161,65 @@ export function spawnObjectAtPointer(
     editor: DiagramViewEditor, id: string
 ): GroupCommand {
     return spawnObject(editor, id, ...editor.pointer, true);
+}
+
+/**
+ * Spawns an Attack Flow action in a diagram editor.
+ * @param editor
+ *  The editor.
+ * @param techniqueId
+ *  The action's technique id.
+ * @param x
+ *  The action's x-coordinate.
+ * @param y
+ *  The action's y-coordinate.
+ * @param fromCorner
+ *  Whether to position the action from its top-left corner or its center.
+ *  (Default: `false`)
+ * @returns
+ *  A command that represents the action.
+ */
+export function spawnAction(
+    editor: DiagramViewEditor, techniqueId: string, x: number, y: number, fromCorner: boolean = false
+): GroupCommand {
+    // Create spawn command
+    const spawn = new SpawnAction(editor.file, techniqueId, x, y, fromCorner);
+    // Format command with selection
+    const cmd = new GroupCommand();
+    cmd.do(spawn);
+    cmd.do(selectObject(editor, spawn.object));
+    return cmd;
+}
+
+/**
+ * Spawns an Attack Flow action in an editor at the interface's center.
+ * @param editor
+ *  The editor.
+ * @param techniqueId
+ *  The action's technique id.
+ * @returns
+ *  A command that represents the action.
+ */
+export function spawnActionAtInterfaceCenter(
+    editor: DiagramViewEditor, techniqueId: string
+): GroupCommand {
+    const { x, y } = editor.file.camera;
+    return spawnAction(editor, techniqueId, x, y);
+}
+
+/**
+ * Spawns an Attack Flow action in an editor at the pointer's position.
+ * @param editor
+ *  The editor.
+ * @param techniqueId
+ *  The action's technique id.
+ * @returns
+ *  A command that represents the action.
+ */
+export function spawnActionAtPointer(
+    editor: DiagramViewEditor, techniqueId: string
+): GroupCommand {
+    return spawnAction(editor, techniqueId, ...editor.pointer, true);
 }
 
 
