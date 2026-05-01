@@ -31,6 +31,7 @@ export default [
         '**/dist-cli/**',
         '**/dist-ssr/**',
         '**/coverage/**',
+        '**/tie-inference-web',
         '**/MitreAttack.ts',
         '**/MitreAtlas.ts',
         '**/MitreDefend.ts',
