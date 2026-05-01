@@ -48,7 +48,6 @@
 <script lang="ts">
 // Dependencies
 import { defineComponent, type PropType } from 'vue';
-import type { CommandEmitter } from "@/assets/scripts/Application";
 import type { ObjectRecommendation, ObjectRecommender } from "@OpenChart/DiagramEditor";
 // Components
 import ScrollListBox from '@/components/Containers/ScrollListBox.vue';
@@ -110,7 +109,7 @@ export default defineComponent({
     submitSelection(id: string) {
       const item = this.items.find(o => o.id === id);
       if(item) {
-        console.log(item);
+        this.$emit("select", item.id)
       }
     },
 
@@ -126,7 +125,7 @@ export default defineComponent({
 
   },
   emits: {
-    select: (item: CommandEmitter) => item,
+    select: (item_id: string) => item_id,
     focusout: () => true,
   },
   async mounted() {
@@ -148,27 +147,29 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   box-shadow: 0px 0px 10px 0px #00000066;
+  border-radius: 10px;
+  z-index: 1;
 }
 
 .menu-head {
   display: flex;
   padding: 5px 8px;
-  border-color: #2b2b2b;
+  border-color: var(--af-border-color-secondary);
   border-width: 1px;
   border-style: solid solid none solid;
   border-top-left-radius: 5px;
   border-top-right-radius: 5px;
-  background: #1b1b1b;
+  background: var(--af-bg-color-secondary);
 }
 
 .menu-body {
   padding: 0px 6px;
-  border-color: #383838;
+  border-color: var(--af-border-color-secondary);
   border-width: 1px;
   border-style: none solid solid solid;
   border-bottom-left-radius: 5px;
   border-bottom-right-radius: 5px;
-  background: #1f1f1f;
+  background: var(--af-bg-color-primary);
 }
 
 /** === Menu Head === */
@@ -198,10 +199,11 @@ export default defineComponent({
   display: flex;
   justify-content: center;
   height: 10px;
+  color: var(--af-text-color-primary)
 }
 
 .active .recommendation {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--af-bg-color-tertiary);
 }
 
 .recommendation {
@@ -227,13 +229,13 @@ export default defineComponent({
   font-weight: 700;
   font-size: 13px;
   text-transform: uppercase;
-  color: #bfbfbf;
+  color: var(--af-text-color-primary);
 }
 
 .recommendation .subtitle {
   font-family: "Inter";
   font-size: 10pt;
-  color: #757575;
+  color: var(--af-text-color-secondary);
 }
 
 </style>

@@ -8,6 +8,7 @@
       v-if="recommender.active"
       :style="recommenderMenuStyle"
       :recommender="recommender"
+      @select="onRecommendationSelect"
     />
     <ContextMenu
       class="context-menu"
@@ -28,13 +29,15 @@ import { defineComponent } from 'vue';
 import { Cursor, MouseClick } from "@OpenChart/DiagramInterface";
 import { useApplicationStore } from "@/stores/ApplicationStore";
 import { useContextMenuStore } from "@/stores/ContextMenuStore";
-import type { DiagramObjectView } from '@/assets/scripts/OpenChart/DiagramView';
+import { LatchView, type DiagramObjectView } from '@/assets/scripts/OpenChart/DiagramView';
 import type { ContextMenuSection } from '@/assets/scripts/Browser';
 import type { Command, CommandEmitter } from '@/assets/scripts/Application';
 import type { DiagramViewEditor, ObjectRecommender } from '@OpenChart/DiagramEditor';
 // Components
 import ContextMenu from "@/components/Controls/ContextMenu.vue";
 import ObjectRecommenderMenu from "@/components/Controls/ObjectRecommenderMenu.vue";
+import { SpawnObject } from "@/assets/scripts/OpenChart/DiagramEditor/Commands/index.commands";
+import { SpawnObjectConnectedToLatch } from "@/assets/scripts/OpenChart/DiagramEditor/Commands/ViewFile/SpawnObjectConnectedToLatch";
 
 export default defineComponent({
   name: 'BlockDiagram',
@@ -47,7 +50,9 @@ export default defineComponent({
         x: 0,
         y: 0,
         show: false,
-      }
+      },
+      /** The last selected object (e.g. a latch) which caused the recommender to start. */
+      lastRecommenderObject: null as DiagramObjectView | null
     }
   },
   computed: {
@@ -136,6 +141,31 @@ export default defineComponent({
       this.application.execute(command);
     },
 
+    async onRecommendationSelect(item_id: string) {
+        this.recommender.shutdown();
+
+        if (!this.lastRecommenderObject) return;
+
+        const spawnCommand = new SpawnObject(
+            this.editor.file,
+            item_id,
+            this.lastRecommenderObject.x,
+            this.lastRecommenderObject.y,
+        );
+
+        if (this.lastRecommenderObject instanceof LatchView) {
+            // If a latch exists, spawn the object and connect it to the latch.
+            const spawnAndConnectCommand = new SpawnObjectConnectedToLatch(
+                spawnCommand, this.lastRecommenderObject);
+            this.execute(spawnAndConnectCommand);
+        } else {
+            // If there is no latch to connect it to, just spawn it.
+            this.execute(spawnCommand);
+        }
+    },
+
+
+
     /**
      * Menu item selection behavior.
      * @param emitter
@@ -215,7 +245,10 @@ export default defineComponent({
      *  The recommender's active target.
      */
     onSuggestionRequest(object: DiagramObjectView) {
-      this.execute(AppCommands.startRecommender(this.application, object));
+        if (object instanceof LatchView && object.isTarget()) {
+            this.execute(AppCommands.startRecommender(this.application, object));
+            this.lastRecommenderObject = object;
+        }
     }, 
 
     configureEditor() {
