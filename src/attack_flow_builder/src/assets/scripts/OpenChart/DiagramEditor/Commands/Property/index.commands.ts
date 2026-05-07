@@ -1,4 +1,5 @@
 export * from "./SetStringProperty";
+export * from "./SetColorProperty";
 export * from "./SetNumberProperty";
 export * from "./SetEnumProperty";
 export * from "./SetDatePropertyTime";
@@ -7,3 +8,4 @@ export * from "./SetTupleSubproperty";
 export * from "./CreateSubproperty";
 export * from "./DeleteSubproperty";
 export * from "./SetMultiSelectProperty";
+export * from "./ApplyTagDataCommand";
