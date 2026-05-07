@@ -156,6 +156,7 @@ export async function loadExistingStixFile(
     const jsonFile = new StixToAttackFlowConverter(factory).convert(stixBundle);
     // Construct file
     const viewFile = new DiagramViewFile(factory, jsonFile);
+    viewFile.runLayout(autoLayoutEngine);
     // Return command
     return new LoadFile(context, viewFile, name);
 }
@@ -283,6 +284,7 @@ export async function importExistingStixFile(
     const jsonFile = new StixToAttackFlowConverter(factory).convert(stixBundle);
     // Construct file
     const viewFile = new DiagramViewFile(factory, jsonFile);
+    viewFile.runLayout(autoLayoutEngine);
     // Return command
     return new ImportFile(context, editor, viewFile);
 }
