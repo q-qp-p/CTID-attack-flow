@@ -20,6 +20,7 @@ import type { AppCommand, ValidationErrorResult, ValidationWarningResult } from 
 const Publisher = Configuration.publisher?.create();
 const Validator = Configuration.validator?.create();
 const FilePreprocessor = Configuration.filePreprocessor?.create();
+const Recommender = Configuration.recommender?.create();
 
 // Configure theme registry
 const themeRegistry = new ThemeRegistry();
@@ -41,7 +42,7 @@ export const useApplicationStore = defineStore("applicationStore", {
         activeValidator: Validator,
         activePublisher: Publisher,
         activeFilePreprocessor: FilePreprocessor,
-        activeRecommender: new BasicRecommender(),
+        activeRecommender: Recommender ?? new BasicRecommender(),
         activeFinder: new OpenChartFinder<DiagramViewEditor, DiagramObjectView>(),
         settings: BaseAppSettings,
         readOnlyMode: false,

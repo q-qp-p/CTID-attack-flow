@@ -2,6 +2,7 @@ import AttackFlowValidator from "./AttackFlowValidator/AttackFlowValidator.ts";
 import AttackFlowPublisher from "./AttackFlowPublisher/AttackFlowPublisher.ts";
 import AttackFlowFilePreprocessor from "./AttackFlowFilePreprocessor/AttackFlowFilePreprocessor.ts";
 import AttackFlowCommandProcessor from "./AttackFlowCommandProcessor/AttackFlowCommandProcessor.ts";
+import { AttackFlowRecommender } from "./AttackFlowRecommender/AttackFlowRecommender.ts";
 import { DarkTheme } from "./AttackFlowThemes/DarkTheme.ts";
 import { BlogTheme } from "./AttackFlowThemes/BlogTheme.ts";
 import { LightTheme } from "./AttackFlowThemes/LightTheme.ts";
@@ -136,6 +137,10 @@ const configuration: AppConfiguration = {
 
     cmdProcessor: {
         create: () => new AttackFlowCommandProcessor()
+    },
+
+    recommender: {
+        create: () => new AttackFlowRecommender()
     }
 
 };

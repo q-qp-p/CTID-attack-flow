@@ -1,30 +1,40 @@
 <template>
-  <div class="object-recommender-menu-control">
-    <div class="menu-head">
-      <input
-        class="search-field"
-        ref="search"
-        type="text"
-        placeholder="Search..."
-        v-model="value"
-        @keydown="onKeyDown"
-      >
-    </div>
+  <div
+    class="object-recommender-menu-control"
+    ref="menu"
+    tabindex="0"
+    @keydown="onKeyDown"
+  >
     <div class="menu-body">
+      <div
+        v-if="loading"
+        class="loading"
+        role="status"
+        aria-label="Loading recommendations"
+      >
+        <div class="loading-icon" />
+      </div>
       <ScrollListBox
+        v-else
         ref="scrollbox"
         class="recommendations"
         :items="items"
         :item-display-count="7"
-        @scroll="i => active = items[i].id"
+        @scroll="onScroll"
       >
         <template #up>
           ^
         </template>
         <template #item="{ item }">
           <div
-            class="recommendation"
-            @click="submitSelection(item.id)"
+            :class="[
+              'recommendation',
+              {
+                child: item.parentId,
+                'tie-recommendation': item.isTieRecommendation
+              }
+            ]"
+            @click="submitSelection(item)"
           >
             <div class="title">
               <div
@@ -62,15 +72,15 @@ export default defineComponent({
   },
   data() {
     return {
-      value: "",
       items: [] as ObjectRecommendation[],
-      active: null as string | null
+      active: null as string | null,
+      loading: true
     }
   },
   methods: {
 
     /**
-     * Search keydown behavior.
+     * Keydown behavior.
      * @param event
      *  The keydown event.
      */
@@ -78,60 +88,76 @@ export default defineComponent({
       // Cast scrollbox
       const scrollbox = this.$refs.scrollbox as {
         shiftSelection(delta: number): void
-      }
+      } | undefined;
       // Update window
       switch(event.key) {
         case "ArrowUp":
           event.preventDefault();
-          scrollbox.shiftSelection(-1);
+          if(this.items.length && scrollbox) {
+            scrollbox.shiftSelection(-1);
+          }
           break;
         case "ArrowDown":
           event.preventDefault();
-          scrollbox.shiftSelection(1);
+          if(this.items.length && scrollbox) {
+            scrollbox.shiftSelection(1);
+          }
           break;
         case "Enter":
           event.preventDefault();
           if(this.active) {
-            this.submitSelection(this.active);
+            const item = this.items.find(o => o.id === this.active);
+            if(item) {
+              this.submitSelection(item);
+            }
           }
-          break;
-        default:
-          this.updateRecommendations();
           break;
       }
     },
 
     /**
      * Submits the selection.
-     * @param id
-     *  The item's id.
+     * @param item
+     *  The selected item.
      */
-    submitSelection(id: string) {
-      const item = this.items.find(o => o.id === id);
-      if(item) {
-        this.$emit("select", item.id)
-      }
+    submitSelection(item: ObjectRecommendation) {
+      this.$emit("select", item)
+    },
+
+    /**
+     * Scroll selection behavior.
+     * @param index
+     *  The active item index.
+     */
+    onScroll(index: number) {
+      this.active = this.items[index]?.id ?? null;
     },
 
     /**
      * Updates the list of recommendations.
      */
     async updateRecommendations() {
-      // Get recommendations
-      const recs = await this.recommender.getRecommendations(this.value);
-      // Update recommendations
-      this.items = recs.items;
+      this.loading = true;
+      try {
+        // Get recommendations
+        const recs = await this.recommender.getRecommendations();
+        // Update recommendations
+        this.items = recs.items;
+        this.active = this.items[0]?.id ?? null;
+      } finally {
+        this.loading = false;
+      }
     },
 
   },
   emits: {
-    select: (item_id: string) => item_id,
+    select: (item: ObjectRecommendation) => item,
     focusout: () => true,
   },
   async mounted() {
-    const search = this.$refs.search as HTMLInputElement;
-    // Focus search
-    search.focus();
+    const menu = this.$refs.menu as HTMLDivElement;
+    // Focus menu
+    menu.focus();
     // Update recommendations
     this.updateRecommendations();
   },
@@ -148,46 +174,46 @@ export default defineComponent({
   flex-direction: column;
   box-shadow: 0px 0px 10px 0px #00000066;
   border-radius: 10px;
+  outline: none;
   z-index: 1;
-}
-
-.menu-head {
-  display: flex;
-  padding: 5px 8px;
-  border-color: var(--af-border-color-secondary);
-  border-width: 1px;
-  border-style: solid solid none solid;
-  border-top-left-radius: 5px;
-  border-top-right-radius: 5px;
-  background: var(--af-bg-color-secondary);
 }
 
 .menu-body {
   padding: 0px 6px;
   border-color: var(--af-border-color-secondary);
   border-width: 1px;
-  border-style: none solid solid solid;
+  border-style: solid;
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
   border-bottom-left-radius: 5px;
   border-bottom-right-radius: 5px;
   background: var(--af-bg-color-primary);
 }
 
-/** === Menu Head === */
+/** === Menu Body === */
 
-.search-field {
-  width: 100%;
-  font-size: 10pt;
-  font-family: "Inter";
-  color: var(--af-text-color-primary);
-  background: none;
-  border: none;
-  border-radius: 3px;
-  padding: 6px;
-  outline: none;
-  box-sizing: border-box;
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 180px;
+  min-height: 56px;
 }
 
-/** === Menu Body === */
+.loading-icon {
+  width: 18px;
+  height: 18px;
+  border: solid 2px var(--af-border-color-secondary);
+  border-top-color: var(--af-text-color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 .recommendations {
   display: flex;
@@ -212,6 +238,10 @@ export default defineComponent({
   box-sizing: border-box;
 }
 
+.recommendation.child {
+  padding-left: 24px;
+}
+
 .recommendation .title {
   display: flex;
   align-items: center;
@@ -224,12 +254,24 @@ export default defineComponent({
   margin-right: 6px;
 }
 
+.recommendation.tie-recommendation .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
 .recommendation .name {
   font-family: "Inter";
   font-weight: 700;
   font-size: 13px;
   text-transform: uppercase;
   color: var(--af-text-color-primary);
+}
+
+.recommendation.tie-recommendation .name {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: none;
 }
 
 .recommendation .subtitle {

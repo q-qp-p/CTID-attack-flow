@@ -81,11 +81,9 @@ export abstract class ObjectRecommender {
 
     /**
      * Returns the set of recommendations.
-     * @param search
-     *  The search term.
      * @returns
      *  A Promise that resolves with the recommendations.
      */
-    public abstract getRecommendations(search: string): Promise<ObjectRecommendations>;
+    public abstract getRecommendations(): Promise<ObjectRecommendations>;
 
 }

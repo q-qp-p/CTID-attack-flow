@@ -4,7 +4,7 @@ import type { FilePublisher } from "../FilePublisher";
 import type { FilePreprocessor } from "../FilePreprocessor";
 import type { DiagramThemeConfiguration } from "@OpenChart/ThemeLoader";
 import type { DiagramSchemaConfiguration } from "@OpenChart/DiagramModel";
-import type { SynchronousCommandProcessor } from "@OpenChart/DiagramEditor";
+import type { ObjectRecommender, SynchronousCommandProcessor } from "@OpenChart/DiagramEditor";
 
 export interface AppConfiguration {
 
@@ -132,6 +132,15 @@ export interface AppConfiguration {
     cmdProcessor?: {
 
         create: () => SynchronousCommandProcessor;
+
+    };
+
+    /**
+     * The application's object recommender.
+     */
+    recommender?: {
+
+        create: () => ObjectRecommender;
 
     };
 

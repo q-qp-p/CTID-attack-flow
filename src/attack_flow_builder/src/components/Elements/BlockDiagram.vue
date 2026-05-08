@@ -24,6 +24,7 @@
 
 <script lang="ts">
 import * as AppCommands from "@/assets/scripts/Application/Commands";
+import * as EditorCommands from "@OpenChart/DiagramEditor/Commands";
 // Dependencies
 import { defineComponent } from 'vue';
 import { Cursor, MouseClick } from "@OpenChart/DiagramInterface";
@@ -32,11 +33,11 @@ import { useContextMenuStore } from "@/stores/ContextMenuStore";
 import { LatchView, type DiagramObjectView } from '@/assets/scripts/OpenChart/DiagramView';
 import type { ContextMenuSection } from '@/assets/scripts/Browser';
 import type { Command, CommandEmitter } from '@/assets/scripts/Application';
-import type { DiagramViewEditor, ObjectRecommender } from '@OpenChart/DiagramEditor';
+import type { DiagramViewEditor, ObjectRecommendation, ObjectRecommender } from '@OpenChart/DiagramEditor';
 // Components
 import ContextMenu from "@/components/Controls/ContextMenu.vue";
 import ObjectRecommenderMenu from "@/components/Controls/ObjectRecommenderMenu.vue";
-import { SpawnObject } from "@/assets/scripts/OpenChart/DiagramEditor/Commands/index.commands";
+import { SpawnAction, SpawnObject } from "@/assets/scripts/OpenChart/DiagramEditor/Commands/index.commands";
 import { SpawnObjectConnectedToLatch } from "@/assets/scripts/OpenChart/DiagramEditor/Commands/ViewFile/SpawnObjectConnectedToLatch";
 
 export default defineComponent({
@@ -141,27 +142,37 @@ export default defineComponent({
       this.application.execute(command);
     },
 
-    async onRecommendationSelect(item_id: string) {
+    async onRecommendationSelect(item: ObjectRecommendation) {
         this.recommender.shutdown();
 
         if (!this.lastRecommenderObject) return;
 
-        const spawnCommand = new SpawnObject(
+        const isTieRecommendation = item.isTieRecommendation === true;
+        const spawnCommand = isTieRecommendation ? new SpawnAction(
             this.editor.file,
-            item_id,
+            item.id,
+            this.lastRecommenderObject.x,
+            this.lastRecommenderObject.y,
+        ) : new SpawnObject(
+            this.editor.file,
+            item.id,
             this.lastRecommenderObject.x,
             this.lastRecommenderObject.y,
         );
 
+        let command: EditorCommands.GroupCommand;
         if (this.lastRecommenderObject instanceof LatchView) {
             // If a latch exists, spawn the object and connect it to the latch.
-            const spawnAndConnectCommand = new SpawnObjectConnectedToLatch(
+            command = new SpawnObjectConnectedToLatch(
                 spawnCommand, this.lastRecommenderObject);
-            this.execute(spawnAndConnectCommand);
         } else {
             // If there is no latch to connect it to, just spawn it.
-            this.execute(spawnCommand);
+            command = spawnCommand;
         }
+
+        command.do(EditorCommands.selectObject(this.editor, spawnCommand.object));
+
+        this.execute(command);
     },
 
 
