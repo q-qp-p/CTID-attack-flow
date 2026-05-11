@@ -115,7 +115,7 @@ export default defineComponent({
   flex-direction: column;
   flex-wrap: nowrap;
   gap: 6px;
-  color: #cccccc;
+  color: var(--af-text-color-primary);
 }
 .multiselect-field-control.column {
   flex-direction: column;
@@ -124,25 +124,41 @@ export default defineComponent({
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #cccccc;
+  color: var(--af-text-color-primary);
   font-size: 10pt;
+  font-family: inherit;
   padding: 6px 10px;
   min-height: 32px;
-  border: solid 1px #3d3d3d;
+  border: solid 1px var(--af-border-color-primary);
   border-radius: 4px;
-  background: #2e2e2e;
+  background: var(--af-bg-color-primary);
   cursor: pointer;
   user-select: none;
   width: 100%;
   box-sizing: border-box;
 }
+.option:hover:not(:disabled) {
+  color: var(--af-text-color-hover-action);
+  border-color: var(--af-bg-color-hover-action);
+  background: var(--af-bg-color-hover-action);
+}
+.option:focus-visible {
+  outline: solid 2px var(--af-color-info);
+  outline-offset: 1px;
+}
 .option.dim {
-  color: #8c8c8c;
+  color: var(--af-text-color-disabled);
 }
 .option.active {
-  color: #e6e6e6;
-  background: #3a3a3a;
-  border-color: #4a4a4a;
+  color: var(--af-color-info);
+  border-color: var(--af-color-info);
+  background: var(--af-bg-color-tertiary);
+  font-weight: 500;
+}
+.option.active:hover:not(:disabled) {
+  color: var(--af-text-color-hover-action);
+  border-color: var(--af-bg-color-hover-action);
+  background: var(--af-bg-color-hover-action);
 }
 .option:disabled {
   opacity: 0.6;
@@ -150,6 +166,8 @@ export default defineComponent({
 }
 .checkmark {
   width: 1em;
+  color: var(--af-color-info);
+  font-weight: 600;
   text-align: center;
 }
 .label {
