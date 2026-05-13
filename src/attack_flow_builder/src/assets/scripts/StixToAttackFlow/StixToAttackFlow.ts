@@ -39,6 +39,8 @@ export class StixToAttackFlowConverter {
     public convert(stix: StixBundle): DiagramModelExport {
         // Create canvas
         const canvas = this.factory.createNewDiagramObject(this.factory.canvas, Canvas);
+        // Populate root (canvas) properties from the STIX attack-flow and its referenced author
+        this.populateRootFromBundle(stix, canvas);
         // Create graph of diagram objects from STIX
         const [nodes, edges] = this.parseStixGraph(stix);
         // Mirror graph structure onto nodes
@@ -162,6 +164,56 @@ export class StixToAttackFlowConverter {
         populateProperties(stix, object.properties);
         // Return
         return object;
+    }
+
+    /**
+     * Populate the root canvas properties from a STIX bundle by reading the attack-flow SDO
+     * and its referenced author identity.
+     * @param bundle The STIX bundle
+     * @param canvas The canvas object whose properties should be populated
+     */
+    private populateRootFromBundle(bundle: StixBundle, canvas: Canvas): void {
+        // Find the attack-flow SDO in the bundle
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const flow = bundle.objects.find((o: any) => o && o.type === "attack-flow") as any | undefined;
+        if (!flow) {
+            return; // nothing to populate; keep defaults
+        }
+
+        // Build a plain object that matches the canvas schema keys
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const root: any = { type: "attack-flow" };
+
+        const keys = [
+            "name",
+            "description",
+            "scope",
+            "classification",
+            "ttp_frameworks",
+            "external_references",
+            "created"
+        ];
+        for (const k of keys) {
+            if (flow[k] !== undefined) {
+                root[k] = flow[k];
+            }
+        }
+
+        // Resolve author from created_by_ref (identity SDO)
+        if (flow.created_by_ref) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const author = bundle.objects.find((o: any) => o && o.id === flow.created_by_ref && o.type === "identity") as any | undefined;
+            if (author) {
+                root.author = {
+                    name: author.name,
+                    identity_class: author.identity_class ?? "unknown",
+                    contact_information: author.contact_information
+                };
+            }
+        }
+
+        // Populate onto the canvas using the existing property population utility
+        populateProperties(root as unknown as StixObject, canvas.properties);
     }
 
 
