@@ -7,6 +7,9 @@ poetry install --with api
 poetry run uvicorn attack_flow_api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+On startup, the API initializes SQLite automatically at `SQLITE_PATH` (default: `data/attack-flow.db`).
+It also ensures local storage directories exist for uploads, artifacts, and normalized content under `DATA_DIR`.
+
 Quick check:
 
 ```bash
@@ -27,6 +30,8 @@ export DATA_DIR="data"
 export SQLITE_PATH="data/attack-flow.db"
 export UPLOAD_DIR="data/uploads"
 export ARTIFACT_DIR="data/artifacts"
+export FILE_STORAGE_STRICT_MODE="true"
+export FILE_STORAGE_MAX_BYTES="10485760"
 export PROVIDERS_CONFIG_PATH="config/providers.yml"
 ```
 
@@ -42,4 +47,6 @@ Optional environment variables:
 - `SQLITE_PATH`
 - `UPLOAD_DIR`
 - `ARTIFACT_DIR`
+- `FILE_STORAGE_STRICT_MODE`
+- `FILE_STORAGE_MAX_BYTES`
 - `PROVIDERS_CONFIG_PATH`

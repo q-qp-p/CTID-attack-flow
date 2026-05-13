@@ -36,6 +36,12 @@ class AppSettings(BaseSettings):
     artifact_dir: Path = Field(
         default=Path("data/artifacts"), validation_alias="ARTIFACT_DIR"
     )
+    file_storage_strict_mode: bool = Field(
+        default=True, validation_alias="FILE_STORAGE_STRICT_MODE"
+    )
+    file_storage_max_bytes: int | None = Field(
+        default=None, validation_alias="FILE_STORAGE_MAX_BYTES"
+    )
     providers_config_path: Path = Field(
         default=Path("config/providers.yml"), validation_alias="PROVIDERS_CONFIG_PATH"
     )

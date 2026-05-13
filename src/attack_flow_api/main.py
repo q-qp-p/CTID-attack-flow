@@ -14,6 +14,9 @@ from attack_flow_api.errors import unhandled_exception_handler
 from attack_flow_api.logging_utils import setup_logging
 from attack_flow_api.middleware import RequestContextMiddleware
 from attack_flow_api.routes.health import router as health_router
+from attack_flow_api.services.persistence_service import PersistenceService
+from attack_flow_api.storage.database import initialize_database
+from attack_flow_api.storage.filesystem import LocalFileStorage
 
 
 def create_api_router() -> APIRouter:
@@ -29,10 +32,22 @@ async def lifespan(app: FastAPI):
     providers_config = load_providers_config(settings.providers_config_path)
     runtime_paths = resolve_runtime_paths(settings)
     ensure_runtime_directories(runtime_paths)
+    initialize_database(settings.sqlite_path)
+    persistence_service = PersistenceService(settings.sqlite_path)
+    file_storage = LocalFileStorage(
+        data_dir=settings.data_dir,
+        upload_dir=settings.upload_dir,
+        artifact_dir=settings.artifact_dir,
+        strict_mode=settings.file_storage_strict_mode,
+        max_file_size_bytes=settings.file_storage_max_bytes,
+    )
 
     app.state.settings = settings
     app.state.providers_config = providers_config
     app.state.runtime_paths = runtime_paths
+    app.state.sqlite_path = settings.sqlite_path
+    app.state.persistence_service = persistence_service
+    app.state.file_storage = file_storage
     yield
 
 
