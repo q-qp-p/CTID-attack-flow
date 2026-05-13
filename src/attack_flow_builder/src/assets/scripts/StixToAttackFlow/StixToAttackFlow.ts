@@ -42,9 +42,9 @@ export class StixToAttackFlowConverter {
         // Populate root (canvas) properties from the STIX attack-flow and its referenced author
         this.populateRootFromBundle(stix, canvas);
         // Create graph of diagram objects from STIX
-        const [nodes, edges] = this.parseStixGraph(stix);
+        const [nodes, edges, nodes_to_stix] = this.parseStixGraph(stix);
         // Mirror graph structure onto nodes
-        this.mirrorConnections(nodes);
+        this.mirrorConnections(nodes, nodes_to_stix);
 
         // Add objects to canvas
         for (const o of [...nodes, ...edges]) {
@@ -69,12 +69,13 @@ export class StixToAttackFlowConverter {
      * @param bundle
      *  The STIX bundle.
      * @returns
-     *  The graph's nodes and edges.
+     *  The graph's nodes and edges, as well as a map from nodes to stix objects.
      */
-    private parseStixGraph(bundle: StixBundle): [GraphNode[], GraphEdge[]] {
+    private parseStixGraph(bundle: StixBundle): [GraphNode[], GraphEdge[], Map<string, StixObject>] {
         // Generate node map
         const nodes = new Map<string, GraphNode>();
         const edges = [];
+        const graph_nodes_to_stix_objects = new Map<string, StixObject>();
         for (const obj of bundle.objects) {
             switch (obj.type) {
                 case "relationship":
@@ -105,6 +106,11 @@ export class StixToAttackFlowConverter {
         }
         // Generate embedded relationship edges
         for (const srcObj of bundle.objects) {
+            const srcBlock = nodes.get(srcObj.id);
+            if (srcBlock) {
+                graph_nodes_to_stix_objects.set(srcBlock.id, srcObj);
+            }
+
             // Skip relationships
             switch (srcObj.type as StixObjectType) {
                 case "relationship":
@@ -130,7 +136,9 @@ export class StixToAttackFlowConverter {
             }
         }
 
-        return [[...nodes.values()], edges];
+
+
+        return [[...nodes.values()], edges, graph_nodes_to_stix_objects];
     }
 
     /**
@@ -226,8 +234,10 @@ export class StixToAttackFlowConverter {
      * Mirrors a graph's structure onto the underlying {@link DiagramObject}s.
      * @param nodes
      *  The graph's nodes.
+     * @param nodes_to_stix
+     * A map of graph nodes to their STIX objects.
      */
-    private mirrorConnections(nodes: GraphNode[]) {
+    private mirrorConnections(nodes: GraphNode[], nodes_to_stix: Map<string, StixObject>) {
         const visitedEdges = new Set();
         const unvisitedNodes = new Map(nodes.map(o => [o.id, o]));
         while (unvisitedNodes.size) {
@@ -250,7 +260,9 @@ export class StixToAttackFlowConverter {
                     this.connectBlocks(
                         node.object,
                         edge.target.object,
-                        edge.object
+                        edge.object,
+                        nodes_to_stix.get(node.id),
+                        nodes_to_stix.get(edge.target.id)
                     );
                     // Traverse
                     if (unvisitedNodes.has(edge.target.id)) {
@@ -268,7 +280,9 @@ export class StixToAttackFlowConverter {
                     this.connectBlocks(
                         edge.source.object,
                         node.object,
-                        edge.object
+                        edge.object,
+                        nodes_to_stix.get(edge.source.id),
+                        nodes_to_stix.get(node.id)
                     );
                     if (unvisitedNodes.has(edge.source.id)) {
                         // Traverse
@@ -355,8 +369,10 @@ export class StixToAttackFlowConverter {
      *  The child block.
      * @param line
      *  The line.
+     * @param parent_stix
+     * The STIX object representation of the parent block.
      */
-    private connectBlocks(parent: Block, child: Block, line: Line) {
+    private connectBlocks(parent: Block, child: Block, line: Line, parent_stix: StixObject | undefined, child_stix: StixObject | undefined) {
         const place_below = new Set(["action", "AND_operator", "OR_operator", "condition"]);
 
         let parent_anchor = this.getAvailableAnchor(parent, "w");
@@ -364,9 +380,19 @@ export class StixToAttackFlowConverter {
 
         if (place_below.has(child.id)) {
             child_anchor = child.anchors.get(AnchorPosition.D90);
+            // Special case: Determine anchors to connect for condition blocks.
             if (parent.id === "condition") {
-                // TODO: Encode true/false branch in stix json.
+                // Default to a side anchor.
                 parent_anchor = this.getAvailableAnchor(parent, "w");
+                if (parent_stix && child_stix) {
+                    const true_refs : Array<string> | undefined = "on_true_refs" in parent_stix ? parent_stix.on_true_refs : undefined;
+                    const false_refs : Array<string> | undefined = "on_false_refs" in parent_stix ? parent_stix.on_false_refs : undefined;
+                    if (Array.isArray(true_refs) && true_refs.includes(child_stix.id)) {
+                        parent_anchor = parent.anchors.get("branch:True") as Anchor;
+                    } else if (Array.isArray(false_refs) && false_refs.includes(child_stix.id)) {
+                        parent_anchor = parent.anchors.get("branch:False") as Anchor;
+                    }
+                }
             } else {
                 parent_anchor = this.getAvailableAnchor(parent, "s");
             }

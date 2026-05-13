@@ -517,13 +517,13 @@ class AttackFlowPublisher implements FilePublisher {
                 // Falls through
             case "attack-condition":
                 switch (via) {
-                    case "true_anchor":
+                    case "branch:True":
                         if (!parent.on_true_refs) {
                             parent.on_true_refs = [];
                         }
                         parent.on_true_refs.push(child.id);
                         break;
-                    case "false_anchor":
+                    case "branch:False":
                         if (!parent.on_false_refs) {
                             parent.on_false_refs = [];
                         }
