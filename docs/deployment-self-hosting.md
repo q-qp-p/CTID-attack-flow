@@ -30,9 +30,11 @@ Container run:
 docker build -f Dockerfile.api -t attack-flow-api:local .
 docker run --rm -p 8000:8000 \
   --env-file .env \
-  -v "$(pwd)/data:/var/lib/attack-flow/data" \
+  -v attack_flow_api_data:/var/lib/attack-flow/data \
   attack-flow-api:local
 ```
+
+On macOS with Docker Desktop, a host bind mount (for example `$(pwd)/data:/var/lib/attack-flow/data`) requires that directory to be shared under Docker Desktop file sharing settings.
 
 Compose (API-only):
 
@@ -131,3 +133,47 @@ API CORS runtime environment variables:
 - `CORS_ALLOW_HEADERS=*`
 
 Avoid wildcard CORS for internet-facing deployments unless you fully understand the risk.
+
+## Troubleshooting
+
+### Docker network not found when starting compose
+
+If you see an error like `failed to set up container networking` or `network ... not found`, clean stale compose resources and recreate the stack:
+
+```bash
+docker compose -f docker-compose.proxy.yml down --remove-orphans
+docker compose -f docker-compose.proxy.yml up --build -d
+```
+
+If the issue persists, prune unused networks and retry:
+
+```bash
+docker network prune -f
+docker compose -f docker-compose.proxy.yml up --build -d
+```
+
+You can verify running services with:
+
+```bash
+docker compose -f docker-compose.proxy.yml ps
+```
+
+### Docker Desktop mount denied (macOS)
+
+If you see an error like `mounts denied` and `path ... is not shared from the host`, Docker Desktop does not have access to that host directory.
+
+Options:
+
+1. Use a Docker named volume instead of a host bind mount (recommended):
+
+```bash
+docker run --rm -p 8000:8000 --env-file .env \
+  -v attack_flow_api_data:/var/lib/attack-flow/data \
+  attack-flow-api:local
+```
+
+2. Or add the host path in Docker Desktop:
+
+- Docker Desktop -> Settings (Preferences) -> Resources -> File Sharing
+- Add your repository path (for example `/Users/<you>/code/ctid/flow-viz-4`)
+- Retry the same `docker run` or compose command

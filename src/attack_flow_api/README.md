@@ -18,9 +18,11 @@ docker run --rm -p 8000:8000 \
   -e SQLITE_PATH=/var/lib/attack-flow/data/attack-flow.db \
   -e UPLOAD_DIR=/var/lib/attack-flow/data/uploads \
   -e ARTIFACT_DIR=/var/lib/attack-flow/data/artifacts \
-  -v "$(pwd)/data:/var/lib/attack-flow/data" \
+  -v attack_flow_api_data:/var/lib/attack-flow/data \
   attack-flow-api:local
 ```
+
+If you prefer a host bind mount instead of a named volume, ensure the host path is shared in Docker Desktop first.
 
 Run with API-only Docker Compose:
 
