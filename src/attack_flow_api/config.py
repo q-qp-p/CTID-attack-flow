@@ -28,6 +28,13 @@ class AppSettings(BaseSettings):
     api_port: int = Field(default=8000, validation_alias="API_PORT")
     api_prefix: str = Field(default="/api/v1", validation_alias="API_PREFIX")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+    cors_enabled: bool = Field(default=False, validation_alias="CORS_ENABLED")
+    cors_allow_origins: str = Field(default="", validation_alias="CORS_ALLOW_ORIGINS")
+    cors_allow_credentials: bool = Field(
+        default=False, validation_alias="CORS_ALLOW_CREDENTIALS"
+    )
+    cors_allow_methods: str = Field(default="*", validation_alias="CORS_ALLOW_METHODS")
+    cors_allow_headers: str = Field(default="*", validation_alias="CORS_ALLOW_HEADERS")
     data_dir: Path = Field(default=Path("data"), validation_alias="DATA_DIR")
     sqlite_path: Path = Field(
         default=Path("data/attack-flow.db"), validation_alias="SQLITE_PATH"

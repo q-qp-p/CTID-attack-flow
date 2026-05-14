@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from attack_flow_api.config import (
     AppSettings,
@@ -54,10 +55,22 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     settings = load_settings()
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
+    if settings.cors_enabled:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=_split_csv(settings.cors_allow_origins),
+            allow_credentials=settings.cors_allow_credentials,
+            allow_methods=_split_csv(settings.cors_allow_methods) or ["*"],
+            allow_headers=_split_csv(settings.cors_allow_headers) or ["*"],
+        )
     app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(create_api_router(), prefix=settings.api_prefix)
     return app
+
+
+def _split_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 app = create_app()

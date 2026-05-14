@@ -34,6 +34,7 @@ review the Example Flows and JSON Schema for the language.
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | [Documentation](https://center-for-threat-informed-defense.github.io/attack-flow/)          | Complete documentation for the Attack Flow project.    |
 | [Attack Flow Builder](https://center-for-threat-informed-defense.github.io/attack-flow/ui/) | An online GUI tool for building Attack Flows.          |
+| [Self-Hosting Deployment](docs/deployment-self-hosting.md)                                   | Deploy API and UI separately with Docker.              |
 | [JSON Schema](/stix/attack-flow-schema-2.0.0.json)                                          | The language specification expressed as a JSON Schema. |
 | [Example Flows](/corpus/)                                                                   | A corpus of example Attack Flows.                      |
 

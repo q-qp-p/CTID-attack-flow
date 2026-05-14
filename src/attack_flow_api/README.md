@@ -7,6 +7,51 @@ poetry install --with api
 poetry run uvicorn attack_flow_api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+Run in Docker (API only):
+
+```bash
+docker build -f Dockerfile.api -t attack-flow-api:local .
+docker run --rm -p 8000:8000 \
+  -e API_HOST=0.0.0.0 \
+  -e API_PORT=8000 \
+  -e DATA_DIR=/var/lib/attack-flow/data \
+  -e SQLITE_PATH=/var/lib/attack-flow/data/attack-flow.db \
+  -e UPLOAD_DIR=/var/lib/attack-flow/data/uploads \
+  -e ARTIFACT_DIR=/var/lib/attack-flow/data/artifacts \
+  -v "$(pwd)/data:/var/lib/attack-flow/data" \
+  attack-flow-api:local
+```
+
+Run with API-only Docker Compose:
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.api.yml up --build
+```
+
+Run UI separately with UI-only Docker Compose:
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.ui.yml up --build
+```
+
+Optional bundled proxy stack:
+
+```bash
+docker compose -f docker-compose.proxy.yml up --build
+```
+
+This optional stack proxies `/` to UI and `/api/` to API.
+By default it builds UI with `VITE_API_BASE_URL_PROXY=/api/v1`.
+
+Optional same-origin proxy example:
+
+- See `deploy/nginx/ui-api-proxy.conf` for a minimal nginx example that serves UI static files and proxies `/api/` to the backend API.
+- This is optional convenience only; separate API and UI deployment remains the default model.
+
+For full self-hosting guidance (API/UI separate deployment, persistence, env setup, and CORS notes), see `docs/deployment-self-hosting.md`.
+
 On startup, the API initializes SQLite automatically at `SQLITE_PATH` (default: `data/attack-flow.db`).
 It also ensures local storage directories exist for uploads, artifacts, and normalized content under `DATA_DIR`.
 
