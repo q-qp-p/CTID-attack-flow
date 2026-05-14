@@ -11,7 +11,10 @@ authors = [
     "Michael Carenzo <mcarenzo@mitre.org>",
     "Ron Alford <ralford@mitre.org>",
 ]
-packages = [{ include = "attack_flow", from = "src" }]
+packages = [
+    { include = "attack_flow", from = "src" },
+    { include = "attack_flow_api", from = "src" },
+]
 license = "Apache"
 
 [tool.poetry.scripts]
@@ -28,6 +31,16 @@ graphviz = "^0.20.1"
 defusedxml = "^0.7.1"
 bumpver = "^2022.1119"
 python-slugify = "^8.0.4"
+
+[tool.poetry.group.api]
+optional = true
+
+[tool.poetry.group.api.dependencies]
+fastapi = "^0.116.0"
+uvicorn = {extras = ["standard"], version = "^0.35.0"}
+pydantic = "^2.11.7"
+pydantic-settings = "^2.10.1"
+pyyaml = "^6.0.2"
 
 [tool.poetry.group.dev.dependencies]
 bandit = "1.7.0"
