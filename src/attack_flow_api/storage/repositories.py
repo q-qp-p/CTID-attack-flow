@@ -310,3 +310,22 @@ class PersistenceRepository:
             created_at=_require_datetime(row["created_at"], "created_at"),
             metadata_json=row["metadata_json"],
         )
+
+    def is_database_ready(self) -> bool:
+        with create_connection(self.sqlite_path) as connection:
+            row = connection.execute("SELECT 1 AS ready").fetchone()
+        return bool(row is not None and row["ready"] == 1)
+
+    def get_job_status_counts(self) -> dict[str, int]:
+        with create_connection(self.sqlite_path) as connection:
+            rows = connection.execute(
+                "SELECT status, COUNT(*) AS count FROM jobs GROUP BY status"
+            ).fetchall()
+
+        counts: dict[str, int] = {}
+        for row in rows:
+            status = row["status"]
+            if status is None:
+                continue
+            counts[str(status)] = int(row["count"])
+        return counts

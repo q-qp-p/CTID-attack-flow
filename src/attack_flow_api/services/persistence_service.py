@@ -40,3 +40,9 @@ class PersistenceService:
 
     def create_audit_event(self, payload: AuditEventCreate) -> AuditEvent:
         return self.repository.create_audit_event(payload)
+
+    def is_database_ready(self) -> bool:
+        return self.repository.is_database_ready()
+
+    def get_job_status_counts(self) -> dict[str, int]:
+        return self.repository.get_job_status_counts()
