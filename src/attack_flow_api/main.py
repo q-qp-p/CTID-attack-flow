@@ -13,7 +13,11 @@ from attack_flow_api.config import (
 )
 from attack_flow_api.errors import (
     BadRequestError,
+    ConflictError,
+    NotFoundError,
     bad_request_exception_handler,
+    conflict_exception_handler,
+    not_found_exception_handler,
     unhandled_exception_handler,
 )
 from attack_flow_api.logging_utils import setup_logging
@@ -71,6 +75,8 @@ def create_app() -> FastAPI:
         )
     app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(BadRequestError, bad_request_exception_handler)
+    app.add_exception_handler(NotFoundError, not_found_exception_handler)
+    app.add_exception_handler(ConflictError, conflict_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(create_api_router(), prefix=settings.api_prefix)
     return app

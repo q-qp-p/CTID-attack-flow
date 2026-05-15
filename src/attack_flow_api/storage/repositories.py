@@ -41,6 +41,7 @@ class JobUpdate:
     provider_id: str | None = None
     model: str | None = None
     input_source_id: str | None = None
+    result_json: str | None = None
     completed_at: datetime | None = None
     error_code: str | None = None
     error_message: str | None = None
@@ -93,9 +94,9 @@ class PersistenceRepository:
                 """
                 INSERT INTO jobs (
                     id, status, stage, provider_id, model, input_source_id,
-                    created_at, updated_at, request_id
+                    result_json, created_at, updated_at, request_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
@@ -104,6 +105,7 @@ class PersistenceRepository:
                     payload.provider_id,
                     payload.model,
                     payload.input_source_id,
+                    None,
                     now,
                     now,
                     payload.request_id,
@@ -122,6 +124,7 @@ class PersistenceRepository:
             "provider_id",
             "model",
             "input_source_id",
+            "result_json",
             "error_code",
             "error_message",
             "request_id",
@@ -159,6 +162,7 @@ class PersistenceRepository:
             provider_id=row["provider_id"],
             model=row["model"],
             input_source_id=row["input_source_id"],
+            result_json=row["result_json"],
             created_at=_require_datetime(row["created_at"], "created_at"),
             updated_at=_require_datetime(row["updated_at"], "updated_at"),
             completed_at=_parse_datetime(row["completed_at"]),
@@ -342,3 +346,28 @@ class PersistenceRepository:
                 continue
             counts[str(status)] = int(row["count"])
         return counts
+
+    def delete_artifacts_for_job(self, job_id: str) -> int:
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute("DELETE FROM artifacts WHERE job_id = ?", (job_id,))
+        return int(result.rowcount)
+
+    def delete_job(self, job_id: str) -> bool:
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        return result.rowcount > 0
+
+    def count_jobs_by_input_source(self, input_source_id: str) -> int:
+        with create_connection(self.sqlite_path) as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) AS count FROM jobs WHERE input_source_id = ?",
+                (input_source_id,),
+            ).fetchone()
+        if row is None:
+            return 0
+        return int(row["count"])
+
+    def delete_input_source(self, input_source_id: str) -> bool:
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute("DELETE FROM input_sources WHERE id = ?", (input_source_id,))
+        return result.rowcount > 0

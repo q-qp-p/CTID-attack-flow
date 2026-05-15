@@ -27,6 +27,9 @@ class PersistenceService:
     def create_input_source(self, payload: InputSourceCreate) -> InputSource:
         return self.repository.create_input_source(payload)
 
+    def get_input_source(self, input_source_id: str) -> InputSource | None:
+        return self.repository.get_input_source(input_source_id)
+
     def create_artifact(self, payload: ArtifactCreate) -> Artifact:
         return self.repository.create_artifact(payload)
 
@@ -46,3 +49,15 @@ class PersistenceService:
 
     def get_job_status_counts(self) -> dict[str, int]:
         return self.repository.get_job_status_counts()
+
+    def delete_artifacts_for_job(self, job_id: str) -> int:
+        return self.repository.delete_artifacts_for_job(job_id)
+
+    def delete_job(self, job_id: str) -> bool:
+        return self.repository.delete_job(job_id)
+
+    def count_jobs_by_input_source(self, input_source_id: str) -> int:
+        return self.repository.count_jobs_by_input_source(input_source_id)
+
+    def delete_input_source(self, input_source_id: str) -> bool:
+        return self.repository.delete_input_source(input_source_id)

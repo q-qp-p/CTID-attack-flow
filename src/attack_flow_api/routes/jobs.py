@@ -5,11 +5,12 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Request
+from fastapi.responses import FileResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, ConfigDict, ValidationError
 from starlette.datastructures import UploadFile
 
-from attack_flow_api.errors import BadRequestError
+from attack_flow_api.errors import BadRequestError, ConflictError, NotFoundError
 from attack_flow_api.storage.repositories import InputSourceCreate, JobCreate
 
 
@@ -31,6 +32,44 @@ class JobSubmissionResponse(BaseModel):
     status: str
     submitted_at: str
     poll_url: str
+    request_id: str
+
+
+class JobInputSummary(BaseModel):
+    input_type: str | None = None
+    original_filename: str | None = None
+    title: str | None = None
+
+
+class JobArtifactsSummary(BaseModel):
+    has_stix: bool
+    has_afb: bool
+    stix_url: str | None = None
+    afb_url: str | None = None
+
+
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    stage: str
+    created_at: str
+    updated_at: str
+    completed_at: str | None = None
+    input: JobInputSummary
+    artifacts: JobArtifactsSummary
+    request_id: str
+
+
+class JobDeleteResponse(BaseModel):
+    job_id: str
+    deleted: bool
+    request_id: str
+
+
+class JobResultResponse(BaseModel):
+    job_id: str
+    status: str
+    result: dict[str, Any]
     request_id: str
 
 
@@ -336,3 +375,332 @@ submit_job.openapi_extra = {
         },
     }
 }
+
+
+@router.get(
+    "/jobs/{job_id}",
+    response_model=JobStatusResponse,
+    responses={
+        404: {
+            "description": "Job not found",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "code": "job_not_found",
+                            "message": "Job not found",
+                            "details": [],
+                        },
+                        "request_id": "<request-id>",
+                    }
+                }
+            },
+        }
+    },
+)
+def get_job_status(request: Request, job_id: str) -> JobStatusResponse:
+    persistence_service = request.app.state.persistence_service
+    job = _get_job_or_404(persistence_service, job_id)
+
+    input_summary = JobInputSummary()
+    if job.input_source_id is not None:
+        input_source = persistence_service.get_input_source(job.input_source_id)
+        if input_source is not None:
+            input_summary = JobInputSummary(
+                input_type=input_source.type,
+                original_filename=input_source.original_name,
+                title=input_source.title,
+            )
+
+    artifacts = persistence_service.list_artifacts(job_id=job.id)
+    has_stix = any(artifact.type == "stix" for artifact in artifacts)
+    has_afb = any(artifact.type == "afb" for artifact in artifacts)
+    api_prefix = request.app.state.settings.api_prefix
+
+    return JobStatusResponse(
+        job_id=job.id,
+        status=job.status,
+        stage=job.stage,
+        created_at=_to_utc_z(job.created_at),
+        updated_at=_to_utc_z(job.updated_at),
+        completed_at=_to_utc_z(job.completed_at),
+        input=input_summary,
+        artifacts=JobArtifactsSummary(
+            has_stix=has_stix,
+            has_afb=has_afb,
+            stix_url=f"{api_prefix}/jobs/{job.id}/artifacts/stix" if has_stix else None,
+            afb_url=f"{api_prefix}/jobs/{job.id}/artifacts/afb" if has_afb else None,
+        ),
+        request_id=request.state.request_id,
+    )
+
+
+@router.delete(
+    "/jobs/{job_id}",
+    response_model=JobDeleteResponse,
+    responses={
+        404: {
+            "description": "Job not found",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "code": "job_not_found",
+                            "message": "Job not found",
+                            "details": [],
+                        },
+                        "request_id": "<request-id>",
+                    }
+                }
+            },
+        }
+    },
+)
+def delete_job(request: Request, job_id: str) -> JobDeleteResponse:
+    persistence_service = request.app.state.persistence_service
+    file_storage = request.app.state.file_storage
+
+    job = _get_job_or_404(persistence_service, job_id)
+
+    artifact_paths = [artifact.path for artifact in persistence_service.list_artifacts(job_id=job.id)]
+    input_storage_path = None
+    if job.input_source_id is not None:
+        input_source = persistence_service.get_input_source(job.input_source_id)
+        if input_source is not None:
+            input_storage_path = input_source.storage_path
+
+    for artifact_path in artifact_paths:
+        try:
+            file_storage.delete_stored_file(artifact_path)
+        except FileNotFoundError:
+            pass
+
+    if input_storage_path:
+        try:
+            file_storage.delete_stored_file(input_storage_path)
+        except FileNotFoundError:
+            pass
+
+    persistence_service.delete_artifacts_for_job(job.id)
+    persistence_service.delete_job(job.id)
+    if job.input_source_id is not None and persistence_service.count_jobs_by_input_source(job.input_source_id) == 0:
+        persistence_service.delete_input_source(job.input_source_id)
+
+    return JobDeleteResponse(job_id=job.id, deleted=True, request_id=request.state.request_id)
+
+
+@router.get(
+    "/jobs/{job_id}/artifacts/stix",
+    responses={
+        200: {
+            "description": "Download STIX artifact as JSON file",
+            "content": {"application/json": {}},
+        },
+        404: {
+            "description": "Job or STIX artifact not found",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "job_not_found": {
+                            "value": {
+                                "error": {
+                                    "code": "job_not_found",
+                                    "message": "Job not found",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        },
+                        "artifact_not_found": {
+                            "value": {
+                                "error": {
+                                    "code": "artifact_not_found",
+                                    "message": "stix artifact not found",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+def download_job_stix_artifact(request: Request, job_id: str) -> FileResponse:
+    return _download_job_artifact(
+        request,
+        job_id=job_id,
+        artifact_type="stix",
+        download_extension="json",
+    )
+
+
+@router.get(
+    "/jobs/{job_id}/artifacts/afb",
+    responses={
+        200: {
+            "description": "Download AFB artifact as file (.afb filename)",
+            "content": {"application/json": {}},
+        },
+        404: {
+            "description": "Job or AFB artifact not found",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "job_not_found": {
+                            "value": {
+                                "error": {
+                                    "code": "job_not_found",
+                                    "message": "Job not found",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        },
+                        "artifact_not_found": {
+                            "value": {
+                                "error": {
+                                    "code": "artifact_not_found",
+                                    "message": "afb artifact not found",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+def download_job_afb_artifact(request: Request, job_id: str) -> FileResponse:
+    return _download_job_artifact(
+        request,
+        job_id=job_id,
+        artifact_type="afb",
+        download_extension="afb",
+    )
+
+
+def _download_job_artifact(
+    request: Request,
+    job_id: str,
+    artifact_type: str,
+    download_extension: str,
+) -> FileResponse:
+    persistence_service = request.app.state.persistence_service
+    file_storage = request.app.state.file_storage
+
+    job = _get_job_or_404(persistence_service, job_id)
+
+    artifact = _get_artifact_or_404(persistence_service, job.id, artifact_type)
+    absolute_path = _resolve_artifact_path_or_404(file_storage, artifact.path, artifact_type)
+
+    return FileResponse(
+        path=absolute_path,
+        media_type="application/json",
+        filename=f"{job.id}-{artifact_type}.{download_extension}",
+    )
+
+
+@router.get(
+    "/jobs/{job_id}/result",
+    response_model=JobResultResponse,
+    responses={
+        404: {
+            "description": "Job not found",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "code": "job_not_found",
+                            "message": "Job not found",
+                            "details": [],
+                        },
+                        "request_id": "<request-id>",
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Result not ready",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "code": "result_not_ready",
+                            "message": "Result is not ready",
+                            "details": [],
+                        },
+                        "request_id": "<request-id>",
+                    }
+                }
+            },
+        },
+    },
+)
+def get_job_result(request: Request, job_id: str) -> JobResultResponse:
+    persistence_service = request.app.state.persistence_service
+    job = _get_job_or_404(persistence_service, job_id)
+
+    if not job.result_json:
+        raise ConflictError(code="result_not_ready", message="Result is not ready", details=[])
+
+    try:
+        parsed_result = json.loads(job.result_json)
+    except json.JSONDecodeError:
+        raise ConflictError(code="result_not_ready", message="Result is not ready", details=[])
+
+    if not isinstance(parsed_result, dict):
+        raise ConflictError(code="result_not_ready", message="Result is not ready", details=[])
+
+    return JobResultResponse(
+        job_id=job.id,
+        status=job.status,
+        result=parsed_result,
+        request_id=request.state.request_id,
+    )
+
+
+def _get_job_or_404(persistence_service: Any, job_id: str) -> Any:
+    job = persistence_service.get_job(job_id)
+    if job is None:
+        raise NotFoundError(code="job_not_found", message="Job not found", details=[])
+    return job
+
+
+def _get_artifact_or_404(persistence_service: Any, job_id: str, artifact_type: str) -> Any:
+    artifacts = persistence_service.list_artifacts(job_id=job_id, artifact_type=artifact_type)
+    if not artifacts:
+        raise NotFoundError(
+            code="artifact_not_found",
+            message=f"{artifact_type} artifact not found",
+            details=[],
+        )
+    return artifacts[0]
+
+
+def _resolve_artifact_path_or_404(file_storage: Any, relative_path: str, artifact_type: str):
+    try:
+        absolute_path = file_storage.resolve_stored_path(relative_path)
+    except (FileNotFoundError, ValueError):
+        raise NotFoundError(
+            code="artifact_not_found",
+            message=f"{artifact_type} artifact not found",
+            details=[],
+        ) from None
+
+    if not absolute_path.exists() or not absolute_path.is_file():
+        raise NotFoundError(
+            code="artifact_not_found",
+            message=f"{artifact_type} artifact not found",
+            details=[],
+        )
+    return absolute_path
+
+
+def _to_utc_z(value: Any) -> str | None:
+    if value is None:
+        return None
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")

@@ -10,6 +10,7 @@ class Job:
     provider_id: str | None
     model: str | None
     input_source_id: str | None
+    result_json: str | None
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None
