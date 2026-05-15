@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
@@ -11,10 +12,20 @@ from attack_flow_api.config import (
     load_settings,
     resolve_runtime_paths,
 )
-from attack_flow_api.errors import unhandled_exception_handler
+from attack_flow_api.errors import (
+    BadRequestError,
+    ConflictError,
+    NotFoundError,
+    bad_request_exception_handler,
+    conflict_exception_handler,
+    not_found_exception_handler,
+    unhandled_exception_handler,
+)
 from attack_flow_api.logging_utils import setup_logging
+from attack_flow_api.routes.jobs import router as jobs_router
 from attack_flow_api.middleware import RequestContextMiddleware
 from attack_flow_api.routes.health import router as health_router
+from attack_flow_api.services.job_worker_service import JobWorkerService
 from attack_flow_api.services.persistence_service import PersistenceService
 from attack_flow_api.storage.database import initialize_database
 from attack_flow_api.storage.filesystem import LocalFileStorage
@@ -23,6 +34,7 @@ from attack_flow_api.storage.filesystem import LocalFileStorage
 def create_api_router() -> APIRouter:
     router = APIRouter()
     router.include_router(health_router)
+    router.include_router(jobs_router)
     return router
 
 
@@ -49,7 +61,19 @@ async def lifespan(app: FastAPI):
     app.state.sqlite_path = settings.sqlite_path
     app.state.persistence_service = persistence_service
     app.state.file_storage = file_storage
-    yield
+    job_worker = JobWorkerService(persistence_service=persistence_service)
+    worker_task = asyncio.create_task(job_worker.run(), name="job-worker")
+    app.state.job_worker = job_worker
+    app.state.job_worker_task = worker_task
+    try:
+        yield
+    finally:
+        job_worker.stop()
+        worker_task.cancel()
+        try:
+            await worker_task
+        except asyncio.CancelledError:
+            pass
 
 
 def create_app() -> FastAPI:
@@ -64,6 +88,9 @@ def create_app() -> FastAPI:
             allow_headers=_split_csv(settings.cors_allow_headers) or ["*"],
         )
     app.add_middleware(RequestContextMiddleware)
+    app.add_exception_handler(BadRequestError, bad_request_exception_handler)
+    app.add_exception_handler(NotFoundError, not_found_exception_handler)
+    app.add_exception_handler(ConflictError, conflict_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(create_api_router(), prefix=settings.api_prefix)
     return app

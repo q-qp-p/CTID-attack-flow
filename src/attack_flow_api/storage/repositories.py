@@ -10,6 +10,10 @@ def _utcnow_iso() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
 def _parse_datetime(value: str | None) -> datetime | None:
     if value is None:
         return None
@@ -38,9 +42,15 @@ class JobCreate:
 class JobUpdate:
     status: str | None = None
     stage: str | None = None
+    progress_percent: int | None = None
+    started_at: datetime | None = None
+    last_heartbeat_at: datetime | None = None
+    worker_id: str | None = None
+    attempt_count: int | None = None
     provider_id: str | None = None
     model: str | None = None
     input_source_id: str | None = None
+    result_json: str | None = None
     completed_at: datetime | None = None
     error_code: str | None = None
     error_message: str | None = None
@@ -53,6 +63,10 @@ class InputSourceCreate:
     type: str
     original_name: str | None = None
     source_url: str | None = None
+    content_text: str | None = None
+    storage_path: str | None = None
+    metadata_json: str | None = None
+    options_json: str | None = None
     mime_type: str | None = None
     size_bytes: int | None = None
     sha256: str | None = None
@@ -89,9 +103,10 @@ class PersistenceRepository:
                 """
                 INSERT INTO jobs (
                     id, status, stage, provider_id, model, input_source_id,
-                    created_at, updated_at, request_id
+                    result_json, progress_percent, started_at, last_heartbeat_at,
+                    worker_id, attempt_count, created_at, updated_at, request_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
@@ -100,6 +115,12 @@ class PersistenceRepository:
                     payload.provider_id,
                     payload.model,
                     payload.input_source_id,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    0,
                     now,
                     now,
                     payload.request_id,
@@ -115,9 +136,13 @@ class PersistenceRepository:
         for field_name in (
             "status",
             "stage",
+            "progress_percent",
+            "worker_id",
+            "attempt_count",
             "provider_id",
             "model",
             "input_source_id",
+            "result_json",
             "error_code",
             "error_message",
             "request_id",
@@ -128,6 +153,10 @@ class PersistenceRepository:
 
         if payload.completed_at is not None:
             updates["completed_at"] = payload.completed_at.isoformat().replace("+00:00", "Z")
+        if payload.started_at is not None:
+            updates["started_at"] = payload.started_at.isoformat().replace("+00:00", "Z")
+        if payload.last_heartbeat_at is not None:
+            updates["last_heartbeat_at"] = payload.last_heartbeat_at.isoformat().replace("+00:00", "Z")
 
         updates["updated_at"] = _utcnow_iso()
         set_clause = ", ".join([f"{key} = ?" for key in updates])
@@ -155,6 +184,12 @@ class PersistenceRepository:
             provider_id=row["provider_id"],
             model=row["model"],
             input_source_id=row["input_source_id"],
+            result_json=row["result_json"],
+            progress_percent=row["progress_percent"],
+            started_at=_parse_datetime(row["started_at"]),
+            last_heartbeat_at=_parse_datetime(row["last_heartbeat_at"]),
+            worker_id=row["worker_id"],
+            attempt_count=int(row["attempt_count"] or 0),
             created_at=_require_datetime(row["created_at"], "created_at"),
             updated_at=_require_datetime(row["updated_at"], "updated_at"),
             completed_at=_parse_datetime(row["completed_at"]),
@@ -163,22 +198,121 @@ class PersistenceRepository:
             request_id=row["request_id"],
         )
 
+    def claim_next_queued_job(self, worker_id: str) -> Job | None:
+        now = _utcnow_iso()
+        with create_connection(self.sqlite_path) as connection:
+            row = connection.execute(
+                """
+                SELECT id
+                FROM jobs
+                WHERE status = ?
+                ORDER BY created_at ASC
+                LIMIT 1
+                """,
+                ("queued",),
+            ).fetchone()
+            if row is None:
+                return None
+
+            job_id = str(row["id"])
+            result = connection.execute(
+                """
+                UPDATE jobs
+                SET status = ?,
+                    stage = ?,
+                    updated_at = ?,
+                    started_at = COALESCE(started_at, ?),
+                    last_heartbeat_at = ?,
+                    worker_id = ?,
+                    progress_percent = ?,
+                    attempt_count = attempt_count + 1
+                WHERE id = ? AND status = ?
+                """,
+                (
+                    "fetching",
+                    "fetching",
+                    now,
+                    now,
+                    now,
+                    worker_id,
+                    10,
+                    job_id,
+                    "queued",
+                ),
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_job(job_id)
+
+    def update_job_lifecycle(
+        self,
+        job_id: str,
+        *,
+        status: str,
+        stage: str,
+        progress_percent: int | None = None,
+        worker_id: str | None = None,
+    ) -> Job | None:
+        return self.update_job(
+            job_id,
+            JobUpdate(
+                status=status,
+                stage=stage,
+                progress_percent=progress_percent,
+                worker_id=worker_id,
+                last_heartbeat_at=_utcnow(),
+            ),
+        )
+
+    def mark_job_completed(self, job_id: str) -> Job | None:
+        now = _utcnow()
+        return self.update_job(
+            job_id,
+            JobUpdate(
+                status="completed",
+                stage="completed",
+                progress_percent=100,
+                completed_at=now,
+                last_heartbeat_at=now,
+            ),
+        )
+
+    def mark_job_failed(self, job_id: str, error_code: str, error_message: str) -> Job | None:
+        now = _utcnow()
+        return self.update_job(
+            job_id,
+            JobUpdate(
+                status="failed",
+                stage="failed",
+                completed_at=now,
+                last_heartbeat_at=now,
+                error_code=error_code,
+                error_message=error_message,
+            ),
+        )
+
     def create_input_source(self, payload: InputSourceCreate) -> InputSource:
         now = _utcnow_iso()
         with create_connection(self.sqlite_path) as connection:
             connection.execute(
                 """
                 INSERT INTO input_sources (
-                    id, type, original_name, source_url, mime_type,
+                    id, type, original_name, source_url, content_text, storage_path, metadata_json,
+                    options_json, mime_type,
                     size_bytes, sha256, title, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
                     payload.type,
                     payload.original_name,
                     payload.source_url,
+                    payload.content_text,
+                    payload.storage_path,
+                    payload.metadata_json,
+                    payload.options_json,
                     payload.mime_type,
                     payload.size_bytes,
                     payload.sha256,
@@ -200,6 +334,10 @@ class PersistenceRepository:
             type=row["type"],
             original_name=row["original_name"],
             source_url=row["source_url"],
+            content_text=row["content_text"],
+            storage_path=row["storage_path"],
+            metadata_json=row["metadata_json"],
+            options_json=row["options_json"],
             mime_type=row["mime_type"],
             size_bytes=row["size_bytes"],
             sha256=row["sha256"],
@@ -310,3 +448,47 @@ class PersistenceRepository:
             created_at=_require_datetime(row["created_at"], "created_at"),
             metadata_json=row["metadata_json"],
         )
+
+    def is_database_ready(self) -> bool:
+        with create_connection(self.sqlite_path) as connection:
+            row = connection.execute("SELECT 1 AS ready").fetchone()
+        return bool(row is not None and row["ready"] == 1)
+
+    def get_job_status_counts(self) -> dict[str, int]:
+        with create_connection(self.sqlite_path) as connection:
+            rows = connection.execute(
+                "SELECT status, COUNT(*) AS count FROM jobs GROUP BY status"
+            ).fetchall()
+
+        counts: dict[str, int] = {}
+        for row in rows:
+            status = row["status"]
+            if status is None:
+                continue
+            counts[str(status)] = int(row["count"])
+        return counts
+
+    def delete_artifacts_for_job(self, job_id: str) -> int:
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute("DELETE FROM artifacts WHERE job_id = ?", (job_id,))
+        return int(result.rowcount)
+
+    def delete_job(self, job_id: str) -> bool:
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        return result.rowcount > 0
+
+    def count_jobs_by_input_source(self, input_source_id: str) -> int:
+        with create_connection(self.sqlite_path) as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) AS count FROM jobs WHERE input_source_id = ?",
+                (input_source_id,),
+            ).fetchone()
+        if row is None:
+            return 0
+        return int(row["count"])
+
+    def delete_input_source(self, input_source_id: str) -> bool:
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute("DELETE FROM input_sources WHERE id = ?", (input_source_id,))
+        return result.rowcount > 0

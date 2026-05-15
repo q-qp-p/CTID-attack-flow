@@ -27,6 +27,9 @@ class PersistenceService:
     def create_input_source(self, payload: InputSourceCreate) -> InputSource:
         return self.repository.create_input_source(payload)
 
+    def get_input_source(self, input_source_id: str) -> InputSource | None:
+        return self.repository.get_input_source(input_source_id)
+
     def create_artifact(self, payload: ArtifactCreate) -> Artifact:
         return self.repository.create_artifact(payload)
 
@@ -40,3 +43,47 @@ class PersistenceService:
 
     def create_audit_event(self, payload: AuditEventCreate) -> AuditEvent:
         return self.repository.create_audit_event(payload)
+
+    def is_database_ready(self) -> bool:
+        return self.repository.is_database_ready()
+
+    def get_job_status_counts(self) -> dict[str, int]:
+        return self.repository.get_job_status_counts()
+
+    def delete_artifacts_for_job(self, job_id: str) -> int:
+        return self.repository.delete_artifacts_for_job(job_id)
+
+    def delete_job(self, job_id: str) -> bool:
+        return self.repository.delete_job(job_id)
+
+    def count_jobs_by_input_source(self, input_source_id: str) -> int:
+        return self.repository.count_jobs_by_input_source(input_source_id)
+
+    def delete_input_source(self, input_source_id: str) -> bool:
+        return self.repository.delete_input_source(input_source_id)
+
+    def claim_next_queued_job(self, worker_id: str) -> Job | None:
+        return self.repository.claim_next_queued_job(worker_id)
+
+    def update_job_lifecycle(
+        self,
+        job_id: str,
+        *,
+        status: str,
+        stage: str,
+        progress_percent: int | None = None,
+        worker_id: str | None = None,
+    ) -> Job | None:
+        return self.repository.update_job_lifecycle(
+            job_id,
+            status=status,
+            stage=stage,
+            progress_percent=progress_percent,
+            worker_id=worker_id,
+        )
+
+    def mark_job_completed(self, job_id: str) -> Job | None:
+        return self.repository.mark_job_completed(job_id)
+
+    def mark_job_failed(self, job_id: str, error_code: str, error_message: str) -> Job | None:
+        return self.repository.mark_job_failed(job_id, error_code=error_code, error_message=error_message)

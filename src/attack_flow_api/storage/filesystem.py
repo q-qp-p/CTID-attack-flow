@@ -64,6 +64,15 @@ class LocalFileStorage:
         file_path = self.resolve_stored_path(relative_path)
         return file_path.read_bytes()
 
+    def delete_stored_file(self, relative_path: str) -> bool:
+        file_path = self.resolve_stored_path(relative_path)
+        if not file_path.exists():
+            return False
+        if file_path.is_dir():
+            raise ValueError("Refusing to delete directory path")
+        file_path.unlink()
+        return True
+
     def resolve_stored_path(self, relative_path: str) -> Path:
         candidate = (self.data_dir / relative_path).resolve()
         if not self._is_within_data_dir(candidate):
