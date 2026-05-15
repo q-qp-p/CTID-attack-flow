@@ -53,6 +53,10 @@ class InputSourceCreate:
     type: str
     original_name: str | None = None
     source_url: str | None = None
+    content_text: str | None = None
+    storage_path: str | None = None
+    metadata_json: str | None = None
+    options_json: str | None = None
     mime_type: str | None = None
     size_bytes: int | None = None
     sha256: str | None = None
@@ -169,16 +173,21 @@ class PersistenceRepository:
             connection.execute(
                 """
                 INSERT INTO input_sources (
-                    id, type, original_name, source_url, mime_type,
+                    id, type, original_name, source_url, content_text, storage_path, metadata_json,
+                    options_json, mime_type,
                     size_bytes, sha256, title, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
                     payload.type,
                     payload.original_name,
                     payload.source_url,
+                    payload.content_text,
+                    payload.storage_path,
+                    payload.metadata_json,
+                    payload.options_json,
                     payload.mime_type,
                     payload.size_bytes,
                     payload.sha256,
@@ -200,6 +209,10 @@ class PersistenceRepository:
             type=row["type"],
             original_name=row["original_name"],
             source_url=row["source_url"],
+            content_text=row["content_text"],
+            storage_path=row["storage_path"],
+            metadata_json=row["metadata_json"],
+            options_json=row["options_json"],
             mime_type=row["mime_type"],
             size_bytes=row["size_bytes"],
             sha256=row["sha256"],

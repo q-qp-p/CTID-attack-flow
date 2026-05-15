@@ -1,9 +1,35 @@
 import logging
+from dataclasses import dataclass, field
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from attack_flow_api.middleware import REQUEST_ID_HEADER
+
+
+@dataclass(slots=True)
+class BadRequestError(Exception):
+    code: str
+    message: str
+    details: list[dict[str, object]] = field(default_factory=list)
+
+
+async def bad_request_exception_handler(request: Request, exc: BadRequestError) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", "")
+    response = JSONResponse(
+        status_code=400,
+        content={
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "details": exc.details,
+            },
+            "request_id": request_id,
+        },
+    )
+    if request_id:
+        response.headers[REQUEST_ID_HEADER] = request_id
+    return response
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:

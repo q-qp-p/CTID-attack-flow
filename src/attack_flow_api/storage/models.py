@@ -24,6 +24,10 @@ class InputSource:
     type: str
     original_name: str | None
     source_url: str | None
+    content_text: str | None
+    storage_path: str | None
+    metadata_json: str | None
+    options_json: str | None
     mime_type: str | None
     size_bytes: int | None
     sha256: str | None

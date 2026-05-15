@@ -11,8 +11,13 @@ from attack_flow_api.config import (
     load_settings,
     resolve_runtime_paths,
 )
-from attack_flow_api.errors import unhandled_exception_handler
+from attack_flow_api.errors import (
+    BadRequestError,
+    bad_request_exception_handler,
+    unhandled_exception_handler,
+)
 from attack_flow_api.logging_utils import setup_logging
+from attack_flow_api.routes.jobs import router as jobs_router
 from attack_flow_api.middleware import RequestContextMiddleware
 from attack_flow_api.routes.health import router as health_router
 from attack_flow_api.services.persistence_service import PersistenceService
@@ -23,6 +28,7 @@ from attack_flow_api.storage.filesystem import LocalFileStorage
 def create_api_router() -> APIRouter:
     router = APIRouter()
     router.include_router(health_router)
+    router.include_router(jobs_router)
     return router
 
 
@@ -64,6 +70,7 @@ def create_app() -> FastAPI:
             allow_headers=_split_csv(settings.cors_allow_headers) or ["*"],
         )
     app.add_middleware(RequestContextMiddleware)
+    app.add_exception_handler(BadRequestError, bad_request_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(create_api_router(), prefix=settings.api_prefix)
     return app
