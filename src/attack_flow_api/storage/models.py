@@ -11,6 +11,11 @@ class Job:
     model: str | None
     input_source_id: str | None
     result_json: str | None
+    progress_percent: int | None
+    started_at: datetime | None
+    last_heartbeat_at: datetime | None
+    worker_id: str | None
+    attempt_count: int
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None

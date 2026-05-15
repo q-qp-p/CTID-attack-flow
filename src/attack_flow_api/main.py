@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
@@ -24,6 +25,7 @@ from attack_flow_api.logging_utils import setup_logging
 from attack_flow_api.routes.jobs import router as jobs_router
 from attack_flow_api.middleware import RequestContextMiddleware
 from attack_flow_api.routes.health import router as health_router
+from attack_flow_api.services.job_worker_service import JobWorkerService
 from attack_flow_api.services.persistence_service import PersistenceService
 from attack_flow_api.storage.database import initialize_database
 from attack_flow_api.storage.filesystem import LocalFileStorage
@@ -59,7 +61,19 @@ async def lifespan(app: FastAPI):
     app.state.sqlite_path = settings.sqlite_path
     app.state.persistence_service = persistence_service
     app.state.file_storage = file_storage
-    yield
+    job_worker = JobWorkerService(persistence_service=persistence_service)
+    worker_task = asyncio.create_task(job_worker.run(), name="job-worker")
+    app.state.job_worker = job_worker
+    app.state.job_worker_task = worker_task
+    try:
+        yield
+    finally:
+        job_worker.stop()
+        worker_task.cancel()
+        try:
+            await worker_task
+        except asyncio.CancelledError:
+            pass
 
 
 def create_app() -> FastAPI:

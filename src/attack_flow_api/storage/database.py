@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def create_connection(sqlite_path: Path) -> sqlite3.Connection:
@@ -71,6 +71,11 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
             model TEXT,
             input_source_id TEXT,
             result_json TEXT,
+            progress_percent INTEGER,
+            started_at TEXT,
+            last_heartbeat_at TEXT,
+            worker_id TEXT,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             completed_at TEXT,

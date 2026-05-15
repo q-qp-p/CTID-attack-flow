@@ -10,6 +10,10 @@ def _utcnow_iso() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
 def _parse_datetime(value: str | None) -> datetime | None:
     if value is None:
         return None
@@ -38,6 +42,11 @@ class JobCreate:
 class JobUpdate:
     status: str | None = None
     stage: str | None = None
+    progress_percent: int | None = None
+    started_at: datetime | None = None
+    last_heartbeat_at: datetime | None = None
+    worker_id: str | None = None
+    attempt_count: int | None = None
     provider_id: str | None = None
     model: str | None = None
     input_source_id: str | None = None
@@ -94,9 +103,10 @@ class PersistenceRepository:
                 """
                 INSERT INTO jobs (
                     id, status, stage, provider_id, model, input_source_id,
-                    result_json, created_at, updated_at, request_id
+                    result_json, progress_percent, started_at, last_heartbeat_at,
+                    worker_id, attempt_count, created_at, updated_at, request_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
@@ -106,6 +116,11 @@ class PersistenceRepository:
                     payload.model,
                     payload.input_source_id,
                     None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    0,
                     now,
                     now,
                     payload.request_id,
@@ -121,6 +136,9 @@ class PersistenceRepository:
         for field_name in (
             "status",
             "stage",
+            "progress_percent",
+            "worker_id",
+            "attempt_count",
             "provider_id",
             "model",
             "input_source_id",
@@ -135,6 +153,10 @@ class PersistenceRepository:
 
         if payload.completed_at is not None:
             updates["completed_at"] = payload.completed_at.isoformat().replace("+00:00", "Z")
+        if payload.started_at is not None:
+            updates["started_at"] = payload.started_at.isoformat().replace("+00:00", "Z")
+        if payload.last_heartbeat_at is not None:
+            updates["last_heartbeat_at"] = payload.last_heartbeat_at.isoformat().replace("+00:00", "Z")
 
         updates["updated_at"] = _utcnow_iso()
         set_clause = ", ".join([f"{key} = ?" for key in updates])
@@ -163,12 +185,111 @@ class PersistenceRepository:
             model=row["model"],
             input_source_id=row["input_source_id"],
             result_json=row["result_json"],
+            progress_percent=row["progress_percent"],
+            started_at=_parse_datetime(row["started_at"]),
+            last_heartbeat_at=_parse_datetime(row["last_heartbeat_at"]),
+            worker_id=row["worker_id"],
+            attempt_count=int(row["attempt_count"] or 0),
             created_at=_require_datetime(row["created_at"], "created_at"),
             updated_at=_require_datetime(row["updated_at"], "updated_at"),
             completed_at=_parse_datetime(row["completed_at"]),
             error_code=row["error_code"],
             error_message=row["error_message"],
             request_id=row["request_id"],
+        )
+
+    def claim_next_queued_job(self, worker_id: str) -> Job | None:
+        now = _utcnow_iso()
+        with create_connection(self.sqlite_path) as connection:
+            row = connection.execute(
+                """
+                SELECT id
+                FROM jobs
+                WHERE status = ?
+                ORDER BY created_at ASC
+                LIMIT 1
+                """,
+                ("queued",),
+            ).fetchone()
+            if row is None:
+                return None
+
+            job_id = str(row["id"])
+            result = connection.execute(
+                """
+                UPDATE jobs
+                SET status = ?,
+                    stage = ?,
+                    updated_at = ?,
+                    started_at = COALESCE(started_at, ?),
+                    last_heartbeat_at = ?,
+                    worker_id = ?,
+                    progress_percent = ?,
+                    attempt_count = attempt_count + 1
+                WHERE id = ? AND status = ?
+                """,
+                (
+                    "fetching",
+                    "fetching",
+                    now,
+                    now,
+                    now,
+                    worker_id,
+                    10,
+                    job_id,
+                    "queued",
+                ),
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_job(job_id)
+
+    def update_job_lifecycle(
+        self,
+        job_id: str,
+        *,
+        status: str,
+        stage: str,
+        progress_percent: int | None = None,
+        worker_id: str | None = None,
+    ) -> Job | None:
+        return self.update_job(
+            job_id,
+            JobUpdate(
+                status=status,
+                stage=stage,
+                progress_percent=progress_percent,
+                worker_id=worker_id,
+                last_heartbeat_at=_utcnow(),
+            ),
+        )
+
+    def mark_job_completed(self, job_id: str) -> Job | None:
+        now = _utcnow()
+        return self.update_job(
+            job_id,
+            JobUpdate(
+                status="completed",
+                stage="completed",
+                progress_percent=100,
+                completed_at=now,
+                last_heartbeat_at=now,
+            ),
+        )
+
+    def mark_job_failed(self, job_id: str, error_code: str, error_message: str) -> Job | None:
+        now = _utcnow()
+        return self.update_job(
+            job_id,
+            JobUpdate(
+                status="failed",
+                stage="failed",
+                completed_at=now,
+                last_heartbeat_at=now,
+                error_code=error_code,
+                error_message=error_message,
+            ),
         )
 
     def create_input_source(self, payload: InputSourceCreate) -> InputSource:

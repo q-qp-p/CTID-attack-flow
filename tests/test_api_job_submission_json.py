@@ -1,5 +1,6 @@
 import sqlite3
 import re
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -488,3 +489,76 @@ def test_get_job_result_returns_200_when_structured_result_exists(monkeypatch, t
     assert payload["result"]["techniques"] == ["T1059"]
     assert payload["result"]["artifacts"] == {"stix": True, "afb": False}
     assert payload["request_id"]
+
+
+def test_worker_advances_claimed_job_through_lifecycle_to_completed(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        create_response = client.post(
+            "/api/v1/jobs",
+            json={"input_type": "text", "text": "lifecycle progression"},
+        )
+        job_id = create_response.json()["job_id"]
+
+        final_payload = None
+        for _ in range(40):
+            response = client.get(f"/api/v1/jobs/{job_id}")
+            payload = response.json()
+            if payload["status"] == "completed":
+                final_payload = payload
+                break
+            time.sleep(0.05)
+
+    assert final_payload is not None
+    assert final_payload["job_id"] == job_id
+    assert final_payload["status"] == "completed"
+    assert final_payload["stage"] == "completed"
+    assert final_payload["completed_at"] is not None
+
+
+def test_worker_marks_failed_job_and_continues_processing_next_job(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        first_create = client.post(
+            "/api/v1/jobs",
+            json={"input_type": "text", "text": "should fail"},
+        )
+        failed_job_id = first_create.json()["job_id"]
+        client.app.state.job_worker.force_failure_for_job(failed_job_id)
+
+        second_create = client.post(
+            "/api/v1/jobs",
+            json={"input_type": "text", "text": "should complete"},
+        )
+        succeeding_job_id = second_create.json()["job_id"]
+
+        failed_payload = None
+        completed_payload = None
+        for _ in range(60):
+            first_status = client.get(f"/api/v1/jobs/{failed_job_id}").json()
+            second_status = client.get(f"/api/v1/jobs/{succeeding_job_id}").json()
+            if first_status["status"] == "failed":
+                failed_payload = first_status
+            if second_status["status"] == "completed":
+                completed_payload = second_status
+            if failed_payload is not None and completed_payload is not None:
+                break
+            time.sleep(0.05)
+
+        assert failed_payload is not None
+        assert failed_payload["status"] == "failed"
+        assert failed_payload["stage"] == "failed"
+
+        with sqlite3.connect(client.app.state.sqlite_path) as connection:
+            connection.row_factory = sqlite3.Row
+            failed_row = connection.execute(
+                "SELECT error_code, error_message, updated_at, completed_at FROM jobs WHERE id = ?",
+                (failed_job_id,),
+            ).fetchone()
+            assert failed_row is not None
+            assert failed_row["error_code"] == "worker_processing_error"
+            assert "Forced worker failure" in failed_row["error_message"]
+            assert failed_row["updated_at"] is not None
+            assert failed_row["completed_at"] is not None
+
+        assert completed_payload is not None
+        assert completed_payload["status"] == "completed"
+        assert completed_payload["stage"] == "completed"
