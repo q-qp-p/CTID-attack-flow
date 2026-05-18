@@ -15,6 +15,7 @@ from attack_flow_api.storage.repositories import (
     JobUpdate,
     PersistenceRepository,
 )
+from attack_flow_api.services.persistence_service import PersistenceService
 
 
 def test_database_initializes_and_creates_required_tables(tmp_path: Path):
@@ -189,3 +190,29 @@ def test_storage_respects_max_file_size(tmp_path: Path):
 
     with pytest.raises(ValueError):
         storage.write_upload(content=b"12345", extension="txt")
+
+
+def test_resolve_canonical_text_for_job_prefers_normalized_text(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    service = PersistenceService(db_path)
+
+    input_source = service.create_input_source(
+        InputSourceCreate(
+            id="input-1",
+            type="text",
+            raw_text="raw",
+            content_text="content",
+            normalized_text="normalized",
+        )
+    )
+    service.create_job(
+        JobCreate(
+            id="job-1",
+            status="queued",
+            stage="queued",
+            input_source_id=input_source.id,
+        )
+    )
+
+    assert service.resolve_canonical_text_for_job("job-1") == "normalized"

@@ -78,9 +78,43 @@ def test_submit_job_text_returns_202_and_persists_records(monkeypatch, tmp_path:
         assert input_row is not None
         assert input_row["type"] == "text"
         assert input_row["content_text"] == "investigation content"
+        assert input_row["raw_text"] == "investigation content"
+        assert input_row["normalized_text"] == "investigation content"
+        assert input_row["normalized_char_count"] == len("investigation content")
+        assert input_row["normalization_version"] == "v1"
         assert input_row["source_url"] is None
         assert input_row["metadata_json"] == '{"source": "unit-test"}'
         assert input_row["options_json"] == '{"priority": "normal"}'
+
+
+def test_submit_job_text_persists_normalized_text(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            json={
+                "input_type": "text",
+                "text": "\r\nalpha  \r\n\r\n\r\nbeta\t\n",
+            },
+        )
+
+        payload = response.json()
+        assert response.status_code == 202
+        sqlite_path = client.app.state.sqlite_path
+
+    with sqlite3.connect(sqlite_path) as connection:
+        connection.row_factory = sqlite3.Row
+        job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (payload["job_id"],)).fetchone()
+        assert job_row is not None
+
+        input_row = connection.execute(
+            "SELECT * FROM input_sources WHERE id = ?", (job_row["input_source_id"],)
+        ).fetchone()
+        assert input_row is not None
+        assert input_row["raw_text"] == "\r\nalpha  \r\n\r\n\r\nbeta\t\n"
+        assert input_row["normalized_text"] == "alpha\n\nbeta"
+        assert input_row["content_text"] == "alpha\n\nbeta"
+        assert input_row["normalized_char_count"] == len("alpha\n\nbeta")
+        assert input_row["normalization_version"] == "v1"
 
 
 def test_submit_job_url_returns_202_and_persists_url(monkeypatch, tmp_path: Path):
@@ -151,6 +185,78 @@ def test_submit_job_missing_supported_input_returns_structured_400(monkeypatch, 
     assert payload["error"]["code"] == "invalid_text_input"
     assert isinstance(payload["error"]["details"], list)
     assert payload["request_id"]
+
+
+def test_submit_job_text_over_limit_returns_structured_413(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("RAW_TEXT_MAX_CHARS", "5")
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            json={"input_type": "text", "text": "abcdef"},
+        )
+
+    payload = response.json()
+    assert response.status_code == 413
+    assert payload["error"]["code"] == "text_too_large"
+    assert "maximum size of 5 characters" in payload["error"]["message"]
+    assert isinstance(payload["error"]["details"], list)
+    assert payload["request_id"]
+
+
+def test_submit_job_text_preserves_source_metadata_fields(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            json={
+                "input_type": "text",
+                "text": "metadata check",
+                "metadata": {
+                    "title": "Case report 42",
+                    "case_id": "CASE-42",
+                    "source_name": "analyst-notes",
+                },
+            },
+        )
+
+        payload = response.json()
+        assert response.status_code == 202
+        sqlite_path = client.app.state.sqlite_path
+
+    with sqlite3.connect(sqlite_path) as connection:
+        connection.row_factory = sqlite3.Row
+        job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (payload["job_id"],)).fetchone()
+        assert job_row is not None
+
+        input_row = connection.execute(
+            "SELECT * FROM input_sources WHERE id = ?", (job_row["input_source_id"],)
+        ).fetchone()
+        assert input_row is not None
+        assert (
+            input_row["metadata_json"]
+            == '{"title": "Case report 42", "case_id": "CASE-42", "source_name": "analyst-notes"}'
+        )
+        assert input_row["title"] == "Case report 42"
+        assert input_row["case_id"] == "CASE-42"
+        assert input_row["source_name"] == "analyst-notes"
+
+
+def test_get_job_status_includes_title_when_present_in_metadata(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        create_response = client.post(
+            "/api/v1/jobs",
+            json={
+                "input_type": "text",
+                "text": "status title",
+                "metadata": {"title": "Incident 9001"},
+            },
+        )
+        job_id = create_response.json()["job_id"]
+
+        response = client.get(f"/api/v1/jobs/{job_id}")
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["input"]["title"] == "Incident 9001"
 
 
 def test_submit_job_invalid_json_shape_stays_422(monkeypatch, tmp_path: Path):

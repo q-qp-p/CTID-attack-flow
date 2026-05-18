@@ -5,6 +5,7 @@ from attack_flow_api.storage.repositories import (
     ArtifactCreate,
     AuditEventCreate,
     InputSourceCreate,
+    InputSourceTextUpdate,
     JobCreate,
     JobUpdate,
     PersistenceRepository,
@@ -29,6 +30,31 @@ class PersistenceService:
 
     def get_input_source(self, input_source_id: str) -> InputSource | None:
         return self.repository.get_input_source(input_source_id)
+
+    def resolve_canonical_text_for_job(self, job_id: str) -> str | None:
+        job = self.get_job(job_id)
+        if job is None or job.input_source_id is None:
+            return None
+
+        input_source = self.get_input_source(job.input_source_id)
+        return self.resolve_canonical_text_for_input_source(input_source)
+
+    def resolve_canonical_text_for_input_source(self, input_source: InputSource | None) -> str | None:
+        if input_source is None:
+            return None
+        if input_source.type != "text":
+            return None
+
+        if input_source.normalized_text is not None:
+            return input_source.normalized_text
+        if input_source.content_text is not None:
+            return input_source.content_text
+        return input_source.raw_text
+
+    def update_input_source_text(
+        self, input_source_id: str, payload: InputSourceTextUpdate
+    ) -> InputSource | None:
+        return self.repository.update_input_source_text(input_source_id, payload)
 
     def create_artifact(self, payload: ArtifactCreate) -> Artifact:
         return self.repository.create_artifact(payload)

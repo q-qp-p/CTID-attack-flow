@@ -49,6 +49,7 @@ class AppSettings(BaseSettings):
     file_storage_max_bytes: int | None = Field(
         default=None, validation_alias="FILE_STORAGE_MAX_BYTES"
     )
+    raw_text_max_chars: int = Field(default=200000, validation_alias="RAW_TEXT_MAX_CHARS")
     providers_config_path: Path = Field(
         default=Path("config/providers.yml"), validation_alias="PROVIDERS_CONFIG_PATH"
     )

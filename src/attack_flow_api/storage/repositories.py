@@ -64,6 +64,11 @@ class InputSourceCreate:
     original_name: str | None = None
     source_url: str | None = None
     content_text: str | None = None
+    raw_text: str | None = None
+    normalized_text: str | None = None
+    normalized_char_count: int | None = None
+    was_truncated: bool | None = None
+    normalization_version: str | None = None
     storage_path: str | None = None
     metadata_json: str | None = None
     options_json: str | None = None
@@ -71,6 +76,17 @@ class InputSourceCreate:
     size_bytes: int | None = None
     sha256: str | None = None
     title: str | None = None
+    case_id: str | None = None
+    source_name: str | None = None
+
+
+@dataclass(slots=True)
+class InputSourceTextUpdate:
+    raw_text: str | None = None
+    normalized_text: str | None = None
+    normalized_char_count: int | None = None
+    was_truncated: bool | None = None
+    normalization_version: str | None = None
 
 
 @dataclass(slots=True)
@@ -298,11 +314,12 @@ class PersistenceRepository:
             connection.execute(
                 """
                 INSERT INTO input_sources (
-                    id, type, original_name, source_url, content_text, storage_path, metadata_json,
-                    options_json, mime_type,
-                    size_bytes, sha256, title, created_at
+                    id, type, original_name, source_url, content_text,
+                    raw_text, normalized_text, normalized_char_count, was_truncated,
+                    normalization_version, storage_path, metadata_json, options_json,
+                    mime_type, size_bytes, sha256, title, case_id, source_name, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
@@ -310,6 +327,11 @@ class PersistenceRepository:
                     payload.original_name,
                     payload.source_url,
                     payload.content_text,
+                    payload.raw_text,
+                    payload.normalized_text,
+                    payload.normalized_char_count,
+                    int(payload.was_truncated) if payload.was_truncated is not None else None,
+                    payload.normalization_version,
                     payload.storage_path,
                     payload.metadata_json,
                     payload.options_json,
@@ -317,10 +339,43 @@ class PersistenceRepository:
                     payload.size_bytes,
                     payload.sha256,
                     payload.title,
+                    payload.case_id,
+                    payload.source_name,
                     now,
                 ),
             )
         return self.get_input_source(payload.id)
+
+    def update_input_source_text(self, input_source_id: str, payload: InputSourceTextUpdate) -> InputSource | None:
+        updates: dict[str, object] = {}
+        for field_name in (
+            "raw_text",
+            "normalized_text",
+            "normalized_char_count",
+            "normalization_version",
+        ):
+            value = getattr(payload, field_name)
+            if value is not None:
+                updates[field_name] = value
+
+        if payload.was_truncated is not None:
+            updates["was_truncated"] = int(payload.was_truncated)
+
+        if not updates:
+            return self.get_input_source(input_source_id)
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates])
+        params = list(updates.values()) + [input_source_id]
+
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute(
+                f"UPDATE input_sources SET {set_clause} WHERE id = ?",  # noqa: S608
+                params,
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_input_source(input_source_id)
 
     def get_input_source(self, input_source_id: str) -> InputSource | None:
         with create_connection(self.sqlite_path) as connection:
@@ -335,6 +390,11 @@ class PersistenceRepository:
             original_name=row["original_name"],
             source_url=row["source_url"],
             content_text=row["content_text"],
+            raw_text=row["raw_text"],
+            normalized_text=row["normalized_text"],
+            normalized_char_count=row["normalized_char_count"],
+            was_truncated=(None if row["was_truncated"] is None else bool(row["was_truncated"])),
+            normalization_version=row["normalization_version"],
             storage_path=row["storage_path"],
             metadata_json=row["metadata_json"],
             options_json=row["options_json"],
@@ -342,6 +402,8 @@ class PersistenceRepository:
             size_bytes=row["size_bytes"],
             sha256=row["sha256"],
             title=row["title"],
+            case_id=row["case_id"],
+            source_name=row["source_name"],
             created_at=_require_datetime(row["created_at"], "created_at"),
         )
 

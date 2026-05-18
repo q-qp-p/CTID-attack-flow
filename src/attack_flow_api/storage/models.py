@@ -31,6 +31,11 @@ class InputSource:
     original_name: str | None
     source_url: str | None
     content_text: str | None
+    raw_text: str | None
+    normalized_text: str | None
+    normalized_char_count: int | None
+    was_truncated: bool | None
+    normalization_version: str | None
     storage_path: str | None
     metadata_json: str | None
     options_json: str | None
@@ -38,6 +43,8 @@ class InputSource:
     size_bytes: int | None
     sha256: str | None
     title: str | None
+    case_id: str | None
+    source_name: str | None
     created_at: datetime
 
 

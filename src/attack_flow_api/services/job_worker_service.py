@@ -109,5 +109,8 @@ class JobWorkerService:
         if job_id in self._forced_failure_job_ids:
             self._forced_failure_job_ids.remove(job_id)
             raise RuntimeError("Forced worker failure for testing")
-        _ = (job_id, stage)
+        normalized_text = None
+        if stage == "ai_extraction":
+            normalized_text = self.persistence_service.resolve_canonical_text_for_job(job_id)
+        _ = (job_id, stage, normalized_text)
         await asyncio.sleep(0)

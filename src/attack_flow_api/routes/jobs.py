@@ -10,7 +10,8 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, ConfigDict, ValidationError
 from starlette.datastructures import UploadFile
 
-from attack_flow_api.errors import BadRequestError, ConflictError, NotFoundError
+from attack_flow_api.errors import BadRequestError, ConflictError, NotFoundError, PayloadTooLargeError
+from attack_flow_api.services.text_normalization import normalize_raw_text
 from attack_flow_api.storage.repositories import InputSourceCreate, JobCreate
 
 
@@ -78,12 +79,19 @@ class SubmissionPayload:
     source_type: str
     source_url: str | None = None
     content_text: str | None = None
+    raw_text: str | None = None
+    normalized_text: str | None = None
+    normalized_char_count: int | None = None
+    normalization_version: str | None = None
     original_name: str | None = None
     storage_path: str | None = None
     mime_type: str | None = None
     size_bytes: int | None = None
     metadata: dict[str, Any] | None = None
     options: dict[str, Any] | None = None
+    title: str | None = None
+    case_id: str | None = None
+    source_name: str | None = None
 
 
 @router.post("/jobs", response_model=JobSubmissionResponse, status_code=202)
@@ -95,6 +103,11 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
     - `application/json` with `input_type=url` and non-empty `url`
     - `multipart/form-data` with required `file` and optional `metadata`/`options`
 
+    Text submission behavior:
+    - Raw text is normalized deterministically (line endings/whitespace) before processing.
+    - Maximum text size is enforced via configured character limit.
+    - Normalized text is persisted for downstream pipeline stages.
+
     Optional `metadata` and `options` are persisted when provided.
 
     Submission is non-blocking: this endpoint queues work and returns `202 Accepted`.
@@ -103,7 +116,10 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
     content_type = request.headers.get("content-type", "")
     if content_type.startswith("application/json"):
         payload = await _parse_json_payload(request)
-        submission = _submission_from_json(payload)
+        submission = _submission_from_json(
+            payload,
+            raw_text_max_chars=request.app.state.settings.raw_text_max_chars,
+        )
     elif content_type.startswith("multipart/form-data"):
         submission = await _submission_from_multipart(request)
     else:
@@ -121,12 +137,19 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
             type=submission.source_type,
             source_url=submission.source_url,
             content_text=submission.content_text,
+            raw_text=submission.raw_text,
+            normalized_text=submission.normalized_text,
+            normalized_char_count=submission.normalized_char_count,
+            normalization_version=submission.normalization_version,
             original_name=submission.original_name,
             storage_path=submission.storage_path,
             mime_type=submission.mime_type,
             size_bytes=submission.size_bytes,
             metadata_json=_serialize_optional_json(submission.metadata),
             options_json=_serialize_optional_json(submission.options),
+            title=submission.title,
+            case_id=submission.case_id,
+            source_name=submission.source_name,
         )
     )
     return _create_queued_job_response(request, input_source.id)
@@ -144,9 +167,10 @@ async def _parse_json_payload(request: Request) -> JobSubmissionRequest:
         raise RequestValidationError(exc.errors()) from exc
 
 
-def _submission_from_json(payload: JobSubmissionRequest) -> SubmissionPayload:
+def _submission_from_json(payload: JobSubmissionRequest, raw_text_max_chars: int) -> SubmissionPayload:
     normalized_input_type = payload.input_type.strip().lower()
-    text = payload.text.strip() if isinstance(payload.text, str) else None
+    raw_text = payload.text if isinstance(payload.text, str) else None
+    text = raw_text.strip() if isinstance(raw_text, str) else None
     url = payload.url.strip() if isinstance(payload.url, str) else None
 
     if normalized_input_type not in {"text", "url"}:
@@ -161,6 +185,12 @@ def _submission_from_json(payload: JobSubmissionRequest) -> SubmissionPayload:
             raise BadRequestError(
                 code="invalid_text_input",
                 message="text input requires a non-empty text value",
+                details=[],
+            )
+        if len(text) > raw_text_max_chars:
+            raise PayloadTooLargeError(
+                code="text_too_large",
+                message=f"text input exceeds maximum size of {raw_text_max_chars} characters",
                 details=[],
             )
         if url:
@@ -184,13 +214,44 @@ def _submission_from_json(payload: JobSubmissionRequest) -> SubmissionPayload:
                 details=[],
             )
 
+    normalized_text = None
+    normalized_char_count = None
+    normalization_version = None
+    title = _coerce_optional_metadata_str(payload.metadata, "title")
+    case_id = _coerce_optional_metadata_str(payload.metadata, "case_id")
+    source_name = _coerce_optional_metadata_str(payload.metadata, "source_name")
+    if normalized_input_type == "text" and raw_text is not None:
+        normalized_result = normalize_raw_text(raw_text)
+        normalized_text = normalized_result.text
+        normalized_char_count = len(normalized_text)
+        normalization_version = normalized_result.version
+
     return SubmissionPayload(
         source_type=normalized_input_type,
         source_url=url if normalized_input_type == "url" else None,
-        content_text=text if normalized_input_type == "text" else None,
+        content_text=normalized_text,
+        raw_text=(raw_text if normalized_input_type == "text" else None),
+        normalized_text=normalized_text,
+        normalized_char_count=normalized_char_count,
+        normalization_version=normalization_version,
         metadata=payload.metadata,
         options=payload.options,
+        title=title,
+        case_id=case_id,
+        source_name=source_name,
     )
+
+
+def _coerce_optional_metadata_str(metadata: dict[str, Any] | None, key: str) -> str | None:
+    if metadata is None:
+        return None
+    value = metadata.get(key)
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip()
+    if not candidate:
+        return None
+    return candidate
 
 
 async def _submission_from_multipart(request: Request) -> SubmissionPayload:
@@ -375,7 +436,24 @@ submit_job.openapi_extra = {
                 },
             },
         },
-    }
+    },
+    "responses": {
+        "413": {
+            "description": "Text payload exceeds configured maximum size",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "code": "text_too_large",
+                            "message": "text input exceeds maximum size of <N> characters",
+                            "details": [],
+                        },
+                        "request_id": "<request-id>",
+                    }
+                }
+            },
+        }
+    },
 }
 
 
