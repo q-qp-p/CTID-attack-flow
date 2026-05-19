@@ -63,6 +63,12 @@ class InputSourceCreate:
     type: str
     original_name: str | None = None
     source_url: str | None = None
+    fetch_final_url: str | None = None
+    fetch_status_code: int | None = None
+    fetch_content_type: str | None = None
+    fetch_size_bytes: int | None = None
+    fetch_error_code: str | None = None
+    fetch_error_message: str | None = None
     content_text: str | None = None
     raw_text: str | None = None
     normalized_text: str | None = None
@@ -87,6 +93,21 @@ class InputSourceTextUpdate:
     normalized_char_count: int | None = None
     was_truncated: bool | None = None
     normalization_version: str | None = None
+
+
+@dataclass(slots=True)
+class InputSourceFetchUpdate:
+    fetch_final_url: str | None = None
+    fetch_status_code: int | None = None
+    fetch_content_type: str | None = None
+    fetch_size_bytes: int | None = None
+    fetch_error_code: str | None = None
+    fetch_error_message: str | None = None
+    raw_text: str | None = None
+    normalized_text: str | None = None
+    normalized_char_count: int | None = None
+    normalization_version: str | None = None
+    content_text: str | None = None
 
 
 @dataclass(slots=True)
@@ -314,18 +335,27 @@ class PersistenceRepository:
             connection.execute(
                 """
                 INSERT INTO input_sources (
-                    id, type, original_name, source_url, content_text,
+                    id, type, original_name, source_url,
+                    fetch_final_url, fetch_status_code, fetch_content_type,
+                    fetch_size_bytes, fetch_error_code, fetch_error_message,
+                    content_text,
                     raw_text, normalized_text, normalized_char_count, was_truncated,
                     normalization_version, storage_path, metadata_json, options_json,
                     mime_type, size_bytes, sha256, title, case_id, source_name, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
                     payload.type,
                     payload.original_name,
                     payload.source_url,
+                    payload.fetch_final_url,
+                    payload.fetch_status_code,
+                    payload.fetch_content_type,
+                    payload.fetch_size_bytes,
+                    payload.fetch_error_code,
+                    payload.fetch_error_message,
                     payload.content_text,
                     payload.raw_text,
                     payload.normalized_text,
@@ -345,6 +375,45 @@ class PersistenceRepository:
                 ),
             )
         return self.get_input_source(payload.id)
+
+    def update_input_source_fetch(
+        self,
+        input_source_id: str,
+        payload: InputSourceFetchUpdate,
+    ) -> InputSource | None:
+        updates: dict[str, object] = {}
+        for field_name in (
+            "fetch_final_url",
+            "fetch_status_code",
+            "fetch_content_type",
+            "fetch_size_bytes",
+            "fetch_error_code",
+            "fetch_error_message",
+            "raw_text",
+            "normalized_text",
+            "normalized_char_count",
+            "normalization_version",
+            "content_text",
+        ):
+            value = getattr(payload, field_name)
+            if value is not None:
+                updates[field_name] = value
+
+        if not updates:
+            return self.get_input_source(input_source_id)
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates])
+        params = list(updates.values()) + [input_source_id]
+
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute(
+                f"UPDATE input_sources SET {set_clause} WHERE id = ?",  # noqa: S608
+                params,
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_input_source(input_source_id)
 
     def update_input_source_text(self, input_source_id: str, payload: InputSourceTextUpdate) -> InputSource | None:
         updates: dict[str, object] = {}
@@ -389,6 +458,12 @@ class PersistenceRepository:
             type=row["type"],
             original_name=row["original_name"],
             source_url=row["source_url"],
+            fetch_final_url=row["fetch_final_url"],
+            fetch_status_code=row["fetch_status_code"],
+            fetch_content_type=row["fetch_content_type"],
+            fetch_size_bytes=row["fetch_size_bytes"],
+            fetch_error_code=row["fetch_error_code"],
+            fetch_error_message=row["fetch_error_message"],
             content_text=row["content_text"],
             raw_text=row["raw_text"],
             normalized_text=row["normalized_text"],

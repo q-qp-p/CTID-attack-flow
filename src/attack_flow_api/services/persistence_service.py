@@ -5,6 +5,7 @@ from attack_flow_api.storage.repositories import (
     ArtifactCreate,
     AuditEventCreate,
     InputSourceCreate,
+    InputSourceFetchUpdate,
     InputSourceTextUpdate,
     JobCreate,
     JobUpdate,
@@ -42,7 +43,7 @@ class PersistenceService:
     def resolve_canonical_text_for_input_source(self, input_source: InputSource | None) -> str | None:
         if input_source is None:
             return None
-        if input_source.type != "text":
+        if input_source.type not in {"text", "url"}:
             return None
 
         if input_source.normalized_text is not None:
@@ -55,6 +56,13 @@ class PersistenceService:
         self, input_source_id: str, payload: InputSourceTextUpdate
     ) -> InputSource | None:
         return self.repository.update_input_source_text(input_source_id, payload)
+
+    def update_input_source_fetch(
+        self,
+        input_source_id: str,
+        payload: InputSourceFetchUpdate,
+    ) -> InputSource | None:
+        return self.repository.update_input_source_fetch(input_source_id, payload)
 
     def create_artifact(self, payload: ArtifactCreate) -> Artifact:
         return self.repository.create_artifact(payload)

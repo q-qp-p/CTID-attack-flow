@@ -30,6 +30,12 @@ class InputSource:
     type: str
     original_name: str | None
     source_url: str | None
+    fetch_final_url: str | None
+    fetch_status_code: int | None
+    fetch_content_type: str | None
+    fetch_size_bytes: int | None
+    fetch_error_code: str | None
+    fetch_error_message: str | None
     content_text: str | None
     raw_text: str | None
     normalized_text: str | None

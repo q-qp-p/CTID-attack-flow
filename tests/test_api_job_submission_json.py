@@ -173,6 +173,21 @@ def test_submit_job_unsupported_input_type_returns_structured_400(monkeypatch, t
     assert payload["request_id"]
 
 
+def test_submit_job_url_with_non_http_scheme_returns_structured_400(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            json={"input_type": "url", "url": "ftp://example.com/report"},
+        )
+
+    payload = response.json()
+    assert response.status_code == 400
+    assert payload["error"]["code"] == "invalid_url_scheme"
+    assert payload["error"]["message"] == "url scheme must be http or https"
+    assert isinstance(payload["error"]["details"], list)
+    assert payload["request_id"]
+
+
 def test_submit_job_missing_supported_input_returns_structured_400(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
         response = client.post(

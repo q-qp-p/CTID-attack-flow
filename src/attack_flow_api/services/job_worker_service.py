@@ -1,23 +1,37 @@
 import asyncio
 import logging
+from dataclasses import dataclass
 from uuid import uuid4
 
+from attack_flow_api.config import AppSettings
+from attack_flow_api.services.html_extraction import extract_readable_text_from_html
 from attack_flow_api.services.persistence_service import PersistenceService
+from attack_flow_api.services.url_fetch import UrlFetchError, fetch_url_bounded
+from attack_flow_api.storage.models import InputSource
+from attack_flow_api.storage.repositories import InputSourceFetchUpdate
 
 
 class JobWorkerService:
     def __init__(
         self,
         persistence_service: PersistenceService,
+        settings: AppSettings,
         poll_interval_seconds: float = 1.0,
     ):
         self.persistence_service = persistence_service
+        self.settings = settings
         self.poll_interval_seconds = poll_interval_seconds
         self.worker_id = f"worker-{uuid4()}"
         self._shutdown_event = asyncio.Event()
         self._wake_event = asyncio.Event()
         self._logger = logging.getLogger("attack_flow_api.worker")
         self._forced_failure_job_ids: set[str] = set()
+        self._url_job_context: dict[str, _UrlJobContext] = {}
+        self._allowed_url_schemes = {
+            item.strip().lower()
+            for item in self.settings.url_fetch_allowed_schemes.split(",")
+            if item.strip()
+        }
         self._stage_progress = {
             "fetching": 10,
             "extracting": 25,
@@ -85,6 +99,20 @@ class JobWorkerService:
                 "job lifecycle completed",
                 extra={"worker_id": self.worker_id, "job_id": job_id, "status": "completed"},
             )
+        except _UrlJobProcessingError as exc:
+            self.persistence_service.mark_job_failed(
+                job_id,
+                error_code=exc.job_error_code,
+                error_message=exc.job_error_message,
+            )
+            self._logger.warning(
+                "url job lifecycle failed",
+                extra={
+                    "worker_id": self.worker_id,
+                    "job_id": job_id,
+                    "error_code": exc.job_error_code,
+                },
+            )
         except Exception as exc:  # pragma: no cover
             self.persistence_service.mark_job_failed(
                 job_id,
@@ -95,6 +123,8 @@ class JobWorkerService:
                 "job lifecycle failed",
                 extra={"worker_id": self.worker_id, "job_id": job_id},
             )
+        finally:
+            self._url_job_context.pop(job_id, None)
 
     def _advance_stage(self, job_id: str, stage: str) -> None:
         self.persistence_service.update_job_lifecycle(
@@ -109,8 +139,142 @@ class JobWorkerService:
         if job_id in self._forced_failure_job_ids:
             self._forced_failure_job_ids.remove(job_id)
             raise RuntimeError("Forced worker failure for testing")
+
+        job = self.persistence_service.get_job(job_id)
+        if job is None or job.input_source_id is None:
+            await asyncio.sleep(0)
+            return
+
+        input_source = self.persistence_service.get_input_source(job.input_source_id)
+        if input_source is None:
+            await asyncio.sleep(0)
+            return
+
+        if input_source.type == "url":
+            await self._run_url_stage(job_id, stage, input_source)
+            await asyncio.sleep(0)
+            return
+
         normalized_text = None
         if stage == "ai_extraction":
             normalized_text = self.persistence_service.resolve_canonical_text_for_job(job_id)
         _ = (job_id, stage, normalized_text)
         await asyncio.sleep(0)
+
+    async def _run_url_stage(self, job_id: str, stage: str, input_source: InputSource) -> None:
+        if input_source.source_url is None:
+            raise _UrlJobProcessingError(
+                job_error_code="url_input_invalid",
+                job_error_message="url input source is missing source_url",
+            )
+
+        if stage == "extracting":
+            await self._fetch_url_content(job_id, input_source.id, input_source.source_url)
+            return
+
+        if stage == "normalizing":
+            context = self._require_url_context(job_id)
+            content_type = context.content_type or ""
+            if "html" not in content_type.lower():
+                self.persistence_service.update_input_source_fetch(
+                    input_source.id,
+                    payload=InputSourceFetchUpdate(
+                        fetch_error_code="unsupported_content_type",
+                        fetch_error_message=f"unsupported content type: {content_type or 'unknown'}",
+                    ),
+                )
+                raise _UrlJobProcessingError(
+                    job_error_code="url_unsupported_content_type",
+                    job_error_message=f"unsupported content type: {content_type or 'unknown'}",
+                )
+            extracted = extract_readable_text_from_html(context.body.decode("utf-8", errors="replace"))
+            self.persistence_service.update_input_source_fetch(
+                input_source.id,
+                payload=InputSourceFetchUpdate(
+                    raw_text=extracted.raw_extracted_text,
+                    normalized_text=extracted.normalized_text,
+                    normalized_char_count=extracted.normalized_char_count,
+                    normalization_version=extracted.normalization_version,
+                    content_text=extracted.normalized_text,
+                ),
+            )
+            return
+
+        if stage == "ai_extraction":
+            _ = self.persistence_service.resolve_canonical_text_for_job(job_id)
+
+    async def _fetch_url_content(self, job_id: str, input_source_id: str, source_url: str) -> None:
+        try:
+            fetched = fetch_url_bounded(
+                source_url,
+                allowed_schemes=self._allowed_url_schemes,
+                block_private_destinations=self.settings.url_fetch_block_private_destinations,
+                connect_timeout_seconds=self.settings.url_fetch_connect_timeout_seconds,
+                read_timeout_seconds=self.settings.url_fetch_read_timeout_seconds,
+                max_redirects=self.settings.url_fetch_max_redirects,
+                max_response_bytes=self.settings.url_fetch_max_response_bytes,
+            )
+        except UrlFetchError as exc:
+            self.persistence_service.update_input_source_fetch(
+                input_source_id,
+                payload=InputSourceFetchUpdate(
+                    fetch_error_code=exc.code,
+                    fetch_error_message=exc.message,
+                ),
+            )
+            raise _UrlJobProcessingError(
+                job_error_code=_map_url_fetch_error_to_job_error(exc.code),
+                job_error_message=exc.message,
+            ) from exc
+
+        self.persistence_service.update_input_source_fetch(
+            input_source_id,
+            payload=InputSourceFetchUpdate(
+                fetch_final_url=fetched.final_url,
+                fetch_status_code=fetched.status_code,
+                fetch_content_type=fetched.content_type,
+                fetch_size_bytes=fetched.size_bytes,
+                fetch_error_code=None,
+                fetch_error_message=None,
+            ),
+        )
+        self._url_job_context[job_id] = _UrlJobContext(
+            content_type=fetched.content_type,
+            body=fetched.body,
+        )
+
+    def _require_url_context(self, job_id: str) -> "_UrlJobContext":
+        context = self._url_job_context.get(job_id)
+        if context is None:
+            raise _UrlJobProcessingError(
+                job_error_code="url_fetch_context_missing",
+                job_error_message="url fetch context missing for normalization",
+            )
+        return context
+
+
+class _UrlJobProcessingError(RuntimeError):
+    def __init__(self, *, job_error_code: str, job_error_message: str):
+        super().__init__(job_error_message)
+        self.job_error_code = job_error_code
+        self.job_error_message = job_error_message
+
+
+@dataclass(frozen=True, slots=True)
+class _UrlJobContext:
+    content_type: str | None
+    body: bytes
+
+
+def _map_url_fetch_error_to_job_error(fetch_error_code: str) -> str:
+    return {
+        "invalid_url": "url_validation_failed",
+        "invalid_url_scheme": "url_validation_failed",
+        "dns_resolution_failed": "url_destination_unsafe",
+        "unsafe_destination": "url_destination_unsafe",
+        "fetch_timeout": "url_fetch_timeout",
+        "redirect_limit_exceeded": "url_redirect_limit_exceeded",
+        "invalid_redirect": "url_redirect_invalid",
+        "response_too_large": "url_response_too_large",
+        "fetch_failed": "url_fetch_failed",
+    }.get(fetch_error_code, "url_fetch_failed")

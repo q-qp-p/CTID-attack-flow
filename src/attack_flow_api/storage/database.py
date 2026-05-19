@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 def create_connection(sqlite_path: Path) -> sqlite3.Connection:
@@ -52,6 +52,12 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
             type TEXT NOT NULL,
             original_name TEXT,
             source_url TEXT,
+            fetch_final_url TEXT,
+            fetch_status_code INTEGER,
+            fetch_content_type TEXT,
+            fetch_size_bytes INTEGER,
+            fetch_error_code TEXT,
+            fetch_error_message TEXT,
             content_text TEXT,
             raw_text TEXT,
             normalized_text TEXT,

@@ -50,6 +50,27 @@ class AppSettings(BaseSettings):
         default=None, validation_alias="FILE_STORAGE_MAX_BYTES"
     )
     raw_text_max_chars: int = Field(default=200000, validation_alias="RAW_TEXT_MAX_CHARS")
+    url_fetch_max_redirects: int = Field(default=5, validation_alias="URL_FETCH_MAX_REDIRECTS")
+    url_fetch_connect_timeout_seconds: float = Field(
+        default=5.0,
+        validation_alias="URL_FETCH_CONNECT_TIMEOUT_SECONDS",
+    )
+    url_fetch_read_timeout_seconds: float = Field(
+        default=10.0,
+        validation_alias="URL_FETCH_READ_TIMEOUT_SECONDS",
+    )
+    url_fetch_max_response_bytes: int = Field(
+        default=2_000_000,
+        validation_alias="URL_FETCH_MAX_RESPONSE_BYTES",
+    )
+    url_fetch_allowed_schemes: str = Field(
+        default="http,https",
+        validation_alias="URL_FETCH_ALLOWED_SCHEMES",
+    )
+    url_fetch_block_private_destinations: bool = Field(
+        default=True,
+        validation_alias="URL_FETCH_BLOCK_PRIVATE_DESTINATIONS",
+    )
     providers_config_path: Path = Field(
         default=Path("config/providers.yml"), validation_alias="PROVIDERS_CONFIG_PATH"
     )

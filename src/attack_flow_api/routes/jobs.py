@@ -2,6 +2,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC
 from typing import Any
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import APIRouter, Request
@@ -108,6 +109,14 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
     - Maximum text size is enforced via configured character limit.
     - Normalized text is persisted for downstream pipeline stages.
 
+    URL submission behavior:
+    - URL jobs are fetched asynchronously by the worker after queuing.
+    - Only `http` and `https` URLs are supported.
+    - Unsafe/internal destinations are blocked during URL safety checks.
+    - Redirect count, connect/read timeouts, and response size are bounded.
+    - HTML content is extracted into normalized text for downstream stages.
+    - Unsupported content types are marked failed during async processing.
+
     Optional `metadata` and `options` are persisted when provided.
 
     Submission is non-blocking: this endpoint queues work and returns `202 Accepted`.
@@ -205,6 +214,13 @@ def _submission_from_json(payload: JobSubmissionRequest, raw_text_max_chars: int
             raise BadRequestError(
                 code="invalid_url_input",
                 message="url input requires a non-empty url value",
+                details=[],
+            )
+        parsed_url = urlsplit(url)
+        if parsed_url.scheme.lower() not in {"http", "https"}:
+            raise BadRequestError(
+                code="invalid_url_scheme",
+                message="url scheme must be http or https",
                 details=[],
             )
         if text:
@@ -452,6 +468,25 @@ submit_job.openapi_extra = {
                     }
                 }
             },
+        },
+        "400": {
+            "description": "Structured validation errors for invalid submission shape or input fields",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "invalid_url_input": {
+                            "value": {
+                                "error": {
+                                    "code": "invalid_url_input",
+                                    "message": "url input requires a non-empty url value",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        }
+                    }
+                }
+            },
         }
     },
 }
@@ -486,6 +521,9 @@ def get_job_status(request: Request, job_id: str) -> JobStatusResponse:
     flow_building, exporting, completed, failed.
 
     Failed jobs include failure state via status/stage and are surfaced by this endpoint.
+
+    For URL jobs, async worker processing may fail due to URL safety checks, bounded fetch
+    limits (redirects/timeouts/size), or unsupported content type.
     """
     persistence_service = request.app.state.persistence_service
     job = _get_job_or_404(persistence_service, job_id)
