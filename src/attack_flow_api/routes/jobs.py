@@ -129,6 +129,15 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
     - Narrative text from report/note/description fields is captured for downstream processing.
     - Unsupported file types or malformed payloads fail with structured error responses.
 
+    Canonical normalization behavior:
+    - Supported input classes (text, URL-derived narrative, document-derived narrative, STIX/OpenCTI)
+      produce a canonical normalized representation for downstream stages.
+    - Narrative inputs contribute normalized narrative text.
+    - STIX/OpenCTI inputs consume deterministic AFA-24 structured extraction outputs.
+    - Explicit ATT&CK refs, entities, relationships, and provenance are preserved in the
+      canonical normalized package.
+    - Content budgeting/truncation is applied explicitly to canonical normalized text where needed.
+
     Text submission behavior:
     - Raw text is normalized deterministically (line endings/whitespace) before processing.
     - Maximum text size is enforced via configured character limit.
@@ -657,6 +666,9 @@ def get_job_status(request: Request, job_id: str) -> JobStatusResponse:
     For STIX file jobs, asynchronous processing performs deterministic bundle parsing,
     inventory/entity/relationship extraction, explicit ATT&CK reference extraction,
     and narrative text capture from report/note/description fields.
+
+    Downstream processing should read canonical normalized package content when available
+    instead of re-reading source-specific raw fields ad hoc.
     """
     persistence_service = request.app.state.persistence_service
     job = _get_job_or_404(persistence_service, job_id)
@@ -904,6 +916,9 @@ def get_job_result(request: Request, job_id: str) -> JobResultResponse:
 
     Returns `409` while asynchronous processing is still in progress or result data
     is not yet available.
+
+    Note: before final result materialization, normalized canonical source packages are
+    persisted per input source and used by downstream deterministic processing stages.
     """
     persistence_service = request.app.state.persistence_service
     job = _get_job_or_404(persistence_service, job_id)

@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 
 def create_connection(sqlite_path: Path) -> sqlite3.Connection:
@@ -91,6 +91,13 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
             stix_provenance_json TEXT,
             stix_parse_error_code TEXT,
             stix_parse_error_message TEXT,
+            normalized_source_type TEXT,
+            normalized_package_json TEXT,
+            normalized_stats_json TEXT,
+            normalized_content_chars INTEGER,
+            normalized_content_was_truncated INTEGER,
+            normalized_content_budget_chars INTEGER,
+            normalized_pipeline_version TEXT,
             ingestion_error_code TEXT,
             ingestion_error_message TEXT,
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))

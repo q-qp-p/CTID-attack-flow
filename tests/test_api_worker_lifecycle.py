@@ -396,6 +396,86 @@ def test_worker_processes_plaintext_file_and_persists_normalized_output(monkeypa
             assert input_row["content_text"] == "alpha\n\nbeta"
             assert input_row["normalized_char_count"] == len("alpha\n\nbeta")
             assert input_row["normalization_version"] == "v1"
+            assert input_row["normalized_source_type"] == "document_extracted_text"
+            assert input_row["normalized_package_json"]
+
+
+def test_worker_persists_canonical_normalized_package_for_text_job(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        client.app.state.job_worker.poll_interval_seconds = 0.01
+        response = client.post(
+            "/api/v1/jobs",
+            json={
+                "input_type": "text",
+                "text": "Alpha\r\n\r\n\r\nBeta\n",
+                "metadata": {"title": "Case A", "case_id": "CASE-1", "source_name": "analyst"},
+            },
+        )
+        job_id = response.json()["job_id"]
+
+        completed_payload = _wait_for_status(client, job_id, "completed")
+        assert completed_payload is not None
+
+        with sqlite3.connect(client.app.state.sqlite_path) as connection:
+            connection.row_factory = sqlite3.Row
+            job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            assert job_row is not None
+            input_row = connection.execute(
+                "SELECT * FROM input_sources WHERE id = ?", (job_row["input_source_id"],)
+            ).fetchone()
+            assert input_row is not None
+            assert input_row["normalized_source_type"] == "narrative_text"
+            assert input_row["normalized_content_chars"] == len("Alpha\n\nBeta")
+            assert input_row["normalized_pipeline_version"] == "v1"
+            assert input_row["normalized_package_json"]
+
+        normalized_package = client.app.state.persistence_service.resolve_normalized_package_for_job(job_id)
+        assert normalized_package is not None
+        assert normalized_package["source_type"] == "narrative_text"
+        assert normalized_package["normalized_text"] == "Alpha\n\nBeta"
+
+
+def test_worker_persists_canonical_normalized_package_for_url_job(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        client.app.state.job_worker.poll_interval_seconds = 0.01
+
+        with patch("attack_flow_api.services.job_worker_service.fetch_url_bounded") as mocked_fetch:
+            mocked_fetch.return_value = UrlFetchResult(
+                requested_url="https://example.com/report",
+                final_url="https://example.com/report",
+                status_code=200,
+                content_type="text/html; charset=utf-8",
+                size_bytes=120,
+                body=(
+                    b"<html><body><article><h1>Case Title</h1>"
+                    b"<p>Observed activity details.</p></article></body></html>"
+                ),
+            )
+
+            response = client.post(
+                "/api/v1/jobs",
+                json={"input_type": "url", "url": "https://example.com/report"},
+            )
+            job_id = response.json()["job_id"]
+
+            completed_payload = _wait_for_status(client, job_id, "completed")
+            assert completed_payload is not None
+
+        with sqlite3.connect(client.app.state.sqlite_path) as connection:
+            connection.row_factory = sqlite3.Row
+            job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            assert job_row is not None
+            input_row = connection.execute(
+                "SELECT * FROM input_sources WHERE id = ?", (job_row["input_source_id"],)
+            ).fetchone()
+            assert input_row is not None
+            assert input_row["normalized_source_type"] == "url_extracted_text"
+            assert input_row["normalized_package_json"]
+
+        normalized_package = client.app.state.persistence_service.resolve_normalized_package_for_job(job_id)
+        assert normalized_package is not None
+        assert normalized_package["source_type"] == "url_extracted_text"
+        assert normalized_package["normalized_text"] == "Case Title\n\nObserved activity details."
 
 
 def test_worker_processes_pdf_file_and_persists_extracted_output(monkeypatch, tmp_path: Path):
@@ -529,12 +609,15 @@ def test_worker_persists_structured_stix_extraction_package(monkeypatch, tmp_pat
             assert input_row["stix_relationship_count"] == 1
             assert input_row["stix_attack_ref_count"] == 1
             assert input_row["normalized_text"] == "Initial access via phishing.\n\nCase Report"
+            assert input_row["normalized_source_type"] == "stix_structured"
+            assert input_row["normalized_package_json"]
 
             stix_summary = json.loads(input_row["stix_summary_json"])
             stix_entities = json.loads(input_row["stix_entities_json"])
             stix_relationships = json.loads(input_row["stix_relationships_json"])
             stix_attack_refs = json.loads(input_row["stix_attack_refs_json"])
             stix_provenance = json.loads(input_row["stix_provenance_json"])
+            normalized_package = json.loads(input_row["normalized_package_json"])
 
             assert stix_summary["bundle_metadata"]["id"] == "bundle--12345678-1234-1234-1234-123456789012"
             assert stix_summary["inventory"]["object_count"] == 3
@@ -543,6 +626,13 @@ def test_worker_persists_structured_stix_extraction_package(monkeypatch, tmp_pat
             assert any(item["object_type"] == "report" for item in stix_entities)
             assert stix_relationships[0]["relationship_type"] == "uses"
             assert "report--1" in stix_provenance["narrative_source_object_ids"]
+            assert normalized_package["source_type"] == "stix_structured"
+            assert normalized_package["structured_summary"]["bundle_metadata"]["id"] == "bundle--12345678-1234-1234-1234-123456789012"
+
+        resolved_package = client.app.state.persistence_service.resolve_normalized_package_for_job(job_id)
+        assert resolved_package is not None
+        assert resolved_package["source_type"] == "stix_structured"
+        assert resolved_package["attack_refs"][0]["technique_id"] == "T1566"
 
 
 def test_worker_persists_stix_extraction_failure_and_continues_next_job(monkeypatch, tmp_path: Path):

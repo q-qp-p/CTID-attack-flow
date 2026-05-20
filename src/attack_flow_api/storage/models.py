@@ -69,6 +69,13 @@ class InputSource:
     stix_provenance_json: str | None
     stix_parse_error_code: str | None
     stix_parse_error_message: str | None
+    normalized_source_type: str | None
+    normalized_package_json: str | None
+    normalized_stats_json: str | None
+    normalized_content_chars: int | None
+    normalized_content_was_truncated: bool | None
+    normalized_content_budget_chars: int | None
+    normalized_pipeline_version: str | None
     ingestion_error_code: str | None
     ingestion_error_message: str | None
     created_at: datetime

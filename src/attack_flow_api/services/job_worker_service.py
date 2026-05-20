@@ -6,6 +6,10 @@ from uuid import uuid4
 
 from attack_flow_api.config import AppSettings
 from attack_flow_api.services.file_classification import FileRoutingResult, classify_file_for_routing
+from attack_flow_api.services.normalized_package_assembler import (
+    build_narrative_normalized_update,
+    build_structured_stix_normalized_update,
+)
 from attack_flow_api.services.stix_attack_refs import extract_explicit_attack_refs
 from attack_flow_api.services.stix_bundle_inventory import build_stix_bundle_inventory_and_narrative
 from attack_flow_api.services.stix_entities import extract_stix_entities
@@ -188,6 +192,11 @@ class JobWorkerService:
             await asyncio.sleep(0)
             return
 
+        if input_source.type == "text" and stage == "normalizing":
+            self._persist_narrative_normalized_package(input_source.id)
+            await asyncio.sleep(0)
+            return
+
         normalized_text = None
         if stage == "ai_extraction":
             normalized_text = self.persistence_service.resolve_canonical_text_for_job(job_id)
@@ -231,6 +240,7 @@ class JobWorkerService:
                     content_text=extracted.normalized_text,
                 ),
             )
+            self._persist_narrative_normalized_package(input_source.id)
             return
 
         if stage == "ai_extraction":
@@ -300,8 +310,11 @@ class JobWorkerService:
                 content_text=context.normalized_text,
             )
             self.persistence_service.update_input_source_file(input_source.id, update)
+            if context.routing.file_class in {"plaintext", "pdf"}:
+                self._persist_narrative_normalized_package(input_source.id)
             if context.stix_update is not None:
                 self.persistence_service.update_input_source_stix(input_source.id, context.stix_update)
+                self._persist_structured_stix_normalized_package(input_source.id)
             return
 
         if stage == "ai_extraction":
@@ -560,6 +573,32 @@ class JobWorkerService:
             job_error_code=job_error_code,
             job_error_message=job_error_message,
         )
+
+    def _persist_narrative_normalized_package(self, input_source_id: str) -> None:
+        input_source = self.persistence_service.get_input_source(input_source_id)
+        if input_source is None:
+            return
+        update = build_narrative_normalized_update(
+            input_source,
+            pipeline_version=self.settings.normalized_pipeline_version,
+            content_budget_chars=self.settings.normalized_content_max_chars,
+        )
+        if update is None:
+            return
+        self.persistence_service.update_input_source_normalized(input_source_id, update)
+
+    def _persist_structured_stix_normalized_package(self, input_source_id: str) -> None:
+        input_source = self.persistence_service.get_input_source(input_source_id)
+        if input_source is None:
+            return
+        update = build_structured_stix_normalized_update(
+            input_source,
+            pipeline_version=self.settings.normalized_pipeline_version,
+            content_budget_chars=self.settings.normalized_content_max_chars,
+        )
+        if update is None:
+            return
+        self.persistence_service.update_input_source_normalized(input_source_id, update)
 
 
 class _UrlJobProcessingError(RuntimeError):

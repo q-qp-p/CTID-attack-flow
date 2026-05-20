@@ -219,6 +219,32 @@ def test_resolve_canonical_text_for_job_prefers_normalized_text(tmp_path: Path):
     assert service.resolve_canonical_text_for_job("job-1") == "normalized"
 
 
+def test_resolve_canonical_text_for_job_prefers_canonical_normalized_package(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    service = PersistenceService(db_path)
+
+    input_source = service.create_input_source(
+        InputSourceCreate(
+            id="input-2",
+            type="text",
+            raw_text="raw value",
+            normalized_text="field normalized",
+            normalized_package_json='{"source_type":"narrative_text","normalized_text":"package normalized"}',
+        )
+    )
+    service.create_job(
+        JobCreate(
+            id="job-2",
+            status="queued",
+            stage="queued",
+            input_source_id=input_source.id,
+        )
+    )
+
+    assert service.resolve_canonical_text_for_job("job-2") == "package normalized"
+
+
 def test_update_input_source_file_persists_plaintext_extraction_fields(tmp_path: Path):
     db_path = tmp_path / "attack-flow.db"
     initialize_database(db_path)

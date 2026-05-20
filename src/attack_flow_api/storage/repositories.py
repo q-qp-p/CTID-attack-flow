@@ -102,6 +102,13 @@ class InputSourceCreate:
     stix_provenance_json: str | None = None
     stix_parse_error_code: str | None = None
     stix_parse_error_message: str | None = None
+    normalized_source_type: str | None = None
+    normalized_package_json: str | None = None
+    normalized_stats_json: str | None = None
+    normalized_content_chars: int | None = None
+    normalized_content_was_truncated: bool | None = None
+    normalized_content_budget_chars: int | None = None
+    normalized_pipeline_version: str | None = None
     ingestion_error_code: str | None = None
     ingestion_error_message: str | None = None
 
@@ -185,6 +192,17 @@ class InputSourceStixUpdate:
     stix_provenance_json: str | None = None
     stix_parse_error_code: str | None = None
     stix_parse_error_message: str | None = None
+
+
+@dataclass(slots=True)
+class InputSourceNormalizedUpdate:
+    normalized_source_type: str | None = None
+    normalized_package_json: str | None = None
+    normalized_stats_json: str | None = None
+    normalized_content_chars: int | None = None
+    normalized_content_was_truncated: bool | None = None
+    normalized_content_budget_chars: int | None = None
+    normalized_pipeline_version: str | None = None
 
 
 @dataclass(slots=True)
@@ -415,9 +433,12 @@ class PersistenceRepository:
                     stix_summary_json, stix_entities_json, stix_relationships_json,
                     stix_attack_refs_json, stix_provenance_json,
                     stix_parse_error_code, stix_parse_error_message,
+                    normalized_source_type, normalized_package_json, normalized_stats_json,
+                    normalized_content_chars, normalized_content_was_truncated,
+                    normalized_content_budget_chars, normalized_pipeline_version,
                     ingestion_error_code, ingestion_error_message, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
@@ -463,6 +484,17 @@ class PersistenceRepository:
                     payload.stix_provenance_json,
                     payload.stix_parse_error_code,
                     payload.stix_parse_error_message,
+                    payload.normalized_source_type,
+                    payload.normalized_package_json,
+                    payload.normalized_stats_json,
+                    payload.normalized_content_chars,
+                    (
+                        int(payload.normalized_content_was_truncated)
+                        if payload.normalized_content_was_truncated is not None
+                        else None
+                    ),
+                    payload.normalized_content_budget_chars,
+                    payload.normalized_pipeline_version,
                     payload.ingestion_error_code,
                     payload.ingestion_error_message,
                     now,
@@ -552,6 +584,43 @@ class PersistenceRepository:
 
         if payload.stix_json_valid is not None:
             updates["stix_json_valid"] = int(payload.stix_json_valid)
+
+        if not updates:
+            return self.get_input_source(input_source_id)
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates])
+        params = list(updates.values()) + [input_source_id]
+
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute(
+                f"UPDATE input_sources SET {set_clause} WHERE id = ?",  # noqa: S608
+                params,
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_input_source(input_source_id)
+
+    def update_input_source_normalized(
+        self,
+        input_source_id: str,
+        payload: InputSourceNormalizedUpdate,
+    ) -> InputSource | None:
+        updates: dict[str, object] = {}
+        for field_name in (
+            "normalized_source_type",
+            "normalized_package_json",
+            "normalized_stats_json",
+            "normalized_content_chars",
+            "normalized_content_budget_chars",
+            "normalized_pipeline_version",
+        ):
+            value = getattr(payload, field_name)
+            if value is not None:
+                updates[field_name] = value
+
+        if payload.normalized_content_was_truncated is not None:
+            updates["normalized_content_was_truncated"] = int(payload.normalized_content_was_truncated)
 
         if not updates:
             return self.get_input_source(input_source_id)
@@ -690,6 +759,17 @@ class PersistenceRepository:
             stix_provenance_json=row["stix_provenance_json"],
             stix_parse_error_code=row["stix_parse_error_code"],
             stix_parse_error_message=row["stix_parse_error_message"],
+            normalized_source_type=row["normalized_source_type"],
+            normalized_package_json=row["normalized_package_json"],
+            normalized_stats_json=row["normalized_stats_json"],
+            normalized_content_chars=row["normalized_content_chars"],
+            normalized_content_was_truncated=(
+                None
+                if row["normalized_content_was_truncated"] is None
+                else bool(row["normalized_content_was_truncated"])
+            ),
+            normalized_content_budget_chars=row["normalized_content_budget_chars"],
+            normalized_pipeline_version=row["normalized_pipeline_version"],
             ingestion_error_code=row["ingestion_error_code"],
             ingestion_error_message=row["ingestion_error_message"],
             created_at=_require_datetime(row["created_at"], "created_at"),

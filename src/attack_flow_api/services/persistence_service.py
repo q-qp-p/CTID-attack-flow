@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 from attack_flow_api.storage.models import Artifact, AuditEvent, InputSource, Job
 from attack_flow_api.storage.repositories import (
@@ -7,6 +8,7 @@ from attack_flow_api.storage.repositories import (
     InputSourceCreate,
     InputSourceFileUpdate,
     InputSourceFetchUpdate,
+    InputSourceNormalizedUpdate,
     InputSourceStixUpdate,
     InputSourceTextUpdate,
     JobCreate,
@@ -35,11 +37,13 @@ class PersistenceService:
         return self.repository.get_input_source(input_source_id)
 
     def resolve_canonical_text_for_job(self, job_id: str) -> str | None:
-        job = self.get_job(job_id)
-        if job is None or job.input_source_id is None:
-            return None
+        normalized_package = self.resolve_normalized_package_for_job(job_id)
+        if normalized_package is not None:
+            normalized_text = normalized_package.get("normalized_text")
+            if isinstance(normalized_text, str):
+                return normalized_text
 
-        input_source = self.get_input_source(job.input_source_id)
+        input_source = self._resolve_input_source_for_job(job_id)
         return self.resolve_canonical_text_for_input_source(input_source)
 
     def resolve_canonical_text_for_input_source(self, input_source: InputSource | None) -> str | None:
@@ -53,6 +57,29 @@ class PersistenceService:
         if input_source.content_text is not None:
             return input_source.content_text
         return input_source.raw_text
+
+    def resolve_normalized_package_for_job(self, job_id: str) -> dict[str, object] | None:
+        input_source = self._resolve_input_source_for_job(job_id)
+        return self.resolve_normalized_package_for_input_source(input_source)
+
+    def resolve_normalized_package_for_input_source(
+        self, input_source: InputSource | None
+    ) -> dict[str, object] | None:
+        if input_source is None or input_source.normalized_package_json is None:
+            return None
+        try:
+            parsed = json.loads(input_source.normalized_package_json)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        return parsed
+
+    def _resolve_input_source_for_job(self, job_id: str) -> InputSource | None:
+        job = self.get_job(job_id)
+        if job is None or job.input_source_id is None:
+            return None
+        return self.get_input_source(job.input_source_id)
 
     def update_input_source_text(
         self, input_source_id: str, payload: InputSourceTextUpdate
@@ -79,6 +106,13 @@ class PersistenceService:
         payload: InputSourceStixUpdate,
     ) -> InputSource | None:
         return self.repository.update_input_source_stix(input_source_id, payload)
+
+    def update_input_source_normalized(
+        self,
+        input_source_id: str,
+        payload: InputSourceNormalizedUpdate,
+    ) -> InputSource | None:
+        return self.repository.update_input_source_normalized(input_source_id, payload)
 
     def create_artifact(self, payload: ArtifactCreate) -> Artifact:
         return self.repository.create_artifact(payload)

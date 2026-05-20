@@ -63,6 +63,18 @@ class AppSettings(BaseSettings):
         default=2_000_000,
         validation_alias="STIX_MAX_STRUCTURED_PAYLOAD_BYTES",
     )
+    normalized_content_max_chars: int = Field(
+        default=100_000,
+        validation_alias="NORMALIZED_CONTENT_MAX_CHARS",
+    )
+    normalized_structured_max_bytes: int = Field(
+        default=2_000_000,
+        validation_alias="NORMALIZED_STRUCTURED_MAX_BYTES",
+    )
+    normalized_pipeline_version: str = Field(
+        default="v1",
+        validation_alias="NORMALIZED_PIPELINE_VERSION",
+    )
     raw_text_max_chars: int = Field(default=200000, validation_alias="RAW_TEXT_MAX_CHARS")
     url_fetch_max_redirects: int = Field(default=5, validation_alias="URL_FETCH_MAX_REDIRECTS")
     url_fetch_connect_timeout_seconds: float = Field(
