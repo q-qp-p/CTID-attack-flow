@@ -12,6 +12,11 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from starlette.datastructures import UploadFile
 
 from attack_flow_api.errors import BadRequestError, ConflictError, NotFoundError, PayloadTooLargeError
+from attack_flow_api.services.file_upload import FileUploadValidationError, validate_and_describe_upload
+from attack_flow_api.services.stix_json_validation import (
+    StixJsonValidationError,
+    validate_stix_json_bundle_shape,
+)
 from attack_flow_api.services.text_normalization import normalize_raw_text
 from attack_flow_api.storage.repositories import InputSourceCreate, JobCreate
 
@@ -93,6 +98,14 @@ class SubmissionPayload:
     title: str | None = None
     case_id: str | None = None
     source_name: str | None = None
+    stored_filename: str | None = None
+    detected_mime_type: str | None = None
+    file_class: str | None = None
+    stix_json_kind: str | None = None
+    stix_json_valid: bool | None = None
+    ingestion_error_code: str | None = None
+    ingestion_error_message: str | None = None
+    sha256: str | None = None
 
 
 @router.post("/jobs", response_model=JobSubmissionResponse, status_code=202)
@@ -103,6 +116,14 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
     - `application/json` with `input_type=text` and non-empty `text`
     - `application/json` with `input_type=url` and non-empty `url`
     - `multipart/form-data` with required `file` and optional `metadata`/`options`
+
+    Multipart file behavior:
+    - Supported file classes: PDF, plaintext/markdown text, and STIX JSON bundle uploads.
+    - Upload size is enforced using configured byte limits.
+    - Files are stored with server-generated names; client filenames are metadata only.
+    - Plaintext and PDF inputs are extracted and normalized asynchronously for narrative processing.
+    - STIX JSON receives basic JSON and STIX bundle-shape validation and routing markers.
+    - Unsupported file types or malformed payloads fail with structured error responses.
 
     Text submission behavior:
     - Raw text is normalized deterministically (line endings/whitespace) before processing.
@@ -159,6 +180,14 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
             title=submission.title,
             case_id=submission.case_id,
             source_name=submission.source_name,
+            stored_filename=submission.stored_filename,
+            detected_mime_type=submission.detected_mime_type,
+            file_class=submission.file_class,
+            stix_json_kind=submission.stix_json_kind,
+            stix_json_valid=submission.stix_json_valid,
+            ingestion_error_code=submission.ingestion_error_code,
+            ingestion_error_message=submission.ingestion_error_message,
+            sha256=submission.sha256,
         )
     )
     return _create_queued_job_response(request, input_source.id)
@@ -295,23 +324,64 @@ async def _submission_from_multipart(request: Request) -> SubmissionPayload:
     options = _parse_optional_json_object(form_data.get("options"), "options")
 
     file_bytes = await upload_file.read()
+    settings = request.app.state.settings
+    try:
+        upload_info = validate_and_describe_upload(
+            file_bytes=file_bytes,
+            original_name=upload_file.filename,
+            declared_mime_type=upload_file.content_type,
+            upload_max_bytes=settings.upload_max_bytes,
+            allowed_file_classes=_split_csv_lower(settings.upload_allowed_file_classes),
+            allowed_mime_types=_split_csv_lower(settings.upload_allowed_mime_types),
+        )
+    except FileUploadValidationError as exc:
+        if exc.code == "file_too_large":
+            raise PayloadTooLargeError(code=exc.code, message=exc.message, details=[])
+        raise BadRequestError(code=exc.code, message=exc.message, details=[])
+
     file_storage = request.app.state.file_storage
-    extension = None
-    if upload_file.filename:
-        filename_parts = upload_file.filename.rsplit(".", 1)
-        if len(filename_parts) == 2 and filename_parts[1]:
-            extension = filename_parts[1]
-    stored_file = file_storage.write_upload(file_bytes, extension=extension)
+    stored_file = file_storage.write_upload(file_bytes, extension=upload_info.preferred_extension)
+
+    stix_json_kind = None
+    stix_json_valid = None
+    ingestion_error_code = None
+    ingestion_error_message = None
+    if upload_info.file_class == "stix_json":
+        try:
+            stix_validation = validate_stix_json_bundle_shape(file_bytes)
+            stix_json_kind = stix_validation.stix_json_kind
+            stix_json_valid = stix_validation.stix_json_valid
+        except StixJsonValidationError as exc:
+            raise BadRequestError(code=exc.code, message=exc.message, details=[])
 
     return SubmissionPayload(
         source_type="file",
-        original_name=upload_file.filename,
+        original_name=upload_info.sanitized_original_name,
         mime_type=upload_file.content_type,
         size_bytes=stored_file.size_bytes,
         storage_path=stored_file.relative_path,
+        stored_filename=stored_file.filename,
+        detected_mime_type=upload_info.detected_mime_type,
+        file_class=upload_info.file_class,
+        stix_json_kind=stix_json_kind,
+        stix_json_valid=stix_json_valid,
+        ingestion_error_code=ingestion_error_code,
+        ingestion_error_message=ingestion_error_message,
+        sha256=upload_info.sha256_hex,
+        raw_text=None,
+        normalized_text=None,
+        normalized_char_count=None,
+        normalization_version=None,
         metadata=metadata,
         options=options,
+        source_name=None,
+        title=None,
+        case_id=None,
     )
+
+
+def _split_csv_lower(value: str) -> set[str]:
+    return {item.strip().lower() for item in value.split(",") if item.strip()}
 
 
 def _parse_optional_json_object(raw_value: object, field_name: str) -> dict[str, Any] | None:
@@ -425,7 +495,14 @@ submit_job.openapi_extra = {
                     "type": "object",
                     "required": ["file"],
                     "properties": {
-                        "file": {"type": "string", "format": "binary"},
+                        "file": {
+                            "type": "string",
+                            "format": "binary",
+                            "description": (
+                                "Supported classes: PDF, plaintext/markdown text, and STIX JSON bundles. "
+                                "Upload size limits are enforced."
+                            ),
+                        },
                         "metadata": {
                             "type": "string",
                             "description": "Optional JSON object string",
@@ -445,6 +522,7 @@ submit_job.openapi_extra = {
                     "file_submission": {
                         "summary": "Multipart file submission",
                         "value": {
+                            "file": "<binary>",
                             "metadata": '{"source":"upload"}',
                             "options": '{"priority":"high"}',
                         },
@@ -455,22 +533,36 @@ submit_job.openapi_extra = {
     },
     "responses": {
         "413": {
-            "description": "Text payload exceeds configured maximum size",
+            "description": "Submission payload exceeds configured size limits",
             "content": {
                 "application/json": {
-                    "example": {
-                        "error": {
-                            "code": "text_too_large",
-                            "message": "text input exceeds maximum size of <N> characters",
-                            "details": [],
+                    "examples": {
+                        "text_too_large": {
+                            "value": {
+                                "error": {
+                                    "code": "text_too_large",
+                                    "message": "text input exceeds maximum size of <N> characters",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
                         },
-                        "request_id": "<request-id>",
+                        "file_too_large": {
+                            "value": {
+                                "error": {
+                                    "code": "file_too_large",
+                                    "message": "file upload exceeds maximum size of <N> bytes",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        },
                     }
                 }
             },
         },
         "400": {
-            "description": "Structured validation errors for invalid submission shape or input fields",
+            "description": "Structured validation errors for invalid submission shape, unsupported files, or malformed STIX JSON",
             "content": {
                 "application/json": {
                     "examples": {
@@ -479,6 +571,26 @@ submit_job.openapi_extra = {
                                 "error": {
                                     "code": "invalid_url_input",
                                     "message": "url input requires a non-empty url value",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        },
+                        "unsupported_file_type": {
+                            "value": {
+                                "error": {
+                                    "code": "unsupported_file_type",
+                                    "message": "uploaded file type is not supported",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        },
+                        "stix_json_malformed": {
+                            "value": {
+                                "error": {
+                                    "code": "stix_json_malformed",
+                                    "message": "stix json payload is malformed",
                                     "details": [],
                                 },
                                 "request_id": "<request-id>",
@@ -524,6 +636,9 @@ def get_job_status(request: Request, job_id: str) -> JobStatusResponse:
 
     For URL jobs, async worker processing may fail due to URL safety checks, bounded fetch
     limits (redirects/timeouts/size), or unsupported content type.
+
+    For file jobs, async worker processing may fail due to extraction/validation issues
+    (for example decode failures, unreadable PDFs, or malformed STIX JSON).
     """
     persistence_service = request.app.state.persistence_service
     job = _get_job_or_404(persistence_service, job_id)

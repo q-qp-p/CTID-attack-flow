@@ -49,6 +49,15 @@ class AppSettings(BaseSettings):
     file_storage_max_bytes: int | None = Field(
         default=None, validation_alias="FILE_STORAGE_MAX_BYTES"
     )
+    upload_max_bytes: int = Field(default=10_000_000, validation_alias="UPLOAD_MAX_BYTES")
+    upload_allowed_file_classes: str = Field(
+        default="pdf,plaintext,stix_json",
+        validation_alias="UPLOAD_ALLOWED_FILE_CLASSES",
+    )
+    upload_allowed_mime_types: str = Field(
+        default="application/pdf,text/plain,application/json",
+        validation_alias="UPLOAD_ALLOWED_MIME_TYPES",
+    )
     raw_text_max_chars: int = Field(default=200000, validation_alias="RAW_TEXT_MAX_CHARS")
     url_fetch_max_redirects: int = Field(default=5, validation_alias="URL_FETCH_MAX_REDIRECTS")
     url_fetch_connect_timeout_seconds: float = Field(

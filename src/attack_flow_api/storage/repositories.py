@@ -84,6 +84,13 @@ class InputSourceCreate:
     title: str | None = None
     case_id: str | None = None
     source_name: str | None = None
+    stored_filename: str | None = None
+    detected_mime_type: str | None = None
+    file_class: str | None = None
+    stix_json_kind: str | None = None
+    stix_json_valid: bool | None = None
+    ingestion_error_code: str | None = None
+    ingestion_error_message: str | None = None
 
 
 @dataclass(slots=True)
@@ -103,6 +110,21 @@ class InputSourceFetchUpdate:
     fetch_size_bytes: int | None = None
     fetch_error_code: str | None = None
     fetch_error_message: str | None = None
+    raw_text: str | None = None
+    normalized_text: str | None = None
+    normalized_char_count: int | None = None
+    normalization_version: str | None = None
+    content_text: str | None = None
+
+
+@dataclass(slots=True)
+class InputSourceFileUpdate:
+    detected_mime_type: str | None = None
+    file_class: str | None = None
+    stix_json_kind: str | None = None
+    stix_json_valid: bool | None = None
+    ingestion_error_code: str | None = None
+    ingestion_error_message: str | None = None
     raw_text: str | None = None
     normalized_text: str | None = None
     normalized_char_count: int | None = None
@@ -341,9 +363,11 @@ class PersistenceRepository:
                     content_text,
                     raw_text, normalized_text, normalized_char_count, was_truncated,
                     normalization_version, storage_path, metadata_json, options_json,
-                    mime_type, size_bytes, sha256, title, case_id, source_name, created_at
+                    mime_type, size_bytes, sha256, title, case_id, source_name,
+                    stored_filename, detected_mime_type, file_class, stix_json_kind, stix_json_valid,
+                    ingestion_error_code, ingestion_error_message, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
@@ -371,10 +395,58 @@ class PersistenceRepository:
                     payload.title,
                     payload.case_id,
                     payload.source_name,
+                    payload.stored_filename,
+                    payload.detected_mime_type,
+                    payload.file_class,
+                    payload.stix_json_kind,
+                    int(payload.stix_json_valid) if payload.stix_json_valid is not None else None,
+                    payload.ingestion_error_code,
+                    payload.ingestion_error_message,
                     now,
                 ),
             )
         return self.get_input_source(payload.id)
+
+    def update_input_source_file(
+        self,
+        input_source_id: str,
+        payload: InputSourceFileUpdate,
+    ) -> InputSource | None:
+        updates: dict[str, object] = {}
+        for field_name in (
+            "detected_mime_type",
+            "file_class",
+            "stix_json_kind",
+            "ingestion_error_code",
+            "ingestion_error_message",
+            "raw_text",
+            "normalized_text",
+            "normalized_char_count",
+            "normalization_version",
+            "content_text",
+        ):
+            value = getattr(payload, field_name)
+            if value is not None:
+                updates[field_name] = value
+
+        if payload.stix_json_valid is not None:
+            updates["stix_json_valid"] = int(payload.stix_json_valid)
+
+        if not updates:
+            return self.get_input_source(input_source_id)
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates])
+        params = list(updates.values()) + [input_source_id]
+
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute(
+                f"UPDATE input_sources SET {set_clause} WHERE id = ?",  # noqa: S608
+                params,
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_input_source(input_source_id)
 
     def update_input_source_fetch(
         self,
@@ -479,6 +551,13 @@ class PersistenceRepository:
             title=row["title"],
             case_id=row["case_id"],
             source_name=row["source_name"],
+            stored_filename=row["stored_filename"],
+            detected_mime_type=row["detected_mime_type"],
+            file_class=row["file_class"],
+            stix_json_kind=row["stix_json_kind"],
+            stix_json_valid=(None if row["stix_json_valid"] is None else bool(row["stix_json_valid"])),
+            ingestion_error_code=row["ingestion_error_code"],
+            ingestion_error_message=row["ingestion_error_message"],
             created_at=_require_datetime(row["created_at"], "created_at"),
         )
 

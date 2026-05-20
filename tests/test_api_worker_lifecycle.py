@@ -8,6 +8,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from attack_flow_api.main import create_app
+from attack_flow_api.services.plaintext_extraction import PlaintextExtractionError
+from attack_flow_api.services.pdf_extraction import PdfExtractionResult
 from attack_flow_api.services.url_fetch import UrlFetchError
 from attack_flow_api.services.url_fetch import UrlFetchResult
 
@@ -365,3 +367,120 @@ def test_non_http_https_url_is_rejected_before_worker_processing(monkeypatch, tm
     payload = response.json()
     assert response.status_code == 400
     assert payload["error"]["code"] == "invalid_url_scheme"
+
+
+def test_worker_processes_plaintext_file_and_persists_normalized_output(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        client.app.state.job_worker.poll_interval_seconds = 0.01
+        response = client.post(
+            "/api/v1/jobs",
+            files={"file": ("notes.txt", b"alpha  \r\n\r\n\r\nbeta\t\n", "text/plain")},
+        )
+        job_id = response.json()["job_id"]
+
+        completed_payload = _wait_for_status(client, job_id, "completed")
+        assert completed_payload is not None
+
+        with sqlite3.connect(client.app.state.sqlite_path) as connection:
+            connection.row_factory = sqlite3.Row
+            job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            assert job_row is not None
+            input_row = connection.execute(
+                "SELECT * FROM input_sources WHERE id = ?", (job_row["input_source_id"],)
+            ).fetchone()
+            assert input_row is not None
+            assert input_row["file_class"] == "plaintext"
+            assert input_row["raw_text"] == "alpha  \r\n\r\n\r\nbeta\t\n"
+            assert input_row["normalized_text"] == "alpha\n\nbeta"
+            assert input_row["content_text"] == "alpha\n\nbeta"
+            assert input_row["normalized_char_count"] == len("alpha\n\nbeta")
+            assert input_row["normalization_version"] == "v1"
+
+
+def test_worker_processes_pdf_file_and_persists_extracted_output(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        client.app.state.job_worker.poll_interval_seconds = 0.01
+        with patch("attack_flow_api.services.job_worker_service.extract_pdf_text_content") as mocked_extract_pdf:
+            mocked_extract_pdf.return_value = PdfExtractionResult(
+                extracted_text="Page One\r\n\r\n\r\nPage Two\n",
+                normalized_text="Page One\n\nPage Two",
+                normalized_char_count=len("Page One\n\nPage Two"),
+                normalization_version="v1",
+            )
+
+            response = client.post(
+                "/api/v1/jobs",
+                files={"file": ("report.pdf", b"%PDF-1.7 sample", "application/pdf")},
+            )
+            job_id = response.json()["job_id"]
+
+            completed_payload = _wait_for_status(client, job_id, "completed")
+            assert completed_payload is not None
+
+        with sqlite3.connect(client.app.state.sqlite_path) as connection:
+            connection.row_factory = sqlite3.Row
+            job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            assert job_row is not None
+            input_row = connection.execute(
+                "SELECT * FROM input_sources WHERE id = ?", (job_row["input_source_id"],)
+            ).fetchone()
+            assert input_row is not None
+            assert input_row["file_class"] == "pdf"
+            assert input_row["raw_text"] == "Page One\r\n\r\n\r\nPage Two\n"
+            assert input_row["normalized_text"] == "Page One\n\nPage Two"
+            assert input_row["content_text"] == "Page One\n\nPage Two"
+            assert input_row["normalized_char_count"] == len("Page One\n\nPage Two")
+            assert input_row["normalization_version"] == "v1"
+
+
+def test_worker_persists_file_failure_details_and_continues_next_job(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        client.app.state.job_worker.poll_interval_seconds = 0.01
+
+        with patch("attack_flow_api.services.job_worker_service.extract_plaintext_content") as mocked_extract:
+            mocked_extract.side_effect = PlaintextExtractionError(
+                "plaintext_decode_failed",
+                "plaintext file must be valid UTF-8",
+            )
+
+            failing = client.post(
+                "/api/v1/jobs",
+                files={"file": ("broken.txt", b"safe-bytes", "text/plain")},
+            )
+            failing_job_id = failing.json()["job_id"]
+
+            succeeding = client.post(
+                "/api/v1/jobs",
+                json={"input_type": "text", "text": "continue after file fail"},
+            )
+            succeeding_job_id = succeeding.json()["job_id"]
+
+            failed_payload = _wait_for_status(client, failing_job_id, "failed")
+            completed_payload = _wait_for_status(client, succeeding_job_id, "completed")
+            assert failed_payload is not None
+            assert completed_payload is not None
+
+        with sqlite3.connect(client.app.state.sqlite_path) as connection:
+            connection.row_factory = sqlite3.Row
+            failed_row = connection.execute(
+                "SELECT error_code, error_message, stage, completed_at FROM jobs WHERE id = ?",
+                (failing_job_id,),
+            ).fetchone()
+            assert failed_row is not None
+            assert failed_row["error_code"] == "plaintext_decode_failed"
+            assert "UTF-8" in failed_row["error_message"]
+            assert failed_row["stage"] == "failed"
+            assert failed_row["completed_at"] is not None
+
+            input_source_id = connection.execute(
+                "SELECT input_source_id FROM jobs WHERE id = ?",
+                (failing_job_id,),
+            ).fetchone()["input_source_id"]
+            input_row = connection.execute(
+                "SELECT file_class, ingestion_error_code, ingestion_error_message FROM input_sources WHERE id = ?",
+                (input_source_id,),
+            ).fetchone()
+            assert input_row is not None
+            assert input_row["file_class"] == "plaintext"
+            assert input_row["ingestion_error_code"] == "plaintext_decode_failed"
+            assert "UTF-8" in input_row["ingestion_error_message"]

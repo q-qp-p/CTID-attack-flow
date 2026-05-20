@@ -4,11 +4,22 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from attack_flow_api.config import AppSettings
+from attack_flow_api.services.file_classification import FileRoutingResult, classify_file_for_routing
 from attack_flow_api.services.html_extraction import extract_readable_text_from_html
+from attack_flow_api.services.pdf_extraction import PdfExtractionError, extract_pdf_text_content
+from attack_flow_api.services.plaintext_extraction import (
+    PlaintextExtractionError,
+    extract_plaintext_content,
+)
 from attack_flow_api.services.persistence_service import PersistenceService
+from attack_flow_api.services.stix_json_validation import (
+    StixJsonValidationError,
+    validate_stix_json_bundle_shape,
+)
 from attack_flow_api.services.url_fetch import UrlFetchError, fetch_url_bounded
+from attack_flow_api.storage.filesystem import LocalFileStorage
 from attack_flow_api.storage.models import InputSource
-from attack_flow_api.storage.repositories import InputSourceFetchUpdate
+from attack_flow_api.storage.repositories import InputSourceFetchUpdate, InputSourceFileUpdate
 
 
 class JobWorkerService:
@@ -16,10 +27,12 @@ class JobWorkerService:
         self,
         persistence_service: PersistenceService,
         settings: AppSettings,
+        file_storage: LocalFileStorage,
         poll_interval_seconds: float = 1.0,
     ):
         self.persistence_service = persistence_service
         self.settings = settings
+        self.file_storage = file_storage
         self.poll_interval_seconds = poll_interval_seconds
         self.worker_id = f"worker-{uuid4()}"
         self._shutdown_event = asyncio.Event()
@@ -27,6 +40,7 @@ class JobWorkerService:
         self._logger = logging.getLogger("attack_flow_api.worker")
         self._forced_failure_job_ids: set[str] = set()
         self._url_job_context: dict[str, _UrlJobContext] = {}
+        self._file_job_context: dict[str, _FileJobContext] = {}
         self._allowed_url_schemes = {
             item.strip().lower()
             for item in self.settings.url_fetch_allowed_schemes.split(",")
@@ -99,14 +113,14 @@ class JobWorkerService:
                 "job lifecycle completed",
                 extra={"worker_id": self.worker_id, "job_id": job_id, "status": "completed"},
             )
-        except _UrlJobProcessingError as exc:
+        except (_UrlJobProcessingError, _FileJobProcessingError) as exc:
             self.persistence_service.mark_job_failed(
                 job_id,
                 error_code=exc.job_error_code,
                 error_message=exc.job_error_message,
             )
             self._logger.warning(
-                "url job lifecycle failed",
+                "job lifecycle failed",
                 extra={
                     "worker_id": self.worker_id,
                     "job_id": job_id,
@@ -125,6 +139,7 @@ class JobWorkerService:
             )
         finally:
             self._url_job_context.pop(job_id, None)
+            self._file_job_context.pop(job_id, None)
 
     def _advance_stage(self, job_id: str, stage: str) -> None:
         self.persistence_service.update_job_lifecycle(
@@ -152,6 +167,11 @@ class JobWorkerService:
 
         if input_source.type == "url":
             await self._run_url_stage(job_id, stage, input_source)
+            await asyncio.sleep(0)
+            return
+
+        if input_source.type == "file":
+            await self._run_file_stage(job_id, stage, input_source)
             await asyncio.sleep(0)
             return
 
@@ -243,6 +263,158 @@ class JobWorkerService:
             body=fetched.body,
         )
 
+    async def _run_file_stage(self, job_id: str, stage: str, input_source: InputSource) -> None:
+        if input_source.storage_path is None:
+            raise _FileJobProcessingError(
+                job_error_code="file_input_invalid",
+                job_error_message="file input source is missing storage_path",
+            )
+
+        if stage == "extracting":
+            await self._extract_file_content(job_id, input_source)
+            return
+
+        if stage == "normalizing":
+            context = self._require_file_context(job_id)
+            update = InputSourceFileUpdate(
+                file_class=context.routing.file_class,
+                stix_json_kind=context.routing.stix_json_kind,
+                stix_json_valid=context.stix_json_valid,
+                raw_text=context.raw_text,
+                normalized_text=context.normalized_text,
+                normalized_char_count=context.normalized_char_count,
+                normalization_version=context.normalization_version,
+                content_text=context.normalized_text,
+            )
+            self.persistence_service.update_input_source_file(input_source.id, update)
+            return
+
+        if stage == "ai_extraction":
+            _ = self.persistence_service.resolve_canonical_text_for_job(job_id)
+
+    async def _extract_file_content(self, job_id: str, input_source: InputSource) -> None:
+        try:
+            file_bytes = self.file_storage.read_bytes(input_source.storage_path or "")
+        except (FileNotFoundError, ValueError) as exc:
+            self._fail_file_job(
+                input_source.id,
+                file_class=None,
+                stix_json_valid=None,
+                job_error_code="file_read_failed",
+                job_error_message="unable to read stored upload",
+            )
+            raise _FileJobProcessingError(
+                job_error_code="file_read_failed",
+                job_error_message="unable to read stored upload",
+            ) from exc
+
+        routing = classify_file_for_routing(
+            original_filename=input_source.original_name,
+            declared_mime_type=input_source.mime_type,
+            detected_mime_type=input_source.detected_mime_type,
+            file_bytes=file_bytes,
+        )
+
+        if not routing.is_supported:
+            if routing.unsupported_reason == "json_not_stix_bundle_shape":
+                try:
+                    _ = validate_stix_json_bundle_shape(file_bytes)
+                except StixJsonValidationError as exc:
+                    self._fail_file_job(
+                        input_source.id,
+                        file_class="stix_json",
+                        stix_json_valid=False,
+                        job_error_code=exc.code,
+                        job_error_message=exc.message,
+                    )
+                    raise _FileJobProcessingError(
+                        job_error_code=exc.code,
+                        job_error_message=exc.message,
+                    ) from exc
+            reason = routing.unsupported_reason or "unsupported"
+            self._fail_file_job(
+                input_source.id,
+                file_class="unsupported",
+                stix_json_valid=None,
+                job_error_code="unsupported_file_class",
+                job_error_message=f"unsupported file class: {reason}",
+            )
+            raise _FileJobProcessingError(
+                job_error_code="unsupported_file_class",
+                job_error_message=f"unsupported file class: {reason}",
+            )
+
+        if routing.file_class == "plaintext":
+            try:
+                extracted = extract_plaintext_content(file_bytes)
+            except PlaintextExtractionError as exc:
+                self._fail_file_job(
+                    input_source.id,
+                    file_class="plaintext",
+                    stix_json_valid=None,
+                    job_error_code=exc.code,
+                    job_error_message=exc.message,
+                )
+                raise _FileJobProcessingError(job_error_code=exc.code, job_error_message=exc.message) from exc
+            self._file_job_context[job_id] = _FileJobContext(
+                routing=routing,
+                stix_json_valid=None,
+                raw_text=extracted.extracted_text,
+                normalized_text=extracted.normalized_text,
+                normalized_char_count=extracted.normalized_char_count,
+                normalization_version=extracted.normalization_version,
+            )
+            return
+
+        if routing.file_class == "pdf":
+            try:
+                extracted = extract_pdf_text_content(file_bytes)
+            except PdfExtractionError as exc:
+                self._fail_file_job(
+                    input_source.id,
+                    file_class="pdf",
+                    stix_json_valid=None,
+                    job_error_code=exc.code,
+                    job_error_message=exc.message,
+                )
+                raise _FileJobProcessingError(job_error_code=exc.code, job_error_message=exc.message) from exc
+            self._file_job_context[job_id] = _FileJobContext(
+                routing=routing,
+                stix_json_valid=None,
+                raw_text=extracted.extracted_text,
+                normalized_text=extracted.normalized_text,
+                normalized_char_count=extracted.normalized_char_count,
+                normalization_version=extracted.normalization_version,
+            )
+            return
+
+        if routing.file_class == "stix_json":
+            try:
+                stix_validation = validate_stix_json_bundle_shape(file_bytes)
+            except StixJsonValidationError as exc:
+                self._fail_file_job(
+                    input_source.id,
+                    file_class="stix_json",
+                    stix_json_valid=False,
+                    job_error_code=exc.code,
+                    job_error_message=exc.message,
+                )
+                raise _FileJobProcessingError(job_error_code=exc.code, job_error_message=exc.message) from exc
+            self._file_job_context[job_id] = _FileJobContext(
+                routing=routing,
+                stix_json_valid=stix_validation.stix_json_valid,
+                raw_text=None,
+                normalized_text=None,
+                normalized_char_count=None,
+                normalization_version=None,
+            )
+            return
+
+        raise _FileJobProcessingError(
+            job_error_code="unsupported_file_class",
+            job_error_message=f"unsupported file class: {routing.file_class}",
+        )
+
     def _require_url_context(self, job_id: str) -> "_UrlJobContext":
         context = self._url_job_context.get(job_id)
         if context is None:
@@ -252,8 +424,43 @@ class JobWorkerService:
             )
         return context
 
+    def _require_file_context(self, job_id: str) -> "_FileJobContext":
+        context = self._file_job_context.get(job_id)
+        if context is None:
+            raise _FileJobProcessingError(
+                job_error_code="file_extract_context_missing",
+                job_error_message="file extraction context missing for normalization",
+            )
+        return context
+
+    def _fail_file_job(
+        self,
+        input_source_id: str,
+        *,
+        file_class: str | None,
+        stix_json_valid: bool | None,
+        job_error_code: str,
+        job_error_message: str,
+    ) -> None:
+        self.persistence_service.update_input_source_file(
+            input_source_id,
+            InputSourceFileUpdate(
+                file_class=file_class,
+                stix_json_valid=stix_json_valid,
+                ingestion_error_code=job_error_code,
+                ingestion_error_message=job_error_message,
+            ),
+        )
+
 
 class _UrlJobProcessingError(RuntimeError):
+    def __init__(self, *, job_error_code: str, job_error_message: str):
+        super().__init__(job_error_message)
+        self.job_error_code = job_error_code
+        self.job_error_message = job_error_message
+
+
+class _FileJobProcessingError(RuntimeError):
     def __init__(self, *, job_error_code: str, job_error_message: str):
         super().__init__(job_error_message)
         self.job_error_code = job_error_code
@@ -264,6 +471,16 @@ class _UrlJobProcessingError(RuntimeError):
 class _UrlJobContext:
     content_type: str | None
     body: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class _FileJobContext:
+    routing: FileRoutingResult
+    stix_json_valid: bool | None
+    raw_text: str | None
+    normalized_text: str | None
+    normalized_char_count: int | None
+    normalization_version: str | None
 
 
 def _map_url_fetch_error_to_job_error(fetch_error_code: str) -> str:

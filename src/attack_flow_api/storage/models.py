@@ -51,6 +51,13 @@ class InputSource:
     title: str | None
     case_id: str | None
     source_name: str | None
+    stored_filename: str | None
+    detected_mime_type: str | None
+    file_class: str | None
+    stix_json_kind: str | None
+    stix_json_valid: bool | None
+    ingestion_error_code: str | None
+    ingestion_error_message: str | None
     created_at: datetime
 
 

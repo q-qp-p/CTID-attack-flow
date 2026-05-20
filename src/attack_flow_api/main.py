@@ -63,7 +63,11 @@ async def lifespan(app: FastAPI):
     app.state.sqlite_path = settings.sqlite_path
     app.state.persistence_service = persistence_service
     app.state.file_storage = file_storage
-    job_worker = JobWorkerService(persistence_service=persistence_service, settings=settings)
+    job_worker = JobWorkerService(
+        persistence_service=persistence_service,
+        settings=settings,
+        file_storage=file_storage,
+    )
     worker_task = asyncio.create_task(job_worker.run(), name="job-worker")
     app.state.job_worker = job_worker
     app.state.job_worker_task = worker_task

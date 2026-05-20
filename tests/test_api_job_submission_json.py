@@ -1,6 +1,7 @@
 import sqlite3
 import re
 import time
+import os
 from pathlib import Path
 from uuid import uuid4
 
@@ -36,6 +37,12 @@ providers:
     monkeypatch.setenv("UPLOAD_DIR", str(data_dir / "uploads"))
     monkeypatch.setenv("ARTIFACT_DIR", str(data_dir / "artifacts"))
     monkeypatch.setenv("PROVIDERS_CONFIG_PATH", str(providers_path))
+    if os.environ.get("UPLOAD_MAX_BYTES") is None:
+        monkeypatch.setenv("UPLOAD_MAX_BYTES", "1000000")
+    if os.environ.get("UPLOAD_ALLOWED_FILE_CLASSES") is None:
+        monkeypatch.setenv("UPLOAD_ALLOWED_FILE_CLASSES", "pdf,plaintext,stix_json")
+    if os.environ.get("UPLOAD_ALLOWED_MIME_TYPES") is None:
+        monkeypatch.setenv("UPLOAD_ALLOWED_MIME_TYPES", "application/pdf,text/plain,application/json")
 
     return TestClient(create_app())
 
@@ -312,6 +319,11 @@ def test_submit_job_multipart_file_returns_202_and_persists_file_metadata(monkey
         assert input_row["storage_path"].startswith("uploads/")
         assert input_row["metadata_json"] == '{"source": "upload"}'
         assert input_row["options_json"] == '{"priority": "high"}'
+        assert input_row["stored_filename"]
+        assert input_row["stored_filename"] != "evidence.txt"
+        assert input_row["detected_mime_type"] == "text/plain"
+        assert input_row["file_class"] == "plaintext"
+        assert input_row["sha256"]
 
     stored_path = data_dir / input_row["storage_path"]
     assert stored_path.exists()
@@ -329,6 +341,108 @@ def test_submit_job_multipart_missing_file_returns_400(monkeypatch, tmp_path: Pa
     payload = response.json()
     assert response.status_code == 400
     assert payload["error"]["code"] == "missing_file"
+
+
+def test_submit_job_multipart_rejects_unsupported_file_type(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            files={"file": ("payload.bin", b"\x00\x01\x02\x03", "application/octet-stream")},
+        )
+
+    payload = response.json()
+    assert response.status_code == 400
+    assert payload["error"]["code"] in {"unsupported_file_mime_type", "unsupported_file_type"}
+
+
+def test_submit_job_multipart_rejects_file_too_large(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("UPLOAD_MAX_BYTES", "4")
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            files={"file": ("evidence.txt", b"12345", "text/plain")},
+        )
+
+    payload = response.json()
+    assert response.status_code == 413
+    assert payload["error"]["code"] == "file_too_large"
+
+
+def test_submit_job_multipart_stix_json_persists_routing_markers(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            files={
+                "file": (
+                    "bundle.json",
+                    b'{"type":"bundle","id":"bundle--12345678-1234-1234-1234-123456789012","objects":[]}',
+                    "application/json",
+                )
+            },
+        )
+
+        payload = response.json()
+        assert response.status_code == 202
+        sqlite_path = client.app.state.sqlite_path
+
+    with sqlite3.connect(sqlite_path) as connection:
+        connection.row_factory = sqlite3.Row
+        job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (payload["job_id"],)).fetchone()
+        assert job_row is not None
+
+        input_row = connection.execute(
+            "SELECT * FROM input_sources WHERE id = ?", (job_row["input_source_id"],)
+        ).fetchone()
+        assert input_row is not None
+        assert input_row["file_class"] == "stix_json"
+        assert input_row["stix_json_kind"] == "bundle"
+        assert input_row["stix_json_valid"] == 1
+
+
+def test_submit_job_multipart_stix_json_accepts_bundle_with_custom_properties(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            files={
+                "file": (
+                    "bundle-custom.json",
+                    (
+                        b'{"type":"bundle","id":"bundle--12345678-1234-1234-1234-123456789012",'
+                        b'"objects":[],"x_opencti_custom":true}'
+                    ),
+                    "application/json",
+                )
+            },
+        )
+
+        payload = response.json()
+        assert response.status_code == 202
+        sqlite_path = client.app.state.sqlite_path
+
+    with sqlite3.connect(sqlite_path) as connection:
+        connection.row_factory = sqlite3.Row
+        job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (payload["job_id"],)).fetchone()
+        assert job_row is not None
+
+        input_row = connection.execute(
+            "SELECT * FROM input_sources WHERE id = ?", (job_row["input_source_id"],)
+        ).fetchone()
+        assert input_row is not None
+        assert input_row["file_class"] == "stix_json"
+        assert input_row["stix_json_kind"] == "bundle"
+        assert input_row["stix_json_valid"] == 1
+
+
+def test_submit_job_multipart_stix_json_rejects_non_bundle_shape(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            files={"file": ("report.json", b'{"type":"report","objects":[]}', "application/json")},
+        )
+
+    payload = response.json()
+    assert response.status_code == 400
+    assert payload["error"]["code"] == "stix_json_not_bundle"
 
 
 def test_submit_job_multipart_invalid_metadata_returns_400(monkeypatch, tmp_path: Path):
