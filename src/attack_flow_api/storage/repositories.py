@@ -89,6 +89,19 @@ class InputSourceCreate:
     file_class: str | None = None
     stix_json_kind: str | None = None
     stix_json_valid: bool | None = None
+    stix_bundle_id: str | None = None
+    stix_spec_version: str | None = None
+    stix_source_type: str | None = None
+    stix_object_count: int | None = None
+    stix_relationship_count: int | None = None
+    stix_attack_ref_count: int | None = None
+    stix_summary_json: str | None = None
+    stix_entities_json: str | None = None
+    stix_relationships_json: str | None = None
+    stix_attack_refs_json: str | None = None
+    stix_provenance_json: str | None = None
+    stix_parse_error_code: str | None = None
+    stix_parse_error_message: str | None = None
     ingestion_error_code: str | None = None
     ingestion_error_message: str | None = None
 
@@ -123,6 +136,19 @@ class InputSourceFileUpdate:
     file_class: str | None = None
     stix_json_kind: str | None = None
     stix_json_valid: bool | None = None
+    stix_bundle_id: str | None = None
+    stix_spec_version: str | None = None
+    stix_source_type: str | None = None
+    stix_object_count: int | None = None
+    stix_relationship_count: int | None = None
+    stix_attack_ref_count: int | None = None
+    stix_summary_json: str | None = None
+    stix_entities_json: str | None = None
+    stix_relationships_json: str | None = None
+    stix_attack_refs_json: str | None = None
+    stix_provenance_json: str | None = None
+    stix_parse_error_code: str | None = None
+    stix_parse_error_message: str | None = None
     ingestion_error_code: str | None = None
     ingestion_error_message: str | None = None
     raw_text: str | None = None
@@ -140,6 +166,25 @@ class ArtifactCreate:
     path: str
     sha256: str | None = None
     size_bytes: int | None = None
+
+
+@dataclass(slots=True)
+class InputSourceStixUpdate:
+    stix_json_kind: str | None = None
+    stix_json_valid: bool | None = None
+    stix_bundle_id: str | None = None
+    stix_spec_version: str | None = None
+    stix_source_type: str | None = None
+    stix_object_count: int | None = None
+    stix_relationship_count: int | None = None
+    stix_attack_ref_count: int | None = None
+    stix_summary_json: str | None = None
+    stix_entities_json: str | None = None
+    stix_relationships_json: str | None = None
+    stix_attack_refs_json: str | None = None
+    stix_provenance_json: str | None = None
+    stix_parse_error_code: str | None = None
+    stix_parse_error_message: str | None = None
 
 
 @dataclass(slots=True)
@@ -365,9 +410,14 @@ class PersistenceRepository:
                     normalization_version, storage_path, metadata_json, options_json,
                     mime_type, size_bytes, sha256, title, case_id, source_name,
                     stored_filename, detected_mime_type, file_class, stix_json_kind, stix_json_valid,
+                    stix_bundle_id, stix_spec_version, stix_source_type,
+                    stix_object_count, stix_relationship_count, stix_attack_ref_count,
+                    stix_summary_json, stix_entities_json, stix_relationships_json,
+                    stix_attack_refs_json, stix_provenance_json,
+                    stix_parse_error_code, stix_parse_error_message,
                     ingestion_error_code, ingestion_error_message, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
@@ -400,6 +450,19 @@ class PersistenceRepository:
                     payload.file_class,
                     payload.stix_json_kind,
                     int(payload.stix_json_valid) if payload.stix_json_valid is not None else None,
+                    payload.stix_bundle_id,
+                    payload.stix_spec_version,
+                    payload.stix_source_type,
+                    payload.stix_object_count,
+                    payload.stix_relationship_count,
+                    payload.stix_attack_ref_count,
+                    payload.stix_summary_json,
+                    payload.stix_entities_json,
+                    payload.stix_relationships_json,
+                    payload.stix_attack_refs_json,
+                    payload.stix_provenance_json,
+                    payload.stix_parse_error_code,
+                    payload.stix_parse_error_message,
                     payload.ingestion_error_code,
                     payload.ingestion_error_message,
                     now,
@@ -417,6 +480,19 @@ class PersistenceRepository:
             "detected_mime_type",
             "file_class",
             "stix_json_kind",
+            "stix_bundle_id",
+            "stix_spec_version",
+            "stix_source_type",
+            "stix_object_count",
+            "stix_relationship_count",
+            "stix_attack_ref_count",
+            "stix_summary_json",
+            "stix_entities_json",
+            "stix_relationships_json",
+            "stix_attack_refs_json",
+            "stix_provenance_json",
+            "stix_parse_error_code",
+            "stix_parse_error_message",
             "ingestion_error_code",
             "ingestion_error_message",
             "raw_text",
@@ -424,6 +500,51 @@ class PersistenceRepository:
             "normalized_char_count",
             "normalization_version",
             "content_text",
+        ):
+            value = getattr(payload, field_name)
+            if value is not None:
+                updates[field_name] = value
+
+        if payload.stix_json_valid is not None:
+            updates["stix_json_valid"] = int(payload.stix_json_valid)
+
+        if not updates:
+            return self.get_input_source(input_source_id)
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates])
+        params = list(updates.values()) + [input_source_id]
+
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute(
+                f"UPDATE input_sources SET {set_clause} WHERE id = ?",  # noqa: S608
+                params,
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_input_source(input_source_id)
+
+    def update_input_source_stix(
+        self,
+        input_source_id: str,
+        payload: InputSourceStixUpdate,
+    ) -> InputSource | None:
+        updates: dict[str, object] = {}
+        for field_name in (
+            "stix_json_kind",
+            "stix_bundle_id",
+            "stix_spec_version",
+            "stix_source_type",
+            "stix_object_count",
+            "stix_relationship_count",
+            "stix_attack_ref_count",
+            "stix_summary_json",
+            "stix_entities_json",
+            "stix_relationships_json",
+            "stix_attack_refs_json",
+            "stix_provenance_json",
+            "stix_parse_error_code",
+            "stix_parse_error_message",
         ):
             value = getattr(payload, field_name)
             if value is not None:
@@ -556,6 +677,19 @@ class PersistenceRepository:
             file_class=row["file_class"],
             stix_json_kind=row["stix_json_kind"],
             stix_json_valid=(None if row["stix_json_valid"] is None else bool(row["stix_json_valid"])),
+            stix_bundle_id=row["stix_bundle_id"],
+            stix_spec_version=row["stix_spec_version"],
+            stix_source_type=row["stix_source_type"],
+            stix_object_count=row["stix_object_count"],
+            stix_relationship_count=row["stix_relationship_count"],
+            stix_attack_ref_count=row["stix_attack_ref_count"],
+            stix_summary_json=row["stix_summary_json"],
+            stix_entities_json=row["stix_entities_json"],
+            stix_relationships_json=row["stix_relationships_json"],
+            stix_attack_refs_json=row["stix_attack_refs_json"],
+            stix_provenance_json=row["stix_provenance_json"],
+            stix_parse_error_code=row["stix_parse_error_code"],
+            stix_parse_error_message=row["stix_parse_error_message"],
             ingestion_error_code=row["ingestion_error_code"],
             ingestion_error_message=row["ingestion_error_message"],
             created_at=_require_datetime(row["created_at"], "created_at"),

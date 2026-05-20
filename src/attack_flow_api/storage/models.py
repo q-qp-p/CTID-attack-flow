@@ -56,6 +56,19 @@ class InputSource:
     file_class: str | None
     stix_json_kind: str | None
     stix_json_valid: bool | None
+    stix_bundle_id: str | None
+    stix_spec_version: str | None
+    stix_source_type: str | None
+    stix_object_count: int | None
+    stix_relationship_count: int | None
+    stix_attack_ref_count: int | None
+    stix_summary_json: str | None
+    stix_entities_json: str | None
+    stix_relationships_json: str | None
+    stix_attack_refs_json: str | None
+    stix_provenance_json: str | None
+    stix_parse_error_code: str | None
+    stix_parse_error_message: str | None
     ingestion_error_code: str | None
     ingestion_error_message: str | None
     created_at: datetime

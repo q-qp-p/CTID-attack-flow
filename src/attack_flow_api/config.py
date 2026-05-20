@@ -58,6 +58,11 @@ class AppSettings(BaseSettings):
         default="application/pdf,text/plain,application/json",
         validation_alias="UPLOAD_ALLOWED_MIME_TYPES",
     )
+    stix_max_object_count: int = Field(default=50000, validation_alias="STIX_MAX_OBJECT_COUNT")
+    stix_max_structured_payload_bytes: int = Field(
+        default=2_000_000,
+        validation_alias="STIX_MAX_STRUCTURED_PAYLOAD_BYTES",
+    )
     raw_text_max_chars: int = Field(default=200000, validation_alias="RAW_TEXT_MAX_CHARS")
     url_fetch_max_redirects: int = Field(default=5, validation_alias="URL_FETCH_MAX_REDIRECTS")
     url_fetch_connect_timeout_seconds: float = Field(

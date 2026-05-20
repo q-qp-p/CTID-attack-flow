@@ -1,10 +1,15 @@
 import asyncio
+import json
 import logging
 from dataclasses import dataclass
 from uuid import uuid4
 
 from attack_flow_api.config import AppSettings
 from attack_flow_api.services.file_classification import FileRoutingResult, classify_file_for_routing
+from attack_flow_api.services.stix_attack_refs import extract_explicit_attack_refs
+from attack_flow_api.services.stix_bundle_inventory import build_stix_bundle_inventory_and_narrative
+from attack_flow_api.services.stix_entities import extract_stix_entities
+from attack_flow_api.services.stix_extraction_package import build_stix_extraction_package
 from attack_flow_api.services.html_extraction import extract_readable_text_from_html
 from attack_flow_api.services.pdf_extraction import PdfExtractionError, extract_pdf_text_content
 from attack_flow_api.services.plaintext_extraction import (
@@ -13,13 +18,19 @@ from attack_flow_api.services.plaintext_extraction import (
 )
 from attack_flow_api.services.persistence_service import PersistenceService
 from attack_flow_api.services.stix_json_validation import (
+    parse_stix_json_object,
     StixJsonValidationError,
     validate_stix_json_bundle_shape,
 )
+from attack_flow_api.services.stix_relationships import extract_stix_relationships
 from attack_flow_api.services.url_fetch import UrlFetchError, fetch_url_bounded
 from attack_flow_api.storage.filesystem import LocalFileStorage
 from attack_flow_api.storage.models import InputSource
-from attack_flow_api.storage.repositories import InputSourceFetchUpdate, InputSourceFileUpdate
+from attack_flow_api.storage.repositories import (
+    InputSourceFetchUpdate,
+    InputSourceFileUpdate,
+    InputSourceStixUpdate,
+)
 
 
 class JobWorkerService:
@@ -61,6 +72,8 @@ class JobWorkerService:
             "flow_building",
             "exporting",
         )
+        self._stix_extraction_failed_code = "stix_extraction_failed"
+        self._stix_extraction_failed_message = "failed to extract structured stix content"
 
     async def run(self) -> None:
         self._logger.info("job worker started", extra={"worker_id": self.worker_id})
@@ -287,6 +300,8 @@ class JobWorkerService:
                 content_text=context.normalized_text,
             )
             self.persistence_service.update_input_source_file(input_source.id, update)
+            if context.stix_update is not None:
+                self.persistence_service.update_input_source_stix(input_source.id, context.stix_update)
             return
 
         if stage == "ai_extraction":
@@ -320,6 +335,15 @@ class JobWorkerService:
                 try:
                     _ = validate_stix_json_bundle_shape(file_bytes)
                 except StixJsonValidationError as exc:
+                    self.persistence_service.update_input_source_stix(
+                        input_source.id,
+                        InputSourceStixUpdate(
+                            stix_json_kind="bundle",
+                            stix_json_valid=False,
+                            stix_parse_error_code=exc.code,
+                            stix_parse_error_message=exc.message,
+                        ),
+                    )
                     self._fail_file_job(
                         input_source.id,
                         file_class="stix_json",
@@ -391,22 +415,75 @@ class JobWorkerService:
         if routing.file_class == "stix_json":
             try:
                 stix_validation = validate_stix_json_bundle_shape(file_bytes)
+                parsed_bundle = parse_stix_json_object(file_bytes)
             except StixJsonValidationError as exc:
-                self._fail_file_job(
-                    input_source.id,
-                    file_class="stix_json",
+                self._fail_stix_job(
+                    input_source_id=input_source.id,
+                    stix_json_kind="bundle",
                     stix_json_valid=False,
+                    stix_parse_error_code=exc.code,
+                    stix_parse_error_message=exc.message,
                     job_error_code=exc.code,
                     job_error_message=exc.message,
                 )
                 raise _FileJobProcessingError(job_error_code=exc.code, job_error_message=exc.message) from exc
+
+            try:
+                inventory = build_stix_bundle_inventory_and_narrative(parsed_bundle)
+                attack_refs = extract_explicit_attack_refs(parsed_bundle)
+                entities = extract_stix_entities(parsed_bundle)
+                relationships = extract_stix_relationships(parsed_bundle)
+                extraction_package = build_stix_extraction_package(
+                    validation=stix_validation,
+                    inventory=inventory,
+                    attack_refs=attack_refs,
+                    entities=entities,
+                    relationships=relationships,
+                )
+            except Exception as exc:
+                self._fail_stix_job(
+                    input_source_id=input_source.id,
+                    stix_json_kind=stix_validation.stix_json_kind,
+                    stix_json_valid=False,
+                    stix_bundle_id=stix_validation.bundle_id,
+                    stix_spec_version=stix_validation.spec_version,
+                    stix_parse_error_code=self._stix_extraction_failed_code,
+                    stix_parse_error_message=self._stix_extraction_failed_message,
+                    job_error_code=self._stix_extraction_failed_code,
+                    job_error_message=self._stix_extraction_failed_message,
+                )
+                raise _FileJobProcessingError(
+                    job_error_code=self._stix_extraction_failed_code,
+                    job_error_message=self._stix_extraction_failed_message,
+                ) from exc
             self._file_job_context[job_id] = _FileJobContext(
                 routing=routing,
                 stix_json_valid=stix_validation.stix_json_valid,
-                raw_text=None,
-                normalized_text=None,
-                normalized_char_count=None,
-                normalization_version=None,
+                raw_text=inventory.narrative_raw_text,
+                normalized_text=inventory.narrative_normalized_text,
+                normalized_char_count=inventory.narrative_normalized_char_count,
+                normalization_version=inventory.narrative_normalization_version,
+                stix_update=InputSourceStixUpdate(
+                    stix_json_kind=stix_validation.stix_json_kind,
+                    stix_json_valid=stix_validation.stix_json_valid,
+                    stix_bundle_id=stix_validation.bundle_id,
+                    stix_spec_version=stix_validation.spec_version,
+                    stix_source_type="stix_bundle",
+                    stix_object_count=inventory.object_count,
+                    stix_relationship_count=len(relationships),
+                    stix_attack_ref_count=len(attack_refs),
+                    stix_summary_json=json.dumps(
+                        {
+                            "bundle_metadata": extraction_package.bundle_metadata,
+                            "inventory": extraction_package.inventory,
+                            "narrative": extraction_package.narrative,
+                        }
+                    ),
+                    stix_entities_json=json.dumps(extraction_package.entities),
+                    stix_relationships_json=json.dumps(extraction_package.relationships),
+                    stix_attack_refs_json=json.dumps(extraction_package.attack_refs),
+                    stix_provenance_json=json.dumps(extraction_package.provenance),
+                ),
             )
             return
 
@@ -452,6 +529,38 @@ class JobWorkerService:
             ),
         )
 
+    def _fail_stix_job(
+        self,
+        *,
+        input_source_id: str,
+        stix_json_kind: str,
+        stix_json_valid: bool,
+        stix_parse_error_code: str,
+        stix_parse_error_message: str,
+        job_error_code: str,
+        job_error_message: str,
+        stix_bundle_id: str | None = None,
+        stix_spec_version: str | None = None,
+    ) -> None:
+        self.persistence_service.update_input_source_stix(
+            input_source_id,
+            InputSourceStixUpdate(
+                stix_json_kind=stix_json_kind,
+                stix_json_valid=stix_json_valid,
+                stix_bundle_id=stix_bundle_id,
+                stix_spec_version=stix_spec_version,
+                stix_parse_error_code=stix_parse_error_code,
+                stix_parse_error_message=stix_parse_error_message,
+            ),
+        )
+        self._fail_file_job(
+            input_source_id,
+            file_class="stix_json",
+            stix_json_valid=stix_json_valid,
+            job_error_code=job_error_code,
+            job_error_message=job_error_message,
+        )
+
 
 class _UrlJobProcessingError(RuntimeError):
     def __init__(self, *, job_error_code: str, job_error_message: str):
@@ -481,6 +590,7 @@ class _FileJobContext:
     normalized_text: str | None
     normalized_char_count: int | None
     normalization_version: str | None
+    stix_update: InputSourceStixUpdate | None = None
 
 
 def _map_url_fetch_error_to_job_error(fetch_error_code: str) -> str:

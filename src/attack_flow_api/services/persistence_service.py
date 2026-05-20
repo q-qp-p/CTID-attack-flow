@@ -7,6 +7,7 @@ from attack_flow_api.storage.repositories import (
     InputSourceCreate,
     InputSourceFileUpdate,
     InputSourceFetchUpdate,
+    InputSourceStixUpdate,
     InputSourceTextUpdate,
     JobCreate,
     JobUpdate,
@@ -71,6 +72,13 @@ class PersistenceService:
         payload: InputSourceFileUpdate,
     ) -> InputSource | None:
         return self.repository.update_input_source_file(input_source_id, payload)
+
+    def update_input_source_stix(
+        self,
+        input_source_id: str,
+        payload: InputSourceStixUpdate,
+    ) -> InputSource | None:
+        return self.repository.update_input_source_stix(input_source_id, payload)
 
     def create_artifact(self, payload: ArtifactCreate) -> Artifact:
         return self.repository.create_artifact(payload)

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import sqlite3
 import time
 from pathlib import Path
@@ -484,3 +485,173 @@ def test_worker_persists_file_failure_details_and_continues_next_job(monkeypatch
             assert input_row["file_class"] == "plaintext"
             assert input_row["ingestion_error_code"] == "plaintext_decode_failed"
             assert "UTF-8" in input_row["ingestion_error_message"]
+
+
+def test_worker_persists_structured_stix_extraction_package(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        client.app.state.job_worker.poll_interval_seconds = 0.01
+        response = client.post(
+            "/api/v1/jobs",
+            files={
+                "file": (
+                    "bundle.json",
+                    (
+                        b'{"type":"bundle","id":"bundle--12345678-1234-1234-1234-123456789012",'
+                        b'"spec_version":"2.1","objects":[{"type":"report","id":"report--1",'
+                        b'"name":"Case Report","description":"Initial access via phishing."},'
+                        b'{"type":"attack-pattern","id":"attack-pattern--1",'
+                        b'"external_references":[{"source_name":"mitre-attack","external_id":"T1566"}]},'
+                        b'{"type":"relationship","id":"relationship--1","relationship_type":"uses",'
+                        b'"source_ref":"intrusion-set--1","target_ref":"malware--1"}]}'
+                    ),
+                    "application/json",
+                )
+            },
+        )
+        job_id = response.json()["job_id"]
+
+        completed_payload = _wait_for_status(client, job_id, "completed")
+        assert completed_payload is not None
+
+        with sqlite3.connect(client.app.state.sqlite_path) as connection:
+            connection.row_factory = sqlite3.Row
+            job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            assert job_row is not None
+            input_row = connection.execute(
+                "SELECT * FROM input_sources WHERE id = ?", (job_row["input_source_id"],)
+            ).fetchone()
+            assert input_row is not None
+
+            assert input_row["stix_bundle_id"] == "bundle--12345678-1234-1234-1234-123456789012"
+            assert input_row["stix_spec_version"] == "2.1"
+            assert input_row["stix_source_type"] == "stix_bundle"
+            assert input_row["stix_object_count"] == 3
+            assert input_row["stix_relationship_count"] == 1
+            assert input_row["stix_attack_ref_count"] == 1
+            assert input_row["normalized_text"] == "Initial access via phishing.\n\nCase Report"
+
+            stix_summary = json.loads(input_row["stix_summary_json"])
+            stix_entities = json.loads(input_row["stix_entities_json"])
+            stix_relationships = json.loads(input_row["stix_relationships_json"])
+            stix_attack_refs = json.loads(input_row["stix_attack_refs_json"])
+            stix_provenance = json.loads(input_row["stix_provenance_json"])
+
+            assert stix_summary["bundle_metadata"]["id"] == "bundle--12345678-1234-1234-1234-123456789012"
+            assert stix_summary["inventory"]["object_count"] == 3
+            assert stix_summary["narrative"]["normalized_text"] == "Initial access via phishing.\n\nCase Report"
+            assert stix_attack_refs[0]["technique_id"] == "T1566"
+            assert any(item["object_type"] == "report" for item in stix_entities)
+            assert stix_relationships[0]["relationship_type"] == "uses"
+            assert "report--1" in stix_provenance["narrative_source_object_ids"]
+
+
+def test_worker_persists_stix_extraction_failure_and_continues_next_job(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        client.app.state.job_worker.poll_interval_seconds = 0.01
+
+        with patch(
+            "attack_flow_api.services.job_worker_service.build_stix_bundle_inventory_and_narrative"
+        ) as mocked_inventory:
+            mocked_inventory.side_effect = RuntimeError("inventory boom")
+
+            failing = client.post(
+                "/api/v1/jobs",
+                files={
+                    "file": (
+                        "bundle.json",
+                        b'{"type":"bundle","id":"bundle--12345678-1234-1234-1234-123456789012","objects":[]}',
+                        "application/json",
+                    )
+                },
+            )
+            failing_job_id = failing.json()["job_id"]
+
+            succeeding = client.post(
+                "/api/v1/jobs",
+                json={"input_type": "text", "text": "still works"},
+            )
+            succeeding_job_id = succeeding.json()["job_id"]
+
+            failed_payload = _wait_for_status(client, failing_job_id, "failed")
+            completed_payload = _wait_for_status(client, succeeding_job_id, "completed")
+            assert failed_payload is not None
+            assert completed_payload is not None
+
+        with sqlite3.connect(client.app.state.sqlite_path) as connection:
+            connection.row_factory = sqlite3.Row
+            failed_row = connection.execute(
+                "SELECT error_code, error_message, stage, completed_at FROM jobs WHERE id = ?",
+                (failing_job_id,),
+            ).fetchone()
+            assert failed_row is not None
+            assert failed_row["error_code"] == "stix_extraction_failed"
+            assert failed_row["error_message"] == "failed to extract structured stix content"
+            assert failed_row["stage"] == "failed"
+            assert failed_row["completed_at"] is not None
+
+            input_source_id = connection.execute(
+                "SELECT input_source_id FROM jobs WHERE id = ?",
+                (failing_job_id,),
+            ).fetchone()["input_source_id"]
+            input_row = connection.execute(
+                """
+                SELECT file_class, stix_json_valid, stix_parse_error_code, stix_parse_error_message,
+                       ingestion_error_code, ingestion_error_message
+                FROM input_sources WHERE id = ?
+                """,
+                (input_source_id,),
+            ).fetchone()
+            assert input_row is not None
+            assert input_row["file_class"] == "stix_json"
+            assert input_row["stix_json_valid"] == 0
+            assert input_row["stix_parse_error_code"] == "stix_extraction_failed"
+            assert input_row["stix_parse_error_message"] == "failed to extract structured stix content"
+            assert input_row["ingestion_error_code"] == "stix_extraction_failed"
+            assert input_row["ingestion_error_message"] == "failed to extract structured stix content"
+
+
+def test_worker_processes_stix_job_asynchronously_through_lifecycle_stages(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        worker = client.app.state.job_worker
+        worker.poll_interval_seconds = 0.01
+        original_hook = worker._run_stage_hook
+
+        async def delayed_hook(self, job_id: str, stage: str) -> None:
+            await asyncio.sleep(0.05)
+            await original_hook(job_id, stage)
+
+        worker._run_stage_hook = MethodType(delayed_hook, worker)
+
+        start = time.perf_counter()
+        response = client.post(
+            "/api/v1/jobs",
+            files={
+                "file": (
+                    "bundle.json",
+                    (
+                        b'{"type":"bundle","id":"bundle--12345678-1234-1234-1234-123456789012",'
+                        b'"spec_version":"2.1","objects":[{"type":"report","id":"report--1",'
+                        b'"name":"Case Report","description":"Initial access via phishing."}]}'
+                    ),
+                    "application/json",
+                )
+            },
+        )
+        elapsed = time.perf_counter() - start
+        job_id = response.json()["job_id"]
+
+        assert response.status_code == 202
+        assert elapsed < 0.2
+
+        saw_intermediate = False
+        for _ in range(60):
+            payload = client.get(f"/api/v1/jobs/{job_id}").json()
+            if payload["status"] in {"extracting", "normalizing"}:
+                saw_intermediate = True
+                break
+            time.sleep(0.03)
+        assert saw_intermediate
+
+        completed_payload = _wait_for_status(client, job_id, "completed", max_wait_seconds=6.0)
+        assert completed_payload is not None
+        assert completed_payload["stage"] == "completed"

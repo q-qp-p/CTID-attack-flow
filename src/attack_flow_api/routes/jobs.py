@@ -122,7 +122,11 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
     - Upload size is enforced using configured byte limits.
     - Files are stored with server-generated names; client filenames are metadata only.
     - Plaintext and PDF inputs are extracted and normalized asynchronously for narrative processing.
-    - STIX JSON receives basic JSON and STIX bundle-shape validation and routing markers.
+    - STIX 2.1 bundle JSON is parsed deterministically after routing as `stix_json`.
+    - OpenCTI-style custom properties are tolerated when core bundle/object structure is valid.
+    - Explicit ATT&CK references are extracted deterministically when present in source data.
+    - Relevant entities and explicit relationships are extracted into a structured payload.
+    - Narrative text from report/note/description fields is captured for downstream processing.
     - Unsupported file types or malformed payloads fail with structured error responses.
 
     Text submission behavior:
@@ -562,7 +566,7 @@ submit_job.openapi_extra = {
             },
         },
         "400": {
-            "description": "Structured validation errors for invalid submission shape, unsupported files, or malformed STIX JSON",
+            "description": "Structured validation errors for invalid submission shape, unsupported files, malformed STIX JSON, or invalid STIX bundle structure",
             "content": {
                 "application/json": {
                     "examples": {
@@ -591,6 +595,16 @@ submit_job.openapi_extra = {
                                 "error": {
                                     "code": "stix_json_malformed",
                                     "message": "stix json payload is malformed",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        },
+                        "stix_json_invalid_bundle_structure": {
+                            "value": {
+                                "error": {
+                                    "code": "stix_json_invalid_bundle_structure",
+                                    "message": "stix json bundle must include an objects array",
                                     "details": [],
                                 },
                                 "request_id": "<request-id>",
@@ -639,6 +653,10 @@ def get_job_status(request: Request, job_id: str) -> JobStatusResponse:
 
     For file jobs, async worker processing may fail due to extraction/validation issues
     (for example decode failures, unreadable PDFs, or malformed STIX JSON).
+
+    For STIX file jobs, asynchronous processing performs deterministic bundle parsing,
+    inventory/entity/relationship extraction, explicit ATT&CK reference extraction,
+    and narrative text capture from report/note/description fields.
     """
     persistence_service = request.app.state.persistence_service
     job = _get_job_or_404(persistence_service, job_id)
