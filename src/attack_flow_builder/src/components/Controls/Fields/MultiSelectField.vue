@@ -3,6 +3,13 @@
     class="multiselect-field-control"
     :class="{ column: direction === 'column' }"
   >
+    <div
+      v-if="!options.length"
+      class="no-options"
+    >
+      No options available.
+    </div>
+
     <button
       v-for="opt in options"
       :key="opt.value as string"
@@ -19,8 +26,34 @@
       >
         {{ isSelected(opt.value as string) ? '✓' : '' }}
       </span>
+
+      <span
+        v-if="isTagField"
+        class="tag-color-circle"
+        :style="{ backgroundColor: getTagColor(opt.value as string) }"
+        aria-hidden="true"
+      />
+
       <span class="label">{{ opt.text }}</span>
     </button>
+
+    <button
+      v-if="canCreateTag && !showCreateTagForm"
+      type="button"
+      class="create-tag-button"
+      :disabled="disabled"
+      @pointerdown="beginCreateTag"
+    >
+      <span><PlusIcon /></span>Create New Tag
+    </button>
+
+    <div v-if="canCreateTag && showCreateTagForm">
+      <NewTagForm
+        :disabled="disabled"
+        @create="submitCreateTag"
+        @cancel="cancelCreateTag"
+      />
+    </div>
   </div>
 </template>
 
@@ -28,8 +61,18 @@
 import * as EditorCommands from "@OpenChart/DiagramEditor";
 import { defineComponent, type PropType } from "vue";
 import type { OptionItem } from "@/assets/scripts/Browser";
-import type { ListProperty, MultiSelectProperty } from "@OpenChart/DiagramModel";
+import {
+  DictionaryProperty,
+  ListProperty,
+  MultiSelectProperty,
+  Property
+} from "@OpenChart/DiagramModel";
 import type { SynchronousEditorCommand } from "@OpenChart/DiagramEditor";
+import { useApplicationStore } from "@/stores/ApplicationStore";
+import PlusIcon from "@/components/Icons/PlusIcon.vue";
+import NewTagForm from "./NewTagForm.vue";
+
+const DEFAULT_TAG_COLOR = "#cccccc";
 
 export default defineComponent({
   name: "MultiSelectField",
@@ -57,29 +100,75 @@ export default defineComponent({
   emits: {
     execute: (cmd: SynchronousEditorCommand) => cmd
   },
+  data() {
+    return {
+      showCreateTagForm: false
+    };
+  },
   computed: {
+    isTagField(): boolean {
+        // Optional chaining to safely check the nested parent structure
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (this.property as any).id === "tags";
+    },
+
+    canCreateTag(): boolean {
+        return this.isTagField && !!this.canvasTagsProperty;
+    },
+
+    canvasTagsProperty(): ListProperty | undefined {
+        const app = useApplicationStore();
+        const canvas = app?.activeEditor?.file?.canvas;
+        return canvas?.properties.value.get("tags") as ListProperty | undefined;
+    },
+
     /**
      * Build options from the MultiSelectProperty's options list.
      */
     options(): OptionItem<string>[] {
-      const optionsProp: ListProperty | undefined = this.property.options;
-      const options: OptionItem<string>[] = [];
-      if (!optionsProp) {
-        return options;
-      }
-      const fo = this.featuredOptions;
-      for (const [value, prop] of optionsProp.value) {
-        const text = prop.toString();
-        const feat = fo ? fo.has(value) : true;
-        options.push({ value, text, feature: feat });
-      }
-      // Feature-first sort, consistent with other fields
-      options.sort((a,b) => {
-        if (a.feature && !b.feature) return -1;
-        if (!a.feature && b.feature) return 1;
-        return 0;
-      });
-      return options;
+        // 1. If it's a tag field, we must sync the global Canvas Tags
+        // into this specific property's options list first.
+        if (this.isTagField) {
+            const globalTags = this.canvasTags;
+            const localOptionsList = this.property.options as ListProperty;
+
+            if (localOptionsList) {
+                // Clear and rebuild the local options Map to match the global Canvas Tags
+                localOptionsList.value.clear();
+                for (const tag of globalTags) {
+                    // We use the UUID as the Key, and the Tag Object as the Value
+                    // This is what makes it "structured the same" as non-tags
+                    localOptionsList.value.set(tag.id, tag as unknown as Property);
+                }
+            }
+        }
+
+        // 2. NOW the logic is identical for both situations
+        const optionsProp: ListProperty | undefined = this.property.options;
+        const options: OptionItem<string>[] = [];
+
+        if (!optionsProp || !optionsProp.value) {
+            return options;
+        }
+
+        const fo = this.featuredOptions;
+
+        // 3. This loop now works for BOTH standard enums and Tags
+        for (const [value, prop] of optionsProp.value) {
+            // For tags, 'prop' is now the tag object from canvasTags
+            // For non-tags, 'prop' is the standard Enum property
+            const text = prop.name || prop.toString();
+            const feat = fo ? fo.has(value) : true;
+
+            options.push({ value, text, feature: feat });
+        }
+
+        // 4. Consistent Sort
+        return options.sort((a, b) => {
+            if (a.feature && !b.feature) return -1;
+            if (!a.feature && b.feature) return 1;
+            return 0;
+        });
     },
 
     /**
@@ -87,6 +176,28 @@ export default defineComponent({
      */
     selectedValues(): Set<string> {
       return new Set<string>(this.property.values as Iterable<string>);
+    },
+
+    /**
+     * Retrieves the master list of tags defined at the Canvas level.
+     */
+    canvasTags(): Array<{ id: string, name: string, color: string }> {
+        const tagsProp = this.canvasTagsProperty;
+        if (!tagsProp) return [];
+
+        const results: Array<{ id: string, name: string, color: string }> = [];
+
+        // 3. Iterate through the dictionaries in the list
+        for (const [key, prop] of tagsProp.value) {
+            const dict = prop as DictionaryProperty;
+            results.push({
+                id: dict.value.get("id")?.toJson() as string || key,
+                name: dict.value.get("name")?.toString() || "Unnamed Tag",
+                color: dict.value.get("color")?.toJson() as string || DEFAULT_TAG_COLOR
+            });
+        }
+
+        return results;
     }
   },
   methods: {
@@ -104,7 +215,36 @@ export default defineComponent({
       const out = Array.from(next);
       const cmd = EditorCommands.setMultiSelectProperty(this.property, out);
       this.$emit("execute", cmd);
+    },
+    getTagColor(tagId: string): string {
+        const tag = this.canvasTags.find(t => t.id === tagId);
+        return tag ? tag.color : DEFAULT_TAG_COLOR;
+    },
+    beginCreateTag() {
+        if (this.disabled) return;
+        this.showCreateTagForm = true;
+    },
+    cancelCreateTag() {
+        this.showCreateTagForm = false;
+    },
+    submitCreateTag(tag: { text: string, color: string }) {
+        if (this.disabled) return;
+
+        const tagsProperty = this.canvasTagsProperty;
+        if (!tagsProperty) return;
+
+        const cmd = EditorCommands.createAndAssignTag(
+            tagsProperty,
+            this.property,
+            tag
+        );
+        this.$emit("execute", cmd);
+        this.cancelCreateTag();
     }
+  },
+  components: {
+    PlusIcon,
+    NewTagForm
   }
 });
 </script>
@@ -119,6 +259,12 @@ export default defineComponent({
 }
 .multiselect-field-control.column {
   flex-direction: column;
+}
+.no-options {
+  font-size: 9pt;
+  color: var(--af-text-color-disabled);
+  padding: 8px 8px 4px;
+  line-height: 1.4;
 }
 .option {
   display: inline-flex;
@@ -174,5 +320,37 @@ export default defineComponent({
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
+}
+.create-tag-button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  padding: 4px 10px;
+  color: var(--af-text-color-primary);
+  font-size: 9pt;
+  font-family: inherit;
+  border: solid 1px var(--af-border-color-tertiary);
+  border-radius: 3px;
+  background: none;
+}
+.create-tag-button:hover:not(:disabled) {
+  background: var(--af-border-color-secondary);
+}
+.create-tag-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.create-tag-button span {
+  margin-right: 9px;
+}
+
+.tag-color-circle {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.2);
 }
 </style>
