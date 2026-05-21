@@ -28,6 +28,13 @@ class ConflictError(Exception):
     details: list[dict[str, object]] = field(default_factory=list)
 
 
+@dataclass(slots=True)
+class PayloadTooLargeError(Exception):
+    code: str
+    message: str
+    details: list[dict[str, object]] = field(default_factory=list)
+
+
 async def bad_request_exception_handler(request: Request, exc: BadRequestError) -> JSONResponse:
     request_id = getattr(request.state, "request_id", "")
     response = JSONResponse(
@@ -68,6 +75,24 @@ async def conflict_exception_handler(request: Request, exc: ConflictError) -> JS
     request_id = getattr(request.state, "request_id", "")
     response = JSONResponse(
         status_code=409,
+        content={
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "details": exc.details,
+            },
+            "request_id": request_id,
+        },
+    )
+    if request_id:
+        response.headers[REQUEST_ID_HEADER] = request_id
+    return response
+
+
+async def payload_too_large_exception_handler(request: Request, exc: PayloadTooLargeError) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", "")
+    response = JSONResponse(
+        status_code=413,
         content={
             "error": {
                 "code": exc.code,

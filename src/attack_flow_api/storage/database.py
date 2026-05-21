@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 10
 
 
 def create_connection(sqlite_path: Path) -> sqlite3.Connection:
@@ -52,7 +52,18 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
             type TEXT NOT NULL,
             original_name TEXT,
             source_url TEXT,
+            fetch_final_url TEXT,
+            fetch_status_code INTEGER,
+            fetch_content_type TEXT,
+            fetch_size_bytes INTEGER,
+            fetch_error_code TEXT,
+            fetch_error_message TEXT,
             content_text TEXT,
+            raw_text TEXT,
+            normalized_text TEXT,
+            normalized_char_count INTEGER,
+            was_truncated INTEGER,
+            normalization_version TEXT,
             storage_path TEXT,
             metadata_json TEXT,
             options_json TEXT,
@@ -60,6 +71,35 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
             size_bytes INTEGER,
             sha256 TEXT,
             title TEXT,
+            case_id TEXT,
+            source_name TEXT,
+            stored_filename TEXT,
+            detected_mime_type TEXT,
+            file_class TEXT,
+            stix_json_kind TEXT,
+            stix_json_valid INTEGER,
+            stix_bundle_id TEXT,
+            stix_spec_version TEXT,
+            stix_source_type TEXT,
+            stix_object_count INTEGER,
+            stix_relationship_count INTEGER,
+            stix_attack_ref_count INTEGER,
+            stix_summary_json TEXT,
+            stix_entities_json TEXT,
+            stix_relationships_json TEXT,
+            stix_attack_refs_json TEXT,
+            stix_provenance_json TEXT,
+            stix_parse_error_code TEXT,
+            stix_parse_error_message TEXT,
+            normalized_source_type TEXT,
+            normalized_package_json TEXT,
+            normalized_stats_json TEXT,
+            normalized_content_chars INTEGER,
+            normalized_content_was_truncated INTEGER,
+            normalized_content_budget_chars INTEGER,
+            normalized_pipeline_version TEXT,
+            ingestion_error_code TEXT,
+            ingestion_error_message TEXT,
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         );
 

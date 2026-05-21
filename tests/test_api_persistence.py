@@ -11,10 +11,12 @@ from attack_flow_api.storage.filesystem import LocalFileStorage
 from attack_flow_api.storage.repositories import (
     ArtifactCreate,
     InputSourceCreate,
+    InputSourceFileUpdate,
     JobCreate,
     JobUpdate,
     PersistenceRepository,
 )
+from attack_flow_api.services.persistence_service import PersistenceService
 
 
 def test_database_initializes_and_creates_required_tables(tmp_path: Path):
@@ -189,3 +191,125 @@ def test_storage_respects_max_file_size(tmp_path: Path):
 
     with pytest.raises(ValueError):
         storage.write_upload(content=b"12345", extension="txt")
+
+
+def test_resolve_canonical_text_for_job_prefers_normalized_text(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    service = PersistenceService(db_path)
+
+    input_source = service.create_input_source(
+        InputSourceCreate(
+            id="input-1",
+            type="text",
+            raw_text="raw",
+            content_text="content",
+            normalized_text="normalized",
+        )
+    )
+    service.create_job(
+        JobCreate(
+            id="job-1",
+            status="queued",
+            stage="queued",
+            input_source_id=input_source.id,
+        )
+    )
+
+    assert service.resolve_canonical_text_for_job("job-1") == "normalized"
+
+
+def test_resolve_canonical_text_for_job_prefers_canonical_normalized_package(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    service = PersistenceService(db_path)
+
+    input_source = service.create_input_source(
+        InputSourceCreate(
+            id="input-2",
+            type="text",
+            raw_text="raw value",
+            normalized_text="field normalized",
+            normalized_package_json='{"source_type":"narrative_text","normalized_text":"package normalized"}',
+        )
+    )
+    service.create_job(
+        JobCreate(
+            id="job-2",
+            status="queued",
+            stage="queued",
+            input_source_id=input_source.id,
+        )
+    )
+
+    assert service.resolve_canonical_text_for_job("job-2") == "package normalized"
+
+
+def test_update_input_source_file_persists_plaintext_extraction_fields(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    service = PersistenceService(db_path)
+
+    created = service.create_input_source(
+        InputSourceCreate(
+            id="input-plain-1",
+            type="file",
+            original_name="notes.txt",
+            storage_path="uploads/2026/01/01/abc123.txt",
+            mime_type="text/plain",
+            size_bytes=12,
+        )
+    )
+
+    updated = service.update_input_source_file(
+        created.id,
+        InputSourceFileUpdate(
+            raw_text="alpha  \r\n\r\n\r\nbeta\t\n",
+            normalized_text="alpha\n\nbeta",
+            normalized_char_count=len("alpha\n\nbeta"),
+            normalization_version="v1",
+            content_text="alpha\n\nbeta",
+        ),
+    )
+
+    assert updated is not None
+    assert updated.raw_text == "alpha  \r\n\r\n\r\nbeta\t\n"
+    assert updated.normalized_text == "alpha\n\nbeta"
+    assert updated.normalized_char_count == len("alpha\n\nbeta")
+    assert updated.normalization_version == "v1"
+    assert updated.content_text == "alpha\n\nbeta"
+
+
+def test_update_input_source_file_persists_pdf_extraction_fields(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    service = PersistenceService(db_path)
+
+    created = service.create_input_source(
+        InputSourceCreate(
+            id="input-pdf-1",
+            type="file",
+            original_name="report.pdf",
+            storage_path="uploads/2026/01/01/abc123.pdf",
+            mime_type="application/pdf",
+            size_bytes=321,
+        )
+    )
+
+    updated = service.update_input_source_file(
+        created.id,
+        InputSourceFileUpdate(
+            raw_text="Page One\r\n\r\n\r\nPage Two\n",
+            normalized_text="Page One\n\nPage Two",
+            normalized_char_count=len("Page One\n\nPage Two"),
+            normalization_version="v1",
+            content_text="Page One\n\nPage Two",
+        ),
+    )
+
+    assert updated is not None
+    assert updated.raw_text == "Page One\r\n\r\n\r\nPage Two\n"
+    assert updated.normalized_text == "Page One\n\nPage Two"
+    assert updated.normalized_char_count == len("Page One\n\nPage Two")
+    assert updated.normalization_version == "v1"
+    assert updated.content_text == "Page One\n\nPage Two"

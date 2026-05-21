@@ -63,7 +63,18 @@ class InputSourceCreate:
     type: str
     original_name: str | None = None
     source_url: str | None = None
+    fetch_final_url: str | None = None
+    fetch_status_code: int | None = None
+    fetch_content_type: str | None = None
+    fetch_size_bytes: int | None = None
+    fetch_error_code: str | None = None
+    fetch_error_message: str | None = None
     content_text: str | None = None
+    raw_text: str | None = None
+    normalized_text: str | None = None
+    normalized_char_count: int | None = None
+    was_truncated: bool | None = None
+    normalization_version: str | None = None
     storage_path: str | None = None
     metadata_json: str | None = None
     options_json: str | None = None
@@ -71,6 +82,87 @@ class InputSourceCreate:
     size_bytes: int | None = None
     sha256: str | None = None
     title: str | None = None
+    case_id: str | None = None
+    source_name: str | None = None
+    stored_filename: str | None = None
+    detected_mime_type: str | None = None
+    file_class: str | None = None
+    stix_json_kind: str | None = None
+    stix_json_valid: bool | None = None
+    stix_bundle_id: str | None = None
+    stix_spec_version: str | None = None
+    stix_source_type: str | None = None
+    stix_object_count: int | None = None
+    stix_relationship_count: int | None = None
+    stix_attack_ref_count: int | None = None
+    stix_summary_json: str | None = None
+    stix_entities_json: str | None = None
+    stix_relationships_json: str | None = None
+    stix_attack_refs_json: str | None = None
+    stix_provenance_json: str | None = None
+    stix_parse_error_code: str | None = None
+    stix_parse_error_message: str | None = None
+    normalized_source_type: str | None = None
+    normalized_package_json: str | None = None
+    normalized_stats_json: str | None = None
+    normalized_content_chars: int | None = None
+    normalized_content_was_truncated: bool | None = None
+    normalized_content_budget_chars: int | None = None
+    normalized_pipeline_version: str | None = None
+    ingestion_error_code: str | None = None
+    ingestion_error_message: str | None = None
+
+
+@dataclass(slots=True)
+class InputSourceTextUpdate:
+    raw_text: str | None = None
+    normalized_text: str | None = None
+    normalized_char_count: int | None = None
+    was_truncated: bool | None = None
+    normalization_version: str | None = None
+
+
+@dataclass(slots=True)
+class InputSourceFetchUpdate:
+    fetch_final_url: str | None = None
+    fetch_status_code: int | None = None
+    fetch_content_type: str | None = None
+    fetch_size_bytes: int | None = None
+    fetch_error_code: str | None = None
+    fetch_error_message: str | None = None
+    raw_text: str | None = None
+    normalized_text: str | None = None
+    normalized_char_count: int | None = None
+    normalization_version: str | None = None
+    content_text: str | None = None
+
+
+@dataclass(slots=True)
+class InputSourceFileUpdate:
+    detected_mime_type: str | None = None
+    file_class: str | None = None
+    stix_json_kind: str | None = None
+    stix_json_valid: bool | None = None
+    stix_bundle_id: str | None = None
+    stix_spec_version: str | None = None
+    stix_source_type: str | None = None
+    stix_object_count: int | None = None
+    stix_relationship_count: int | None = None
+    stix_attack_ref_count: int | None = None
+    stix_summary_json: str | None = None
+    stix_entities_json: str | None = None
+    stix_relationships_json: str | None = None
+    stix_attack_refs_json: str | None = None
+    stix_provenance_json: str | None = None
+    stix_parse_error_code: str | None = None
+    stix_parse_error_message: str | None = None
+    ingestion_error_code: str | None = None
+    ingestion_error_message: str | None = None
+    raw_text: str | None = None
+    normalized_text: str | None = None
+    normalized_char_count: int | None = None
+    normalization_version: str | None = None
+    content_text: str | None = None
 
 
 @dataclass(slots=True)
@@ -81,6 +173,36 @@ class ArtifactCreate:
     path: str
     sha256: str | None = None
     size_bytes: int | None = None
+
+
+@dataclass(slots=True)
+class InputSourceStixUpdate:
+    stix_json_kind: str | None = None
+    stix_json_valid: bool | None = None
+    stix_bundle_id: str | None = None
+    stix_spec_version: str | None = None
+    stix_source_type: str | None = None
+    stix_object_count: int | None = None
+    stix_relationship_count: int | None = None
+    stix_attack_ref_count: int | None = None
+    stix_summary_json: str | None = None
+    stix_entities_json: str | None = None
+    stix_relationships_json: str | None = None
+    stix_attack_refs_json: str | None = None
+    stix_provenance_json: str | None = None
+    stix_parse_error_code: str | None = None
+    stix_parse_error_message: str | None = None
+
+
+@dataclass(slots=True)
+class InputSourceNormalizedUpdate:
+    normalized_source_type: str | None = None
+    normalized_package_json: str | None = None
+    normalized_stats_json: str | None = None
+    normalized_content_chars: int | None = None
+    normalized_content_was_truncated: bool | None = None
+    normalized_content_budget_chars: int | None = None
+    normalized_pipeline_version: str | None = None
 
 
 @dataclass(slots=True)
@@ -298,18 +420,43 @@ class PersistenceRepository:
             connection.execute(
                 """
                 INSERT INTO input_sources (
-                    id, type, original_name, source_url, content_text, storage_path, metadata_json,
-                    options_json, mime_type,
-                    size_bytes, sha256, title, created_at
+                    id, type, original_name, source_url,
+                    fetch_final_url, fetch_status_code, fetch_content_type,
+                    fetch_size_bytes, fetch_error_code, fetch_error_message,
+                    content_text,
+                    raw_text, normalized_text, normalized_char_count, was_truncated,
+                    normalization_version, storage_path, metadata_json, options_json,
+                    mime_type, size_bytes, sha256, title, case_id, source_name,
+                    stored_filename, detected_mime_type, file_class, stix_json_kind, stix_json_valid,
+                    stix_bundle_id, stix_spec_version, stix_source_type,
+                    stix_object_count, stix_relationship_count, stix_attack_ref_count,
+                    stix_summary_json, stix_entities_json, stix_relationships_json,
+                    stix_attack_refs_json, stix_provenance_json,
+                    stix_parse_error_code, stix_parse_error_message,
+                    normalized_source_type, normalized_package_json, normalized_stats_json,
+                    normalized_content_chars, normalized_content_was_truncated,
+                    normalized_content_budget_chars, normalized_pipeline_version,
+                    ingestion_error_code, ingestion_error_message, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
                     payload.type,
                     payload.original_name,
                     payload.source_url,
+                    payload.fetch_final_url,
+                    payload.fetch_status_code,
+                    payload.fetch_content_type,
+                    payload.fetch_size_bytes,
+                    payload.fetch_error_code,
+                    payload.fetch_error_message,
                     payload.content_text,
+                    payload.raw_text,
+                    payload.normalized_text,
+                    payload.normalized_char_count,
+                    int(payload.was_truncated) if payload.was_truncated is not None else None,
+                    payload.normalization_version,
                     payload.storage_path,
                     payload.metadata_json,
                     payload.options_json,
@@ -317,10 +464,249 @@ class PersistenceRepository:
                     payload.size_bytes,
                     payload.sha256,
                     payload.title,
+                    payload.case_id,
+                    payload.source_name,
+                    payload.stored_filename,
+                    payload.detected_mime_type,
+                    payload.file_class,
+                    payload.stix_json_kind,
+                    int(payload.stix_json_valid) if payload.stix_json_valid is not None else None,
+                    payload.stix_bundle_id,
+                    payload.stix_spec_version,
+                    payload.stix_source_type,
+                    payload.stix_object_count,
+                    payload.stix_relationship_count,
+                    payload.stix_attack_ref_count,
+                    payload.stix_summary_json,
+                    payload.stix_entities_json,
+                    payload.stix_relationships_json,
+                    payload.stix_attack_refs_json,
+                    payload.stix_provenance_json,
+                    payload.stix_parse_error_code,
+                    payload.stix_parse_error_message,
+                    payload.normalized_source_type,
+                    payload.normalized_package_json,
+                    payload.normalized_stats_json,
+                    payload.normalized_content_chars,
+                    (
+                        int(payload.normalized_content_was_truncated)
+                        if payload.normalized_content_was_truncated is not None
+                        else None
+                    ),
+                    payload.normalized_content_budget_chars,
+                    payload.normalized_pipeline_version,
+                    payload.ingestion_error_code,
+                    payload.ingestion_error_message,
                     now,
                 ),
             )
         return self.get_input_source(payload.id)
+
+    def update_input_source_file(
+        self,
+        input_source_id: str,
+        payload: InputSourceFileUpdate,
+    ) -> InputSource | None:
+        updates: dict[str, object] = {}
+        for field_name in (
+            "detected_mime_type",
+            "file_class",
+            "stix_json_kind",
+            "stix_bundle_id",
+            "stix_spec_version",
+            "stix_source_type",
+            "stix_object_count",
+            "stix_relationship_count",
+            "stix_attack_ref_count",
+            "stix_summary_json",
+            "stix_entities_json",
+            "stix_relationships_json",
+            "stix_attack_refs_json",
+            "stix_provenance_json",
+            "stix_parse_error_code",
+            "stix_parse_error_message",
+            "ingestion_error_code",
+            "ingestion_error_message",
+            "raw_text",
+            "normalized_text",
+            "normalized_char_count",
+            "normalization_version",
+            "content_text",
+        ):
+            value = getattr(payload, field_name)
+            if value is not None:
+                updates[field_name] = value
+
+        if payload.stix_json_valid is not None:
+            updates["stix_json_valid"] = int(payload.stix_json_valid)
+
+        if not updates:
+            return self.get_input_source(input_source_id)
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates])
+        params = list(updates.values()) + [input_source_id]
+
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute(
+                f"UPDATE input_sources SET {set_clause} WHERE id = ?",  # noqa: S608
+                params,
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_input_source(input_source_id)
+
+    def update_input_source_stix(
+        self,
+        input_source_id: str,
+        payload: InputSourceStixUpdate,
+    ) -> InputSource | None:
+        updates: dict[str, object] = {}
+        for field_name in (
+            "stix_json_kind",
+            "stix_bundle_id",
+            "stix_spec_version",
+            "stix_source_type",
+            "stix_object_count",
+            "stix_relationship_count",
+            "stix_attack_ref_count",
+            "stix_summary_json",
+            "stix_entities_json",
+            "stix_relationships_json",
+            "stix_attack_refs_json",
+            "stix_provenance_json",
+            "stix_parse_error_code",
+            "stix_parse_error_message",
+        ):
+            value = getattr(payload, field_name)
+            if value is not None:
+                updates[field_name] = value
+
+        if payload.stix_json_valid is not None:
+            updates["stix_json_valid"] = int(payload.stix_json_valid)
+
+        if not updates:
+            return self.get_input_source(input_source_id)
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates])
+        params = list(updates.values()) + [input_source_id]
+
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute(
+                f"UPDATE input_sources SET {set_clause} WHERE id = ?",  # noqa: S608
+                params,
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_input_source(input_source_id)
+
+    def update_input_source_normalized(
+        self,
+        input_source_id: str,
+        payload: InputSourceNormalizedUpdate,
+    ) -> InputSource | None:
+        updates: dict[str, object] = {}
+        for field_name in (
+            "normalized_source_type",
+            "normalized_package_json",
+            "normalized_stats_json",
+            "normalized_content_chars",
+            "normalized_content_budget_chars",
+            "normalized_pipeline_version",
+        ):
+            value = getattr(payload, field_name)
+            if value is not None:
+                updates[field_name] = value
+
+        if payload.normalized_content_was_truncated is not None:
+            updates["normalized_content_was_truncated"] = int(payload.normalized_content_was_truncated)
+
+        if not updates:
+            return self.get_input_source(input_source_id)
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates])
+        params = list(updates.values()) + [input_source_id]
+
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute(
+                f"UPDATE input_sources SET {set_clause} WHERE id = ?",  # noqa: S608
+                params,
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_input_source(input_source_id)
+
+    def update_input_source_fetch(
+        self,
+        input_source_id: str,
+        payload: InputSourceFetchUpdate,
+    ) -> InputSource | None:
+        updates: dict[str, object] = {}
+        for field_name in (
+            "fetch_final_url",
+            "fetch_status_code",
+            "fetch_content_type",
+            "fetch_size_bytes",
+            "fetch_error_code",
+            "fetch_error_message",
+            "raw_text",
+            "normalized_text",
+            "normalized_char_count",
+            "normalization_version",
+            "content_text",
+        ):
+            value = getattr(payload, field_name)
+            if value is not None:
+                updates[field_name] = value
+
+        if not updates:
+            return self.get_input_source(input_source_id)
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates])
+        params = list(updates.values()) + [input_source_id]
+
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute(
+                f"UPDATE input_sources SET {set_clause} WHERE id = ?",  # noqa: S608
+                params,
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_input_source(input_source_id)
+
+    def update_input_source_text(self, input_source_id: str, payload: InputSourceTextUpdate) -> InputSource | None:
+        updates: dict[str, object] = {}
+        for field_name in (
+            "raw_text",
+            "normalized_text",
+            "normalized_char_count",
+            "normalization_version",
+        ):
+            value = getattr(payload, field_name)
+            if value is not None:
+                updates[field_name] = value
+
+        if payload.was_truncated is not None:
+            updates["was_truncated"] = int(payload.was_truncated)
+
+        if not updates:
+            return self.get_input_source(input_source_id)
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates])
+        params = list(updates.values()) + [input_source_id]
+
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute(
+                f"UPDATE input_sources SET {set_clause} WHERE id = ?",  # noqa: S608
+                params,
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_input_source(input_source_id)
 
     def get_input_source(self, input_source_id: str) -> InputSource | None:
         with create_connection(self.sqlite_path) as connection:
@@ -334,7 +720,18 @@ class PersistenceRepository:
             type=row["type"],
             original_name=row["original_name"],
             source_url=row["source_url"],
+            fetch_final_url=row["fetch_final_url"],
+            fetch_status_code=row["fetch_status_code"],
+            fetch_content_type=row["fetch_content_type"],
+            fetch_size_bytes=row["fetch_size_bytes"],
+            fetch_error_code=row["fetch_error_code"],
+            fetch_error_message=row["fetch_error_message"],
             content_text=row["content_text"],
+            raw_text=row["raw_text"],
+            normalized_text=row["normalized_text"],
+            normalized_char_count=row["normalized_char_count"],
+            was_truncated=(None if row["was_truncated"] is None else bool(row["was_truncated"])),
+            normalization_version=row["normalization_version"],
             storage_path=row["storage_path"],
             metadata_json=row["metadata_json"],
             options_json=row["options_json"],
@@ -342,6 +739,39 @@ class PersistenceRepository:
             size_bytes=row["size_bytes"],
             sha256=row["sha256"],
             title=row["title"],
+            case_id=row["case_id"],
+            source_name=row["source_name"],
+            stored_filename=row["stored_filename"],
+            detected_mime_type=row["detected_mime_type"],
+            file_class=row["file_class"],
+            stix_json_kind=row["stix_json_kind"],
+            stix_json_valid=(None if row["stix_json_valid"] is None else bool(row["stix_json_valid"])),
+            stix_bundle_id=row["stix_bundle_id"],
+            stix_spec_version=row["stix_spec_version"],
+            stix_source_type=row["stix_source_type"],
+            stix_object_count=row["stix_object_count"],
+            stix_relationship_count=row["stix_relationship_count"],
+            stix_attack_ref_count=row["stix_attack_ref_count"],
+            stix_summary_json=row["stix_summary_json"],
+            stix_entities_json=row["stix_entities_json"],
+            stix_relationships_json=row["stix_relationships_json"],
+            stix_attack_refs_json=row["stix_attack_refs_json"],
+            stix_provenance_json=row["stix_provenance_json"],
+            stix_parse_error_code=row["stix_parse_error_code"],
+            stix_parse_error_message=row["stix_parse_error_message"],
+            normalized_source_type=row["normalized_source_type"],
+            normalized_package_json=row["normalized_package_json"],
+            normalized_stats_json=row["normalized_stats_json"],
+            normalized_content_chars=row["normalized_content_chars"],
+            normalized_content_was_truncated=(
+                None
+                if row["normalized_content_was_truncated"] is None
+                else bool(row["normalized_content_was_truncated"])
+            ),
+            normalized_content_budget_chars=row["normalized_content_budget_chars"],
+            normalized_pipeline_version=row["normalized_pipeline_version"],
+            ingestion_error_code=row["ingestion_error_code"],
+            ingestion_error_message=row["ingestion_error_message"],
             created_at=_require_datetime(row["created_at"], "created_at"),
         )
 

@@ -49,6 +49,54 @@ class AppSettings(BaseSettings):
     file_storage_max_bytes: int | None = Field(
         default=None, validation_alias="FILE_STORAGE_MAX_BYTES"
     )
+    upload_max_bytes: int = Field(default=10_000_000, validation_alias="UPLOAD_MAX_BYTES")
+    upload_allowed_file_classes: str = Field(
+        default="pdf,plaintext,stix_json",
+        validation_alias="UPLOAD_ALLOWED_FILE_CLASSES",
+    )
+    upload_allowed_mime_types: str = Field(
+        default="application/pdf,text/plain,application/json",
+        validation_alias="UPLOAD_ALLOWED_MIME_TYPES",
+    )
+    stix_max_object_count: int = Field(default=50000, validation_alias="STIX_MAX_OBJECT_COUNT")
+    stix_max_structured_payload_bytes: int = Field(
+        default=2_000_000,
+        validation_alias="STIX_MAX_STRUCTURED_PAYLOAD_BYTES",
+    )
+    normalized_content_max_chars: int = Field(
+        default=100_000,
+        validation_alias="NORMALIZED_CONTENT_MAX_CHARS",
+    )
+    normalized_structured_max_bytes: int = Field(
+        default=2_000_000,
+        validation_alias="NORMALIZED_STRUCTURED_MAX_BYTES",
+    )
+    normalized_pipeline_version: str = Field(
+        default="v1",
+        validation_alias="NORMALIZED_PIPELINE_VERSION",
+    )
+    raw_text_max_chars: int = Field(default=200000, validation_alias="RAW_TEXT_MAX_CHARS")
+    url_fetch_max_redirects: int = Field(default=5, validation_alias="URL_FETCH_MAX_REDIRECTS")
+    url_fetch_connect_timeout_seconds: float = Field(
+        default=5.0,
+        validation_alias="URL_FETCH_CONNECT_TIMEOUT_SECONDS",
+    )
+    url_fetch_read_timeout_seconds: float = Field(
+        default=10.0,
+        validation_alias="URL_FETCH_READ_TIMEOUT_SECONDS",
+    )
+    url_fetch_max_response_bytes: int = Field(
+        default=2_000_000,
+        validation_alias="URL_FETCH_MAX_RESPONSE_BYTES",
+    )
+    url_fetch_allowed_schemes: str = Field(
+        default="http,https",
+        validation_alias="URL_FETCH_ALLOWED_SCHEMES",
+    )
+    url_fetch_block_private_destinations: bool = Field(
+        default=True,
+        validation_alias="URL_FETCH_BLOCK_PRIVATE_DESTINATIONS",
+    )
     providers_config_path: Path = Field(
         default=Path("config/providers.yml"), validation_alias="PROVIDERS_CONFIG_PATH"
     )
