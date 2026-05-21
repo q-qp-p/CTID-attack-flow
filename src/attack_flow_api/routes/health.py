@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from attack_flow_api.config import ProviderPublicMetadata
 from attack_flow_api.services.status_service import StatusService
 
 
@@ -61,6 +62,11 @@ def health_check(request: Request) -> HealthResponse:
 
 @router.get("/status", response_model=StatusResponse)
 def service_status(request: Request) -> StatusResponse:
+    """Return lightweight operational status, including configured provider count.
+
+    Provider information exposed here is intentionally non-secret and reflects
+    registry-driven provider configuration loaded at startup.
+    """
     persistence_service = request.app.state.persistence_service
     providers_config = request.app.state.providers_config
     runtime_paths = request.app.state.runtime_paths
@@ -88,16 +94,25 @@ def service_status(request: Request) -> StatusResponse:
 
 @router.get("/providers", response_model=ProvidersResponse)
 def list_providers(request: Request) -> ProvidersResponse:
+    """Return safe/public provider metadata only.
+
+    This endpoint intentionally excludes secret-bearing provider configuration
+    (for example API key environment variable references).
+    """
     providers_config = request.app.state.providers_config
     providers = [
-        ProviderPublic(
-            id=provider.id,
-            type=provider.type,
-            enabled=provider.enabled,
-            default_model=provider.default_model,
-            models=provider.models,
-        )
-        for provider in providers_config.providers
+        _to_provider_public(provider)
+        for provider in providers_config.list_public_metadata()
     ]
 
     return ProvidersResponse(providers=providers, request_id=request.state.request_id)
+
+
+def _to_provider_public(provider: ProviderPublicMetadata) -> ProviderPublic:
+    return ProviderPublic(
+        id=provider.provider_id,
+        type=provider.provider_type,
+        enabled=provider.enabled,
+        default_model=provider.default_model,
+        models=provider.allowed_models,
+    )

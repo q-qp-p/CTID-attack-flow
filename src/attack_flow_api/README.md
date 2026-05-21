@@ -97,3 +97,23 @@ Optional environment variables:
 - `FILE_STORAGE_STRICT_MODE`
 - `FILE_STORAGE_MAX_BYTES`
 - `PROVIDERS_CONFIG_PATH`
+
+## Provider Abstraction (AFA-30)
+
+The API now treats AI providers through a shared provider abstraction and a registry built from `PROVIDERS_CONFIG_PATH`.
+
+- Provider configuration is loaded into internal models (`ProviderConfig`, `ProvidersConfig`) and registered once at startup.
+- Provider adapters are resolved by `provider_id` via the registry instead of direct vendor-specific calls.
+- Public/safe provider metadata is separated from secret-bearing configuration.
+  - Public metadata includes fields such as provider id/type, enabled status, default model, and allowed models.
+  - Secret-bearing fields (for example API key env var references) remain internal and are not returned from `/api/v1/providers`.
+- A normalized provider error model exists for consistent error semantics across providers (auth, timeout, rate limit, unavailable, invalid response, configuration error).
+- Optional provider invocation is explicitly represented:
+  - no provider requested,
+  - provider requested but skipped when deterministic structured input is sufficient,
+  - provider requested and resolved.
+
+Current limitations in AFA-30:
+
+- Concrete provider vendor behavior is intentionally placeholder-only.
+- Registry/adapters are for abstraction and wiring; provider validation execution and orchestration logic are handled in later tickets.

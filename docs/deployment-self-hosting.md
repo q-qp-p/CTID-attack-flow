@@ -22,6 +22,19 @@ Key variables:
 - `VITE_API_BASE_URL_PROXY`: API base path for bundled proxy deployment
 - `DATA_DIR`, `SQLITE_PATH`, `UPLOAD_DIR`, `ARTIFACT_DIR`: backend persistence paths
 
+## Provider Configuration and Metadata (AFA-30)
+
+Provider configuration is loaded from `PROVIDERS_CONFIG_PATH` into a registry-backed abstraction layer.
+
+- Providers are configured by `provider_id` and `provider_type` (for example `openai`, `azure_openai`, `anthropic`, `openai_compatible`).
+- Runtime provider access is registry-driven by `provider_id`, not hardcoded to a vendor client.
+- Public provider metadata is intentionally separate from secret-bearing configuration.
+  - `/api/v1/providers` exposes safe metadata only.
+  - Secret-bearing fields are internal and must not be returned in API responses.
+- Provider invocation can be explicitly skipped when deterministic structured input is sufficient.
+
+Keep provider secrets in environment variables or your secret manager. Do not store secret values in repository config files.
+
 ## Start API Independently
 
 Container run:

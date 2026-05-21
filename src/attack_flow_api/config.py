@@ -1,22 +1,78 @@
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+ProviderType = Literal["openai", "azure_openai", "anthropic", "openai_compatible"]
+
+
 class ProviderConfig(BaseModel):
-    id: str
-    type: str
+    provider_id: str
+    provider_type: ProviderType
     enabled: bool = True
-    base_url: str | None = None
-    api_key_env: str | None = None
     default_model: str | None = None
-    models: list[str] = Field(default_factory=list)
+    allowed_models: list[str] = Field(default_factory=list)
+
+    # Common provider connection/config fields (non-secret values only)
+    base_url: str | None = None
+    api_version: str | None = None
+    organization: str | None = None
+    project: str | None = None
+
+    # Secret references (environment variable names only)
+    api_key_env: str | None = None
+    azure_api_key_env: str | None = None
+    azure_ad_token_env: str | None = None
+
+    # Provider-specific extras for extensibility
+    provider_config: dict[str, str] = Field(default_factory=dict)
+
+    def to_public_metadata(self) -> "ProviderPublicMetadata":
+        return ProviderPublicMetadata(
+            provider_id=self.provider_id,
+            provider_type=self.provider_type,
+            enabled=self.enabled,
+            default_model=self.default_model,
+            allowed_models=self.allowed_models,
+            base_url=self.base_url,
+            api_version=self.api_version,
+            organization=self.organization,
+            project=self.project,
+        )
+
+
+class ProviderPublicMetadata(BaseModel):
+    provider_id: str
+    provider_type: ProviderType
+    enabled: bool
+    default_model: str | None = None
+    allowed_models: list[str] = Field(default_factory=list)
+    base_url: str | None = None
+    api_version: str | None = None
+    organization: str | None = None
+    project: str | None = None
 
 
 class ProvidersConfig(BaseModel):
     providers: list[ProviderConfig] = Field(default_factory=list)
+
+    def get_provider_by_id(self, provider_id: str) -> ProviderConfig | None:
+        normalized = provider_id.strip()
+        if not normalized:
+            return None
+        for provider in self.providers:
+            if provider.provider_id == normalized:
+                return provider
+        return None
+
+    def list_enabled_providers(self) -> list[ProviderConfig]:
+        return [provider for provider in self.providers if provider.enabled]
+
+    def list_public_metadata(self) -> list[ProviderPublicMetadata]:
+        return [provider.to_public_metadata() for provider in self.providers]
 
 
 class AppSettings(BaseSettings):

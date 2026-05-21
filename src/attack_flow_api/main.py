@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from attack_flow_api.config import (
     AppSettings,
+    ProviderConfig,
+    ProviderPublicMetadata,
     ProvidersConfig,
     ensure_runtime_directories,
     load_providers_config,
@@ -26,6 +28,7 @@ from attack_flow_api.errors import (
 from attack_flow_api.logging_utils import setup_logging
 from attack_flow_api.routes.jobs import router as jobs_router
 from attack_flow_api.middleware import RequestContextMiddleware
+from attack_flow_api.providers.registry import ProviderRegistry
 from attack_flow_api.routes.health import router as health_router
 from attack_flow_api.services.job_worker_service import JobWorkerService
 from attack_flow_api.services.persistence_service import PersistenceService
@@ -45,6 +48,7 @@ async def lifespan(app: FastAPI):
     settings = load_settings()
     setup_logging(settings.log_level)
     providers_config = load_providers_config(settings.providers_config_path)
+    provider_registry = ProviderRegistry(providers_config)
     runtime_paths = resolve_runtime_paths(settings)
     ensure_runtime_directories(runtime_paths)
     initialize_database(settings.sqlite_path)
@@ -59,6 +63,7 @@ async def lifespan(app: FastAPI):
 
     app.state.settings = settings
     app.state.providers_config = providers_config
+    app.state.provider_registry = provider_registry
     app.state.runtime_paths = runtime_paths
     app.state.sqlite_path = settings.sqlite_path
     app.state.persistence_service = persistence_service
@@ -116,3 +121,15 @@ def get_app_settings(app_instance: FastAPI) -> AppSettings:
 
 def get_providers_config(app_instance: FastAPI) -> ProvidersConfig:
     return app_instance.state.providers_config
+
+
+def get_provider_config_by_id(app_instance: FastAPI, provider_id: str) -> ProviderConfig | None:
+    return get_providers_config(app_instance).get_provider_by_id(provider_id)
+
+
+def list_public_provider_metadata(app_instance: FastAPI) -> list[ProviderPublicMetadata]:
+    return get_providers_config(app_instance).list_public_metadata()
+
+
+def get_provider_registry(app_instance: FastAPI) -> ProviderRegistry:
+    return app_instance.state.provider_registry
