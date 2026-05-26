@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from attack_flow_api.config import ProviderConfig, ProviderPublicMetadata, ProvidersConfig
 from attack_flow_api.providers.adapter import ProviderAdapter, ProviderNotImplementedAdapter
 from attack_flow_api.providers.contracts import ProviderInvocationMode
+from attack_flow_api.providers.openai_adapter import OpenAIProviderAdapter
 
 
 class ProviderRegistryError(RuntimeError):
@@ -131,6 +132,8 @@ class ProviderRegistry:
         return registration
 
     def _build_adapter(self, provider: ProviderConfig) -> ProviderAdapter:
+        if provider.provider_type == "openai":
+            return OpenAIProviderAdapter(provider)
         return ProviderNotImplementedAdapter(
             provider_id=provider.provider_id,
             provider_type=provider.provider_type,

@@ -1,5 +1,6 @@
 from attack_flow_api.providers.adapter import (
     ProviderAdapter,
+    ProviderAdapterInvocationError,
     ProviderNotImplementedAdapter,
     ProviderNotInvokedAdapter,
 )
@@ -25,6 +26,12 @@ from attack_flow_api.providers.registry import (
     ProviderRegistry,
     ProviderRegistryError,
 )
+from attack_flow_api.providers.openai_adapter import (
+    OpenAIHttpError,
+    OpenAIHttpRequest,
+    OpenAIHttpResponse,
+    OpenAIProviderAdapter,
+)
 
 __all__ = [
     "ProviderAdapter",
@@ -35,6 +42,11 @@ __all__ = [
     "ProviderNotFoundError",
     "ProviderDisabledError",
     "ProviderInvocationPlan",
+    "OpenAIProviderAdapter",
+    "ProviderAdapterInvocationError",
+    "OpenAIHttpRequest",
+    "OpenAIHttpResponse",
+    "OpenAIHttpError",
     "DEFAULT_ERROR_RETRYABLE",
     "NormalizedProviderError",
     "ProviderErrorCategory",

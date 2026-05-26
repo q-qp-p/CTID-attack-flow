@@ -117,3 +117,23 @@ Current limitations in AFA-30:
 
 - Concrete provider vendor behavior is intentionally placeholder-only.
 - Registry/adapters are for abstraction and wiring; provider validation execution and orchestration logic are handled in later tickets.
+
+## Provider Validation (AFA-31)
+
+AFA-31 adds the first concrete provider adapter implementation: OpenAI.
+
+- `POST /api/v1/providers/validate` validates a configured provider by `provider_id`.
+- Validation executes through the provider abstraction/registry layer and then the concrete OpenAI adapter.
+- OpenAI adapter runtime behavior includes:
+  - model selection (explicit request model, then provider default, then first allowed model),
+  - bounded timeout handling,
+  - bounded retry/backoff for transient failures only.
+- Validation responses are normalized and safe:
+  - practical fields include `valid`, `provider_id`, `provider_type`, optional `model`, `latency_ms`, and `request_id`,
+  - failure details are normalized (error code/category/retryable/status),
+  - secret-bearing values are never returned.
+
+Practical limitations in AFA-31:
+
+- Only OpenAI is implemented as a concrete adapter in this ticket.
+- Other provider types remain registry-configurable but adapter behavior is not implemented yet.

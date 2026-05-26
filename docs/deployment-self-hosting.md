@@ -35,6 +35,20 @@ Provider configuration is loaded from `PROVIDERS_CONFIG_PATH` into a registry-ba
 
 Keep provider secrets in environment variables or your secret manager. Do not store secret values in repository config files.
 
+## Provider Validation API (AFA-31)
+
+AFA-31 introduces provider validation through the API:
+
+- `POST /api/v1/providers/validate` validates a configured provider by `provider_id`.
+- Validation runs through the provider abstraction/registry layer and currently uses the OpenAI concrete adapter for `provider_type=openai`.
+- OpenAI adapter behavior for validation supports practical runtime controls:
+  - model selection from request/default/allowed models,
+  - bounded timeout behavior,
+  - bounded retry/backoff for transient failures.
+- Validation output is normalized and safe for API clients:
+  - includes result/status metadata and `request_id`,
+  - does not expose provider secrets or secret-bearing config fields.
+
 ## Start API Independently
 
 Container run:

@@ -13,12 +13,20 @@ def test_provider_config_model_validates_canonical_fields() -> None:
         allowed_models=["gpt-4.1-mini", "gpt-4.1"],
         base_url="https://api.openai.com/v1",
         api_key_env="OPENAI_API_KEY",
+        timeout_seconds=30,
+        connect_timeout_seconds=5,
+        read_timeout_seconds=20,
+        retry_max_attempts=3,
+        retry_base_delay_ms=200,
+        retry_max_delay_ms=2000,
     )
 
     assert config.provider_id == "default-openai"
     assert config.provider_type == "openai"
     assert config.default_model == "gpt-4.1-mini"
     assert config.allowed_models == ["gpt-4.1-mini", "gpt-4.1"]
+    assert config.timeout_seconds == 30
+    assert config.retry_max_attempts == 3
 
 
 def test_provider_config_model_rejects_invalid_provider_type() -> None:
@@ -68,3 +76,47 @@ def test_providers_config_lookup_and_lists() -> None:
     assert providers.get_provider_by_id("missing") is None
     assert [item.provider_id for item in providers.list_enabled_providers()] == ["p1"]
     assert [item.provider_id for item in providers.list_public_metadata()] == ["p1", "p2"]
+
+
+def test_get_openai_provider_by_id_returns_only_openai_provider() -> None:
+    providers = ProvidersConfig(
+        providers=[
+            ProviderConfig(provider_id="p1", provider_type="openai", enabled=True),
+            ProviderConfig(provider_id="p2", provider_type="anthropic", enabled=True),
+        ]
+    )
+
+    assert providers.get_openai_provider_by_id("p1") is not None
+    assert providers.get_openai_provider_by_id("p2") is None
+    assert providers.get_openai_provider_by_id("missing") is None
+
+
+def test_validate_openai_provider_config_reports_usable_and_error_states() -> None:
+    providers = ProvidersConfig(
+        providers=[
+            ProviderConfig(
+                provider_id="usable",
+                provider_type="openai",
+                enabled=True,
+                api_key_env="OPENAI_API_KEY",
+                default_model="gpt-4.1-mini",
+            ),
+            ProviderConfig(
+                provider_id="invalid",
+                provider_type="openai",
+                enabled=False,
+                api_key_env="",
+                allowed_models=[],
+                base_url="   ",
+            ),
+        ]
+    )
+
+    assert providers.validate_openai_provider_config("usable") == []
+    assert providers.validate_openai_provider_config("missing") == ["provider_not_found_or_not_openai"]
+    assert providers.validate_openai_provider_config("invalid") == [
+        "provider_disabled",
+        "api_key_env_missing",
+        "model_configuration_missing",
+        "base_url_invalid",
+    ]

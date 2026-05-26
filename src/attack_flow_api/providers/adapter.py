@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+from attack_flow_api.providers.contracts import NormalizedProviderError
+
 from attack_flow_api.providers.contracts import (
     ProviderValidationRequest,
     ProviderValidationResult,
@@ -29,6 +31,12 @@ class ProviderAdapter(ABC):
         request: StructuredGenerationRequest,
     ) -> StructuredGenerationResult:
         raise NotImplementedError
+
+
+class ProviderAdapterInvocationError(RuntimeError):
+    def __init__(self, error: NormalizedProviderError):
+        super().__init__(error.message)
+        self.error = error
 
 
 class ProviderNotInvokedAdapter(ProviderAdapter):

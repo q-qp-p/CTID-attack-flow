@@ -133,3 +133,11 @@ def list_public_provider_metadata(app_instance: FastAPI) -> list[ProviderPublicM
 
 def get_provider_registry(app_instance: FastAPI) -> ProviderRegistry:
     return app_instance.state.provider_registry
+
+
+def get_openai_provider_config_by_id(app_instance: FastAPI, provider_id: str) -> ProviderConfig | None:
+    return get_providers_config(app_instance).get_openai_provider_by_id(provider_id)
+
+
+def validate_openai_provider_config(app_instance: FastAPI, provider_id: str) -> list[str]:
+    return get_providers_config(app_instance).validate_openai_provider_config(provider_id)

@@ -1,9 +1,10 @@
 import pytest
 
 from attack_flow_api.config import ProviderConfig, ProvidersConfig
-from attack_flow_api.providers.adapter import ProviderAdapter, ProviderNotImplementedAdapter
+from attack_flow_api.providers.adapter import ProviderAdapter, ProviderAdapterInvocationError
 from attack_flow_api.providers.contracts import ProviderInvocationMode
 from attack_flow_api.providers.contracts import ProviderValidationRequest
+from attack_flow_api.providers.openai_adapter import OpenAIProviderAdapter
 from attack_flow_api.providers.registry import (
     ProviderDisabledError,
     ProviderNotFoundError,
@@ -37,7 +38,7 @@ def test_registry_resolves_enabled_provider_adapter() -> None:
     adapter = registry.resolve_adapter("default-openai")
 
     assert isinstance(adapter, ProviderAdapter)
-    assert isinstance(adapter, ProviderNotImplementedAdapter)
+    assert isinstance(adapter, OpenAIProviderAdapter)
     assert adapter.provider_id == "default-openai"
     assert adapter.provider_type == "openai"
 
@@ -117,14 +118,14 @@ def test_registry_optional_invocation_requested_and_resolved() -> None:
     assert plan.mode == ProviderInvocationMode.REQUESTED_AND_RESOLVED
     assert plan.provider_id == "default-openai"
     assert plan.provider_type == "openai"
-    assert isinstance(plan.adapter, ProviderNotImplementedAdapter)
+    assert isinstance(plan.adapter, OpenAIProviderAdapter)
 
 
-def test_registry_uses_placeholder_adapter_without_vendor_specific_logic() -> None:
+def test_registry_openai_adapter_requires_runtime_credentials() -> None:
     registry = ProviderRegistry(_build_providers_config())
     adapter = registry.resolve_adapter("default-openai")
 
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(ProviderAdapterInvocationError):
         adapter.validate(
             ProviderValidationRequest(
                 provider_id="default-openai",

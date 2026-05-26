@@ -30,6 +30,14 @@ class ProviderConfig(BaseModel):
     # Provider-specific extras for extensibility
     provider_config: dict[str, str] = Field(default_factory=dict)
 
+    # Runtime request behavior settings (non-secret)
+    timeout_seconds: float | None = Field(default=None, gt=0)
+    connect_timeout_seconds: float | None = Field(default=None, gt=0)
+    read_timeout_seconds: float | None = Field(default=None, gt=0)
+    retry_max_attempts: int | None = Field(default=None, ge=1)
+    retry_base_delay_ms: int | None = Field(default=None, ge=0)
+    retry_max_delay_ms: int | None = Field(default=None, ge=0)
+
     def to_public_metadata(self) -> "ProviderPublicMetadata":
         return ProviderPublicMetadata(
             provider_id=self.provider_id,
@@ -73,6 +81,30 @@ class ProvidersConfig(BaseModel):
 
     def list_public_metadata(self) -> list[ProviderPublicMetadata]:
         return [provider.to_public_metadata() for provider in self.providers]
+
+    def get_openai_provider_by_id(self, provider_id: str) -> ProviderConfig | None:
+        provider = self.get_provider_by_id(provider_id)
+        if provider is None:
+            return None
+        if provider.provider_type != "openai":
+            return None
+        return provider
+
+    def validate_openai_provider_config(self, provider_id: str) -> list[str]:
+        provider = self.get_openai_provider_by_id(provider_id)
+        if provider is None:
+            return ["provider_not_found_or_not_openai"]
+
+        errors: list[str] = []
+        if not provider.enabled:
+            errors.append("provider_disabled")
+        if provider.api_key_env is None or not provider.api_key_env.strip():
+            errors.append("api_key_env_missing")
+        if provider.default_model is None and not provider.allowed_models:
+            errors.append("model_configuration_missing")
+        if provider.base_url is not None and not provider.base_url.strip():
+            errors.append("base_url_invalid")
+        return errors
 
 
 class AppSettings(BaseSettings):
