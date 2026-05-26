@@ -35,6 +35,15 @@ class JobCreate:
     provider_id: str | None = None
     model: str | None = None
     input_source_id: str | None = None
+    result_json: str | None = None
+    extraction_mode: str | None = None
+    provider_invoked: bool | None = None
+    extraction_result_json: str | None = None
+    extraction_validation_state: str | None = None
+    extraction_repair_attempted: bool | None = None
+    extraction_provenance_classification: str | None = None
+    extraction_authors_json: str | None = None
+    extraction_external_references_json: str | None = None
     request_id: str | None = None
 
 
@@ -51,10 +60,32 @@ class JobUpdate:
     model: str | None = None
     input_source_id: str | None = None
     result_json: str | None = None
+    extraction_mode: str | None = None
+    provider_invoked: bool | None = None
+    extraction_result_json: str | None = None
+    extraction_validation_state: str | None = None
+    extraction_repair_attempted: bool | None = None
+    extraction_provenance_classification: str | None = None
+    extraction_authors_json: str | None = None
+    extraction_external_references_json: str | None = None
     completed_at: datetime | None = None
     error_code: str | None = None
     error_message: str | None = None
     request_id: str | None = None
+
+
+@dataclass(slots=True)
+class JobExtractionUpdate:
+    extraction_mode: str | None = None
+    provider_invoked: bool | None = None
+    provider_id: str | None = None
+    model: str | None = None
+    extraction_result_json: str | None = None
+    extraction_validation_state: str | None = None
+    extraction_repair_attempted: bool | None = None
+    extraction_provenance_classification: str | None = None
+    extraction_authors_json: str | None = None
+    extraction_external_references_json: str | None = None
 
 
 @dataclass(slots=True)
@@ -225,10 +256,14 @@ class PersistenceRepository:
                 """
                 INSERT INTO jobs (
                     id, status, stage, provider_id, model, input_source_id,
-                    result_json, progress_percent, started_at, last_heartbeat_at,
+                    result_json, extraction_mode, provider_invoked, extraction_result_json,
+                    extraction_validation_state, extraction_repair_attempted,
+                    extraction_provenance_classification, extraction_authors_json,
+                    extraction_external_references_json,
+                    progress_percent, started_at, last_heartbeat_at,
                     worker_id, attempt_count, created_at, updated_at, request_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
@@ -237,7 +272,17 @@ class PersistenceRepository:
                     payload.provider_id,
                     payload.model,
                     payload.input_source_id,
-                    None,
+                    payload.result_json,
+                    payload.extraction_mode,
+                    int(payload.provider_invoked) if payload.provider_invoked is not None else None,
+                    payload.extraction_result_json,
+                    payload.extraction_validation_state,
+                    int(payload.extraction_repair_attempted)
+                    if payload.extraction_repair_attempted is not None
+                    else None,
+                    payload.extraction_provenance_classification,
+                    payload.extraction_authors_json,
+                    payload.extraction_external_references_json,
                     None,
                     None,
                     None,
@@ -265,13 +310,24 @@ class PersistenceRepository:
             "model",
             "input_source_id",
             "result_json",
+            "extraction_mode",
+            "provider_invoked",
+            "extraction_result_json",
+            "extraction_validation_state",
+            "extraction_repair_attempted",
+            "extraction_provenance_classification",
+            "extraction_authors_json",
+            "extraction_external_references_json",
             "error_code",
             "error_message",
             "request_id",
         ):
             value = getattr(payload, field_name)
             if value is not None:
-                updates[field_name] = value
+                if field_name in {"provider_invoked", "extraction_repair_attempted"}:
+                    updates[field_name] = int(bool(value))
+                else:
+                    updates[field_name] = value
 
         if payload.completed_at is not None:
             updates["completed_at"] = payload.completed_at.isoformat().replace("+00:00", "Z")
@@ -307,6 +363,16 @@ class PersistenceRepository:
             model=row["model"],
             input_source_id=row["input_source_id"],
             result_json=row["result_json"],
+            extraction_mode=row["extraction_mode"],
+            provider_invoked=bool(row["provider_invoked"]) if row["provider_invoked"] is not None else None,
+            extraction_result_json=row["extraction_result_json"],
+            extraction_validation_state=row["extraction_validation_state"],
+            extraction_repair_attempted=bool(row["extraction_repair_attempted"])
+            if row["extraction_repair_attempted"] is not None
+            else None,
+            extraction_provenance_classification=row["extraction_provenance_classification"],
+            extraction_authors_json=row["extraction_authors_json"],
+            extraction_external_references_json=row["extraction_external_references_json"],
             progress_percent=row["progress_percent"],
             started_at=_parse_datetime(row["started_at"]),
             last_heartbeat_at=_parse_datetime(row["last_heartbeat_at"]),
@@ -384,6 +450,23 @@ class PersistenceRepository:
                 progress_percent=progress_percent,
                 worker_id=worker_id,
                 last_heartbeat_at=_utcnow(),
+            ),
+        )
+
+    def update_job_extraction(self, job_id: str, payload: JobExtractionUpdate) -> Job | None:
+        return self.update_job(
+            job_id,
+            JobUpdate(
+                extraction_mode=payload.extraction_mode,
+                provider_invoked=payload.provider_invoked,
+                provider_id=payload.provider_id,
+                model=payload.model,
+                extraction_result_json=payload.extraction_result_json,
+                extraction_validation_state=payload.extraction_validation_state,
+                extraction_repair_attempted=payload.extraction_repair_attempted,
+                extraction_provenance_classification=payload.extraction_provenance_classification,
+                extraction_authors_json=payload.extraction_authors_json,
+                extraction_external_references_json=payload.extraction_external_references_json,
             ),
         )
 

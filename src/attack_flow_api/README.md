@@ -137,3 +137,33 @@ Practical limitations in AFA-31:
 
 - Only OpenAI is implemented as a concrete adapter in this ticket.
 - Other provider types remain registry-configurable but adapter behavior is not implemented yet.
+
+## Orchestration and Intermediate Extraction (AFA-32)
+
+AFA-32 adds orchestration and structured extraction assembly for downstream flow-building.
+
+- Orchestration input is the canonical normalized package produced by AFA-23.
+- Two orchestration modes are supported:
+  - `full_extraction` for narrative-heavy inputs,
+  - `enrichment` for deterministic structured inputs.
+- Deterministic STIX/OpenCTI findings from AFA-24 are preserved explicitly in output:
+  - ATT&CK refs,
+  - entities,
+  - relationships,
+  - provenance.
+- Provider invocation is optional:
+  - deterministic-structured sufficiency may reduce or bypass provider invocation.
+- Extraction output is intentionally constrained to an AFB v2-compatible intermediate shape.
+- Hard constraints enforced in extraction output validation:
+  - ATT&CK techniques must be explicitly grounded in source,
+  - steps may exist without ATT&CK mappings,
+  - attack-action descriptions must be verbatim source excerpts,
+  - operators are limited to `AND`/`OR`,
+  - conditions are limited to `true`/`false`,
+  - authors and external references are preserved as lists.
+- Malformed provider output is validated and may receive one practical bounded repair attempt.
+
+Current limitations in AFA-32:
+
+- Output is an intermediate extraction result, not final flow graph/export output.
+- Deep conflict-resolution/fusion policy is intentionally deferred.

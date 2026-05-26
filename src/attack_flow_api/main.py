@@ -72,6 +72,7 @@ async def lifespan(app: FastAPI):
         persistence_service=persistence_service,
         settings=settings,
         file_storage=file_storage,
+        provider_registry=provider_registry,
     )
     worker_task = asyncio.create_task(job_worker.run(), name="job-worker")
     app.state.job_worker = job_worker

@@ -90,6 +90,12 @@ class ProviderRegistry:
         registration = self._require_registration(provider_id)
         return registration.config
 
+    def get_default_enabled_provider_id(self) -> str | None:
+        for provider in self._providers_config.providers:
+            if provider.enabled:
+                return provider.provider_id
+        return None
+
     def resolve_adapter(self, provider_id: str) -> ProviderAdapter:
         return self._require_enabled_registration(provider_id).adapter
 

@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 
 def create_connection(sqlite_path: Path) -> sqlite3.Connection:
@@ -111,6 +111,14 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
             model TEXT,
             input_source_id TEXT,
             result_json TEXT,
+            extraction_mode TEXT,
+            provider_invoked INTEGER,
+            extraction_result_json TEXT,
+            extraction_validation_state TEXT,
+            extraction_repair_attempted INTEGER,
+            extraction_provenance_classification TEXT,
+            extraction_authors_json TEXT,
+            extraction_external_references_json TEXT,
             progress_percent INTEGER,
             started_at TEXT,
             last_heartbeat_at TEXT,
@@ -147,3 +155,25 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
         );
         """
     )
+    _ensure_jobs_columns(connection)
+
+
+def _ensure_jobs_columns(connection: sqlite3.Connection) -> None:
+    required_columns = {
+        "extraction_mode": "TEXT",
+        "provider_invoked": "INTEGER",
+        "extraction_result_json": "TEXT",
+        "extraction_validation_state": "TEXT",
+        "extraction_repair_attempted": "INTEGER",
+        "extraction_provenance_classification": "TEXT",
+        "extraction_authors_json": "TEXT",
+        "extraction_external_references_json": "TEXT",
+    }
+
+    rows = connection.execute("PRAGMA table_info(jobs)").fetchall()
+    existing = {str(row[1]) for row in rows}
+
+    for column_name, column_type in required_columns.items():
+        if column_name in existing:
+            continue
+        connection.execute(f"ALTER TABLE jobs ADD COLUMN {column_name} {column_type}")

@@ -12,6 +12,7 @@ from attack_flow_api.storage.repositories import (
     InputSourceStixUpdate,
     InputSourceTextUpdate,
     JobCreate,
+    JobExtractionUpdate,
     JobUpdate,
     PersistenceRepository,
 )
@@ -165,6 +166,9 @@ class PersistenceService:
             progress_percent=progress_percent,
             worker_id=worker_id,
         )
+
+    def update_job_extraction(self, job_id: str, payload: JobExtractionUpdate) -> Job | None:
+        return self.repository.update_job_extraction(job_id, payload)
 
     def mark_job_completed(self, job_id: str) -> Job | None:
         return self.repository.mark_job_completed(job_id)

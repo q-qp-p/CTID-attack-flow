@@ -49,6 +49,32 @@ AFA-31 introduces provider validation through the API:
   - includes result/status metadata and `request_id`,
   - does not expose provider secrets or secret-bearing config fields.
 
+## Orchestration Behavior (AFA-32)
+
+AFA-32 introduces orchestration in the worker pipeline (`ai_extraction` stage) using canonical normalized input.
+
+- Canonical normalized package data (AFA-23) is the orchestration source input.
+- Orchestration modes:
+  - `full_extraction` for narrative-heavy inputs,
+  - `enrichment` for deterministic structured STIX/OpenCTI-derived inputs.
+- Deterministic findings from AFA-24 are preserved in intermediate output:
+  - explicit ATT&CK refs,
+  - entities,
+  - relationships,
+  - provenance.
+- Provider invocation is optional when deterministic input is sufficient.
+- Output is constrained to an AFB v2-compatible intermediate extraction shape.
+- Validation enforces practical safety/grounding constraints:
+  - only explicitly grounded ATT&CK techniques,
+  - steps may remain unmapped to ATT&CK,
+  - action descriptions must be verbatim source excerpts,
+  - operators limited to `AND`/`OR`,
+  - conditions limited to `true`/`false`,
+  - authors and external references remain list-valued metadata.
+- Malformed provider output may receive one bounded repair attempt before failing cleanly.
+
+This stage intentionally does not produce final flow graph/export artifacts.
+
 ## Start API Independently
 
 Container run:

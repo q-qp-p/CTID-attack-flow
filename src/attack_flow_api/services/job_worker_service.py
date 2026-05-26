@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from attack_flow_api.config import AppSettings
+from attack_flow_api.providers.registry import ProviderRegistry
+from attack_flow_api.services.ai_orchestration_service import AIOrchestrationService
+from attack_flow_api.services.ai_provider_invocation_service import AIProviderInvocationService
 from attack_flow_api.services.file_classification import FileRoutingResult, classify_file_for_routing
 from attack_flow_api.services.normalized_package_assembler import (
     build_narrative_normalized_update,
@@ -33,6 +36,8 @@ from attack_flow_api.storage.models import InputSource
 from attack_flow_api.storage.repositories import (
     InputSourceFetchUpdate,
     InputSourceFileUpdate,
+    JobExtractionUpdate,
+    JobUpdate,
     InputSourceStixUpdate,
 )
 
@@ -43,11 +48,13 @@ class JobWorkerService:
         persistence_service: PersistenceService,
         settings: AppSettings,
         file_storage: LocalFileStorage,
+        provider_registry: ProviderRegistry,
         poll_interval_seconds: float = 1.0,
     ):
         self.persistence_service = persistence_service
         self.settings = settings
         self.file_storage = file_storage
+        self.provider_registry = provider_registry
         self.poll_interval_seconds = poll_interval_seconds
         self.worker_id = f"worker-{uuid4()}"
         self._shutdown_event = asyncio.Event()
@@ -78,6 +85,11 @@ class JobWorkerService:
         )
         self._stix_extraction_failed_code = "stix_extraction_failed"
         self._stix_extraction_failed_message = "failed to extract structured stix content"
+        self._provider_invocation_service = AIProviderInvocationService(provider_registry)
+        self._ai_orchestration_service = AIOrchestrationService(
+            persistence_service=persistence_service,
+            provider_invocation_service=self._provider_invocation_service,
+        )
 
     async def run(self) -> None:
         self._logger.info("job worker started", extra={"worker_id": self.worker_id})
@@ -200,6 +212,7 @@ class JobWorkerService:
         normalized_text = None
         if stage == "ai_extraction":
             normalized_text = self.persistence_service.resolve_canonical_text_for_job(job_id)
+            self._run_ai_extraction_orchestration(job_id)
         _ = (job_id, stage, normalized_text)
         await asyncio.sleep(0)
 
@@ -245,6 +258,7 @@ class JobWorkerService:
 
         if stage == "ai_extraction":
             _ = self.persistence_service.resolve_canonical_text_for_job(job_id)
+            self._run_ai_extraction_orchestration(job_id)
 
     async def _fetch_url_content(self, job_id: str, input_source_id: str, source_url: str) -> None:
         try:
@@ -319,6 +333,49 @@ class JobWorkerService:
 
         if stage == "ai_extraction":
             _ = self.persistence_service.resolve_canonical_text_for_job(job_id)
+            self._run_ai_extraction_orchestration(job_id)
+
+    def _run_ai_extraction_orchestration(self, job_id: str) -> None:
+        job = self.persistence_service.get_job(job_id)
+        if job is None:
+            return
+
+        requested_provider_id = job.provider_id
+        requested_model = job.model
+        execution = self._ai_orchestration_service.run_for_job(
+            job_id=job_id,
+            requested_provider_id=requested_provider_id,
+            requested_model=requested_model,
+        )
+
+        self.persistence_service.update_job_extraction(
+            job_id,
+            JobExtractionUpdate(
+                extraction_mode=execution.extraction_mode,
+                provider_invoked=execution.provider_invoked,
+                provider_id=execution.provider_id,
+                model=execution.model_used,
+                extraction_result_json=execution.extraction_payload_json,
+                extraction_validation_state=execution.extraction_validation_state,
+                extraction_repair_attempted=execution.repair_attempted,
+                extraction_provenance_classification=execution.provenance_classification,
+                extraction_authors_json=execution.authors_json,
+                extraction_external_references_json=execution.external_references_json,
+            ),
+        )
+
+        if execution.succeeded:
+            self.persistence_service.update_job(
+                job_id,
+                JobUpdate(
+                    result_json=execution.extraction_payload_json,
+                    provider_id=execution.provider_id,
+                    model=execution.model_used,
+                ),
+            )
+            return
+
+        raise RuntimeError(execution.error_message or execution.error_code or "ai extraction failed")
 
     async def _extract_file_content(self, job_id: str, input_source: InputSource) -> None:
         try:
