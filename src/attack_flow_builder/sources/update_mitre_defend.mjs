@@ -11,6 +11,16 @@ import { randomUUID } from "crypto";
 const ENUM_DIR = `../src/assets/configuration/AttackFlowTemplates`;
 
 /**
+ * The source name for D3FEND objects.
+ */
+const SOURCE_NAME = "D3FEND";
+
+/**
+ * The source domain for D3FEND objects.
+ */
+const SOURCE_DOMAIN = "d3fend";
+
+/**
  * @typedef {Object} ChildRef
  * @property {string} ['@id']
  */
@@ -107,6 +117,46 @@ function getChildrenIds(node) {
 }
 
 /**
+ * Creates a source object record.
+ * @param {string} id
+ *  The source object ID.
+ * @param {string} name
+ *  The source object name.
+ * @param {string} label
+ *  The display label.
+ * @param {string} type
+ *  The source object type.
+ * @param {string} stixId
+ *  The generated STIX-like ID.
+ * @returns {Object}
+ *  The source object record.
+ */
+function createSourceObject(id, name, label, type, stixId) {
+  return {
+    id,
+    name,
+    label,
+    type,
+    source: SOURCE_NAME,
+    domains: [SOURCE_DOMAIN],
+    stixId
+  };
+}
+
+/**
+ * Sorts an object record by key.
+ * @param {Record<string, Object>} record
+ *  The object record.
+ * @returns {Record<string, Object>}
+ *  The sorted object record.
+ */
+function sortRecord(record) {
+  return Object.fromEntries(
+    Object.entries(record).sort(([a], [b]) => a.localeCompare(b))
+  );
+}
+
+/**
  * Collects all descendant techniques for a tactic node.
  * This performs a DFS through d3f:children links to arbitrary depth.
  * @param {SourceObject} rootNode
@@ -164,8 +214,12 @@ export default async function updateMitreDefend() {
   const tacticsNodes = graph.filter(isTactic);
 
   // Organize tactics and relationships
-  const tactics = [];
-  const relationships = [];
+  const tactics = {};
+  const relationships = {
+    tacticTechniques: [],
+    techniqueMitigations: [],
+    techniqueDetections: []
+  };
   const techniqueLabelByCode = new Map(); // code -> label
 
   for (const t of tacticsNodes) {
@@ -175,7 +229,13 @@ export default async function updateMitreDefend() {
     // Remove the leading "d3f:" namespace from tactic identifiers for output
     const cleanTacticId = tacticId.replace(/^d3f:/, "");
 
-    tactics.push([cleanTacticId, `[D3F] ${cleanTacticId}`]);
+    tactics[cleanTacticId] = createSourceObject(
+      cleanTacticId,
+      cleanTacticId,
+      `[D3F] ${cleanTacticId}`,
+      "tactic",
+      `x-mitre-tactic--${randomUUID()}`
+    );
 
     const { techniqueIds, techniqueLabels } = collectDescendantTechniques(t, byId);
 
@@ -184,26 +244,35 @@ export default async function updateMitreDefend() {
     }
     for (const code of techniqueIds) {
       // Relationship uses tactic id without d3f: prefix
-      relationships.push(["tactic", cleanTacticId, "technique", code]);
+      relationships.tacticTechniques.push({
+        tacticId: cleanTacticId,
+        techniqueId: code
+      });
     }
   }
 
-  tactics.sort(([a], [b]) => a.localeCompare(b));
-
-  const techniques = Array.from(techniqueLabelByCode.entries())
-    .map(([code, label]) => [code, `[D3F] ${code} ${label}`])
-    .sort(([a], [b]) => a.localeCompare(b));
-
-  // Generate UUIDv4 refs for all tactics and techniques (no STIX, but we need these anyway)
-  const stixIds = Object.fromEntries([
-    ...tactics.map(([id]) => [id, `x-mitre-tactic--${randomUUID()}`]),
-    ...techniques.map(([id]) => [id, `attack-pattern--${randomUUID()}`])
-  ]);
+  const techniques = Object.fromEntries(
+    Array.from(techniqueLabelByCode.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([code, label]) => [code, createSourceObject(
+        code,
+        label,
+        `[D3F] ${code} ${label}`,
+        "technique",
+        `attack-pattern--${randomUUID()}`
+      )])
+  );
 
   // Generate enums file
   let file = "";
   file += `export const ${EXPORT_KEY} = `;
-  file += JSON.stringify({ tactics, techniques, relationships, stixIds });
+  file += JSON.stringify({
+    tactics: sortRecord(tactics),
+    techniques,
+    mitigations: {}, // No mitigation data
+    detections: {}, // No detection data
+    relationships
+  }, null, 4);
   file += `;\n\nexport default ${EXPORT_KEY};\n`;
 
   writeFileSync(outPath, file);

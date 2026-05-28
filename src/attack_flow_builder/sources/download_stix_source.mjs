@@ -17,6 +17,17 @@ import { fetchJson } from "./source_utils.mjs";
  *  The object's STIX id.
  * @property {boolean} deprecated
  *  True if the object has been deprecated, false otherwise.
+ * @property {StixRelationship[]} stixRelationships
+ *  The object's parsed outgoing STIX relationships.
+ */
+
+/**
+ * @typedef {Object} StixRelationship
+ *  A relationship between Source Objects.
+ * @property {string} relationshipType
+ *  The STIX relationship type.
+ * @property {string} targetRef
+ *  The STIX id of the target object.
  */
 
 /**
@@ -29,6 +40,7 @@ const STIX_TO_ATTACK = {
     "malware": "software",
     "tool": "software",
     "x-mitre-data-source": "data_source",
+    "x-mitre-detection-strategy": "detection",
     "x-mitre-tactic": "tactic",
     "attack-pattern": "technique"
 }
@@ -62,7 +74,8 @@ function parseStixToSourceObject(obj) {
         description: obj.description,
         external_references: obj.external_references,
         platforms: obj.x_mitre_platforms,
-        domains: obj.x_mitre_domains
+        domains: obj.x_mitre_domains,
+        stixRelationships: []
     }
 
     // Parse MITRE reference information
@@ -99,21 +112,17 @@ function parseStixToSourceObject(obj) {
  * @returns {SourceObject[]}
  *  The parsed source objects.
  */
-function parseSourceObjectsFromManifest(data) {
+export function parseSourceObjectsFromManifest(data) {
 
-    // Parse objects and relationships
-    const relationships = new Map();
+    // Parse objects and STIX relationships
+    const stixRelationships = [];
     let objects = new Map();
     for (let obj of data.objects) {
         if (obj.type === "relationship") {
-            if (!relationships.has(obj.source_ref)) {
-                relationships.set(obj.source_ref, new Set());
+            if (obj.x_mitre_deprecated || obj.revoked) {
+                continue;
             }
-            if (!relationships.has(obj.target_ref)) {
-                relationships.set(obj.target_ref, new Set());
-            }
-            relationships.get(obj.source_ref).add(obj.target_ref);
-            relationships.get(obj.target_ref).add(obj.source_ref);
+            stixRelationships.push(obj);
             continue;
         }
         if (!(obj.type in STIX_TO_ATTACK)) {
@@ -123,23 +132,17 @@ function parseSourceObjectsFromManifest(data) {
         objects.set(parse.stixId, parse);
     }
 
-    // Construct relationships
-    for (const [object, relations] of relationships) {
-        const source = objects.get(object);
-        if (!source) {
+    // Add outgoing STIX relationships to parsed objects
+    for (const relation of stixRelationships) {
+        const source = objects.get(relation.source_ref);
+        const target = objects.get(relation.target_ref);
+        if (!source || !target) {
             continue;
         }
-        for (const relation of relations) {
-            const target = objects.get(relation);
-            if (!target) {
-                continue;
-            }
-            const type = target.type;
-            if (source[`${type}s`] === undefined) {
-                source[`${type}s`] = [];
-            }
-            source[`${type}s`].push(target);
-        }
+        source.stixRelationships.push({
+            relationshipType: relation.relationship_type,
+            targetRef: relation.target_ref
+        });
     }
 
     // Collect tactics
