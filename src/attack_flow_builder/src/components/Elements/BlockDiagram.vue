@@ -115,9 +115,10 @@ export default defineComponent({
         return [
           this.contextMenus.deleteMenu,
           this.contextMenus.clipboardMenu,
+          this.contextMenus.applyTagMenu,
           // this.contextMenus.duplicateMenu,
           this.contextMenus.jumpMenu
-        ];
+        ].filter(Boolean) as ContextMenuSection<CommandEmitter>[];
       } else {
         return [
           this.contextMenus.undoRedoMenu,
