@@ -42,6 +42,7 @@
         <AppFooterBar id="app-footer-bar" />
       </div>
     </div>
+    <VisualizationModal />
   </AppHotkeyBox>
 </template>
 
@@ -61,6 +62,7 @@ import BlockDiagram from "@/components/Elements/BlockDiagram.vue";
 import AppFooterBar from "@/components/Elements/AppFooterBar.vue";
 import EditorSidebar from "@/components/Elements/EditorSidebar.vue";
 import LocalStorageManager from "./LocalStorageManager";
+import VisualizationModal from "./components/Elements/VisualizationModal.vue";
 
 const Handle = {
   None   : 0,
@@ -265,7 +267,8 @@ export default defineComponent({
     AppFooterBar,
     EditorSidebar,
     FindDialog,
-    SplashMenu
+    SplashMenu,
+    VisualizationModal
   },
 });
 </script>

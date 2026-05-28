@@ -3,7 +3,8 @@ import {
     Block, DateProperty, DiagramObject, DictionaryProperty,
     EnumProperty, FloatProperty, IntProperty, ListProperty,
     Property, RootProperty, StringProperty, ColorProperty,
-    traverse, TupleProperty
+    traverse, TupleProperty,
+    TTPTupleProperty
 } from "@OpenChart/DiagramModel";
 import type { SearchResult } from "./SearchResult";
 import type { DiagramModelEditor } from "@OpenChart/DiagramEditor/index.model";
@@ -169,6 +170,7 @@ export class OpenChartFinder<
             case RootProperty.name:
                 // Falls through
             case TupleProperty.name:
+            case TTPTupleProperty.name:
                 // Falls through
             case DictionaryProperty.name:
                 for (const p of (property as DictionaryProperty).value.values()) {

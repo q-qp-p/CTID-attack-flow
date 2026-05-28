@@ -5,6 +5,7 @@ import type { FilePreprocessor } from "../FilePreprocessor";
 import type { DiagramThemeConfiguration } from "@OpenChart/ThemeLoader";
 import type { DiagramSchemaConfiguration } from "@OpenChart/DiagramModel";
 import type { ObjectRecommender, SynchronousCommandProcessor } from "@OpenChart/DiagramEditor";
+import type { VisualizationModalController, VisualizationRegistration } from "../Visualization";
 
 export interface AppConfiguration {
 
@@ -143,5 +144,21 @@ export interface AppConfiguration {
         create: () => ObjectRecommender;
 
     };
+
+    /**
+     * The application's visualization modal controller.
+     */
+    visualizationModal?: {
+
+        create: (
+            visualizations: readonly VisualizationRegistration[]
+        ) => VisualizationModalController;
+
+    };
+
+    /**
+     * The application's visualization registry.
+     */
+    visualizations?: VisualizationRegistration[];
 
 }

@@ -3,6 +3,7 @@ import AttackFlowPublisher from "./AttackFlowPublisher/AttackFlowPublisher.ts";
 import AttackFlowFilePreprocessor from "./AttackFlowFilePreprocessor/AttackFlowFilePreprocessor.ts";
 import AttackFlowCommandProcessor from "./AttackFlowCommandProcessor/AttackFlowCommandProcessor.ts";
 import { AttackFlowRecommender } from "./AttackFlowRecommender/AttackFlowRecommender.ts";
+import { TacticTableVisualization } from "./AttackFlowVisualizations/TacticTableVisualization.ts";
 import { DarkTheme } from "./AttackFlowThemes/DarkTheme.ts";
 import { BlogTheme } from "./AttackFlowThemes/BlogTheme.ts";
 import { LightTheme } from "./AttackFlowThemes/LightTheme.ts";
@@ -14,7 +15,8 @@ import {
     StixObjects,
     StixObservables
 } from "./AttackFlowTemplates";
-import type { AppConfiguration } from "../scripts/Application";
+import { BasicVisualizationModal } from "../scripts/Application/Visualization";
+import type { AppConfiguration } from "../scripts/Application/Configuration/AppConfiguration";
 
 const configuration: AppConfiguration = {
 
@@ -141,7 +143,15 @@ const configuration: AppConfiguration = {
 
     recommender: {
         create: () => new AttackFlowRecommender()
-    }
+    },
+
+    visualizationModal: {
+        create: visualizations => new BasicVisualizationModal(visualizations)
+    },
+
+    visualizations: [
+        TacticTableVisualization
+    ]
 
 };
 

@@ -79,3 +79,14 @@ export function getTacticNameFromLabel(text: string): string {
 export function getTechniqueNameFromLabel(text: string): string {
     return getTTPNameFromLabel(text, "technique");
 }
+
+/**
+ * Get the domain code from a tactic or technique option label.
+ * @param text The option label.
+ * @returns The domain code or an empty string.
+ */
+export function getDomainCodeFromLabel(text: string): string {
+    if (!text) { return ""; }
+    const m = text.match(TTP_FRAMEWORK_REGEX);
+    return m?.[1] || "";
+}

@@ -182,11 +182,24 @@ function handleNumericEnum(enumProp: EnumProperty, val: number): void {
  * @param obj The STIX object
  */
 function handleTTPTuple(tupleProp: TupleProperty, obj: object): void {
-    if ("tactic_id" in obj && "technique_id" in obj) {
-        const ttpValue : Iterable<[string, JsonValue]> = new Map([
-            ["tactic", obj.tactic_id as JsonValue],
-            ["technique", obj.technique_id as JsonValue]
-        ]);
-        tupleProp.setValue(ttpValue);
+    if (!("tactic_id" in obj || "technique_id" in obj)) {
+        return;
     }
+
+    let tacticId : JsonValue = null;
+    let techniqueId : JsonValue = null;
+
+    if ("tactic_id" in obj) {
+        tacticId = obj.tactic_id as JsonValue;
+    }
+
+    if ("technique_id" in obj) {
+        techniqueId = obj.technique_id as JsonValue;
+    }
+
+    const ttpValue : Iterable<[string, JsonValue]> = new Map([
+        ["tactic", tacticId],
+        ["technique", techniqueId]
+    ]);
+    tupleProp.setValue(ttpValue);
 }
