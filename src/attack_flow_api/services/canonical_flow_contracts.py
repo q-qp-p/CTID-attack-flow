@@ -28,6 +28,12 @@ class CanonicalFlowProvenanceKind(str, Enum):
     FUSED_CANONICALIZED_OUTPUT = "fused_canonicalized_output"
     USER_METADATA = "user_metadata"
 
+    @classmethod
+    def _missing_(cls, value: object) -> "CanonicalFlowProvenanceKind | None":
+        if value == "ai_derived":
+            return cls.AI_ASSISTED_ADDITION
+        return None
+
 
 class CanonicalFlowSourceClassification(str, Enum):
     NARRATIVE_TEXT = "narrative_text"

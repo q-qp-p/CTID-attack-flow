@@ -17,8 +17,8 @@ def _build_client(monkeypatch, tmp_path: Path) -> TestClient:
     providers_path.write_text(
         """
 providers:
-  - id: default-openai
-    type: openai
+  - provider_id: default-openai
+    provider_type: openai
     enabled: true
     base_url: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY

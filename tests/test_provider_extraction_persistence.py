@@ -3,10 +3,9 @@ from pathlib import Path
 import json
 
 from attack_flow_api.services.canonical_flow_contracts import (
+    CanonicalFlowActionNode,
     CanonicalFlowEdge,
     CanonicalFlowMetadata,
-    CanonicalFlowNode,
-    CanonicalFlowNodeKind,
     CanonicalFlowOutput,
     CanonicalFlowProvenanceRecord,
 )
@@ -129,9 +128,8 @@ def test_update_job_canonical_flow_persists_canonical_flow_fields(tmp_path: Path
             start_refs=["attack-action--1"],
         ),
         nodes=[
-            CanonicalFlowNode(
+            CanonicalFlowActionNode(
                 id="attack-action--1",
-                node_kind=CanonicalFlowNodeKind.ATTACK_ACTION,
                 name="Example step",
                 description="Observed command exactly as reported.",
                 provenance=[
