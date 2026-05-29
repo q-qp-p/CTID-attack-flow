@@ -18,6 +18,11 @@ class Job:
     fusion_attack_refs_json: str | None
     fusion_entities_json: str | None
     fusion_relationships_json: str | None
+    canonical_flow_json: str | None
+    canonical_flow_validation_state: str | None
+    canonical_flow_provenance_json: str | None
+    canonical_flow_conflicts_json: str | None
+    canonical_flow_validation_errors_json: str | None
     extraction_mode: str | None
     provider_invoked: bool | None
     extraction_result_json: str | None

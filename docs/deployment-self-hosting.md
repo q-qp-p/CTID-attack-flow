@@ -75,6 +75,21 @@ AFA-32 introduces orchestration in the worker pipeline (`ai_extraction` stage) u
 
 This stage intentionally does not produce final flow graph/export artifacts.
 
+## Canonical Flow Behavior (AFA-33)
+
+AFA-33 adds the internal canonical flow model used after orchestration/extraction.
+
+- AFA-34 fused output is converted into one canonical internal flow model.
+- AFA-32 direct extraction output may be used as fallback only if it is passed into the canonical converter.
+- The canonical model preserves actions, conditions, operators, assets/attachments, ATT&CK refs, evidence, confidence, provenance, authors, external references, and conflict metadata when present.
+- Only explicit source-grounded ATT&CK techniques are allowed.
+- Steps without ATT&CK mappings are allowed.
+- Only `AND`/`OR` operators and `true`/`false` conditions are allowed.
+- Descriptions remain verbatim source excerpts.
+- Source-grounded attachment semantics are enforced.
+
+This is an internal worker-stage model and does not change the public API surface.
+
 ## Start API Independently
 
 Container run:

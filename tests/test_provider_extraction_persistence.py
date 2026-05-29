@@ -2,6 +2,14 @@ from pathlib import Path
 
 import json
 
+from attack_flow_api.services.canonical_flow_contracts import (
+    CanonicalFlowEdge,
+    CanonicalFlowMetadata,
+    CanonicalFlowNode,
+    CanonicalFlowNodeKind,
+    CanonicalFlowOutput,
+    CanonicalFlowProvenanceRecord,
+)
 from attack_flow_api.services.persistence_service import PersistenceService
 from attack_flow_api.storage.database import initialize_database
 from attack_flow_api.storage.repositories import JobCreate, JobExtractionUpdate, JobFusionUpdate
@@ -94,3 +102,76 @@ def test_update_job_fusion_persists_fusion_fields(tmp_path: Path) -> None:
     assert updated.fusion_attack_refs_json == '[{"technique_id":"T1059"}]'
     assert updated.fusion_entities_json == '[{"object_id":"malware--1"}]'
     assert updated.fusion_relationships_json == '[{"relationship_id":"relationship--1"}]'
+
+
+def test_update_job_canonical_flow_persists_canonical_flow_fields(tmp_path: Path) -> None:
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    service = PersistenceService(db_path)
+
+    created = service.create_job(
+        JobCreate(
+            id="job-canonical-1",
+            status="queued",
+            stage="queued",
+        )
+    )
+    assert created is not None
+
+    canonical_flow = CanonicalFlowOutput(
+        validation_state="ready",
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--1",
+            name="Example flow",
+            scope="incident",
+            authors=["analyst-a"],
+            external_references=["https://example.com/report"],
+            start_refs=["attack-action--1"],
+        ),
+        nodes=[
+            CanonicalFlowNode(
+                id="attack-action--1",
+                node_kind=CanonicalFlowNodeKind.ATTACK_ACTION,
+                name="Example step",
+                description="Observed command exactly as reported.",
+                provenance=[
+                    CanonicalFlowProvenanceRecord(
+                        source_label="fused_output",
+                        source_kind="ai_derived",
+                        source_object_id="attack-action--1",
+                    )
+                ],
+            )
+        ],
+        edges=[
+            CanonicalFlowEdge(
+                source_ref="attack-action--1",
+                target_ref="attack-condition--1",
+                edge_type="effect",
+            )
+        ],
+        provenance={"source": "fused_output"},
+        conflicts=[
+            {
+                "category": "duplicate_step",
+                "source_kind": "ai_afb_extraction",
+                "message": "duplicate step",
+                "unresolved": True,
+            }
+        ],
+        validation_errors=[
+            {
+                "code": "example_error",
+                "message": "example validation issue",
+            }
+        ],
+    )
+
+    updated = service.persist_canonical_flow_output("job-canonical-1", canonical_flow)
+
+    assert updated is not None
+    assert updated.canonical_flow_validation_state == "ready"
+    assert json.loads(updated.canonical_flow_json or "{}")["schema_version"] == "attack-flow-canonical-v1"
+    assert json.loads(updated.canonical_flow_provenance_json or "{}") == {"source": "fused_output"}
+    assert json.loads(updated.canonical_flow_conflicts_json or "[]")[0]["category"] == "duplicate_step"
+    assert json.loads(updated.canonical_flow_validation_errors_json or "[]")[0]["code"] == "example_error"

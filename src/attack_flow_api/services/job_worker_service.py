@@ -10,6 +10,9 @@ from attack_flow_api.services.ai_orchestration_service import AIOrchestrationSer
 from attack_flow_api.services.ai_provider_invocation_service import AIProviderInvocationService
 from attack_flow_api.services.afb_extraction_contracts import AfbExtractionResult
 from attack_flow_api.services.afb_fusion_assembler import build_fused_output_candidate_from_sources
+from attack_flow_api.services.afb_fusion_assembler import FusedOutputCandidate
+from attack_flow_api.services.canonical_flow_conversion_service import build_canonical_flow_output
+from attack_flow_api.services.canonical_flow_validation_service import validate_canonical_flow_output
 from attack_flow_api.services.file_classification import FileRoutingResult, classify_file_for_routing
 from attack_flow_api.services.normalized_package_assembler import (
     build_narrative_normalized_update,
@@ -196,6 +199,11 @@ class JobWorkerService:
             await asyncio.sleep(0)
             return
 
+        if stage == "flow_building":
+            self._run_canonical_flow_building(job_id)
+            await asyncio.sleep(0)
+            return
+
         if input_source.type == "url":
             await self._run_url_stage(job_id, stage, input_source)
             await asyncio.sleep(0)
@@ -217,6 +225,43 @@ class JobWorkerService:
             self._run_ai_extraction_orchestration(job_id)
         _ = (job_id, stage, normalized_text)
         await asyncio.sleep(0)
+
+    def _run_canonical_flow_building(self, job_id: str) -> None:
+        job = self.persistence_service.get_job(job_id)
+        if job is None:
+            return
+
+        fused_output: FusedOutputCandidate | None = None
+        extraction_output: AfbExtractionResult | None = None
+
+        if job.fusion_result_json:
+            fused_output = FusedOutputCandidate.model_validate_json(job.fusion_result_json)
+        elif job.extraction_result_json:
+            extraction_output = AfbExtractionResult.model_validate_json(job.extraction_result_json)
+        else:
+            return
+
+        canonical_flow = build_canonical_flow_output(fused_output=fused_output, extraction_output=extraction_output)
+        if canonical_flow is None:
+            return
+
+        validation = validate_canonical_flow_output(canonical_flow)
+        persisted_canonical_flow = canonical_flow.model_copy(
+            update={
+                "validation_state": "valid" if validation.valid else "invalid",
+                "validation_errors": list(validation.errors),
+            }
+        )
+        self.persistence_service.persist_canonical_flow_output(job_id, persisted_canonical_flow)
+        if not validation.valid:
+            self._logger.warning(
+                "canonical flow validation failed",
+                extra={
+                    "worker_id": self.worker_id,
+                    "job_id": job_id,
+                    "error_count": len(validation.errors),
+                },
+            )
 
     async def _run_url_stage(self, job_id: str, stage: str, input_source: InputSource) -> None:
         if input_source.source_url is None:

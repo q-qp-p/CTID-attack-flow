@@ -180,3 +180,18 @@ AFA-32 adds orchestration and structured extraction assembly for downstream flow
 Current limitations in AFA-32:
 
 - Output is an intermediate extraction result, not final flow graph/export output.
+
+## Canonical Flow (AFA-33)
+
+AFA-33 converts AFA-34 fused output into one canonical internal flow model.
+
+- AFA-34 fused output is the primary input.
+- AFA-32 direct extraction output may be used only as a fallback if the canonical converter is given that input.
+- The canonical model preserves actions, conditions, operators, assets/attachments, ATT&CK refs, evidence, confidence, provenance, authors, external references, and upstream conflict metadata where available.
+- Only explicit source-grounded ATT&CK techniques are allowed.
+- Steps without ATT&CK mappings are allowed.
+- Only `AND`/`OR` operators and `true`/`false` conditions are allowed.
+- Descriptions remain verbatim source excerpts.
+- Source-grounded attachment semantics are enforced.
+
+This canonical model is internal to the worker pipeline and is what the backend persists before export-specific handling.

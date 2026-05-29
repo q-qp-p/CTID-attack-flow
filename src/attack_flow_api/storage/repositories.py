@@ -43,6 +43,11 @@ class JobCreate:
     fusion_attack_refs_json: str | None = None
     fusion_entities_json: str | None = None
     fusion_relationships_json: str | None = None
+    canonical_flow_json: str | None = None
+    canonical_flow_validation_state: str | None = None
+    canonical_flow_provenance_json: str | None = None
+    canonical_flow_conflicts_json: str | None = None
+    canonical_flow_validation_errors_json: str | None = None
     extraction_mode: str | None = None
     provider_invoked: bool | None = None
     extraction_result_json: str | None = None
@@ -74,6 +79,11 @@ class JobUpdate:
     fusion_attack_refs_json: str | None = None
     fusion_entities_json: str | None = None
     fusion_relationships_json: str | None = None
+    canonical_flow_json: str | None = None
+    canonical_flow_validation_state: str | None = None
+    canonical_flow_provenance_json: str | None = None
+    canonical_flow_conflicts_json: str | None = None
+    canonical_flow_validation_errors_json: str | None = None
     extraction_mode: str | None = None
     provider_invoked: bool | None = None
     extraction_result_json: str | None = None
@@ -111,6 +121,15 @@ class JobFusionUpdate:
     fusion_attack_refs_json: str | None = None
     fusion_entities_json: str | None = None
     fusion_relationships_json: str | None = None
+
+
+@dataclass(slots=True)
+class JobCanonicalFlowUpdate:
+    canonical_flow_json: str | None = None
+    canonical_flow_validation_state: str | None = None
+    canonical_flow_provenance_json: str | None = None
+    canonical_flow_conflicts_json: str | None = None
+    canonical_flow_validation_errors_json: str | None = None
 
 
 @dataclass(slots=True)
@@ -284,6 +303,9 @@ class PersistenceRepository:
                     result_json, fusion_result_json, fusion_validation_state,
                     fusion_provenance_json, fusion_conflicts_json, fusion_attack_refs_json,
                     fusion_entities_json, fusion_relationships_json,
+                    canonical_flow_json, canonical_flow_validation_state,
+                    canonical_flow_provenance_json, canonical_flow_conflicts_json,
+                    canonical_flow_validation_errors_json,
                     extraction_mode, provider_invoked, extraction_result_json,
                     extraction_validation_state, extraction_repair_attempted,
                     extraction_provenance_classification, extraction_authors_json,
@@ -291,7 +313,7 @@ class PersistenceRepository:
                     progress_percent, started_at, last_heartbeat_at,
                     worker_id, attempt_count, created_at, updated_at, request_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
@@ -308,6 +330,11 @@ class PersistenceRepository:
                     payload.fusion_attack_refs_json,
                     payload.fusion_entities_json,
                     payload.fusion_relationships_json,
+                    payload.canonical_flow_json,
+                    payload.canonical_flow_validation_state,
+                    payload.canonical_flow_provenance_json,
+                    payload.canonical_flow_conflicts_json,
+                    payload.canonical_flow_validation_errors_json,
                     payload.extraction_mode,
                     int(payload.provider_invoked) if payload.provider_invoked is not None else None,
                     payload.extraction_result_json,
@@ -352,6 +379,11 @@ class PersistenceRepository:
             "fusion_attack_refs_json",
             "fusion_entities_json",
             "fusion_relationships_json",
+            "canonical_flow_json",
+            "canonical_flow_validation_state",
+            "canonical_flow_provenance_json",
+            "canonical_flow_conflicts_json",
+            "canonical_flow_validation_errors_json",
             "extraction_mode",
             "provider_invoked",
             "extraction_result_json",
@@ -412,6 +444,11 @@ class PersistenceRepository:
             fusion_attack_refs_json=row["fusion_attack_refs_json"],
             fusion_entities_json=row["fusion_entities_json"],
             fusion_relationships_json=row["fusion_relationships_json"],
+            canonical_flow_json=row["canonical_flow_json"],
+            canonical_flow_validation_state=row["canonical_flow_validation_state"],
+            canonical_flow_provenance_json=row["canonical_flow_provenance_json"],
+            canonical_flow_conflicts_json=row["canonical_flow_conflicts_json"],
+            canonical_flow_validation_errors_json=row["canonical_flow_validation_errors_json"],
             extraction_mode=row["extraction_mode"],
             provider_invoked=bool(row["provider_invoked"]) if row["provider_invoked"] is not None else None,
             extraction_result_json=row["extraction_result_json"],
@@ -530,6 +567,18 @@ class PersistenceRepository:
                 fusion_attack_refs_json=payload.fusion_attack_refs_json,
                 fusion_entities_json=payload.fusion_entities_json,
                 fusion_relationships_json=payload.fusion_relationships_json,
+            ),
+        )
+
+    def update_job_canonical_flow(self, job_id: str, payload: JobCanonicalFlowUpdate) -> Job | None:
+        return self.update_job(
+            job_id,
+            JobUpdate(
+                canonical_flow_json=payload.canonical_flow_json,
+                canonical_flow_validation_state=payload.canonical_flow_validation_state,
+                canonical_flow_provenance_json=payload.canonical_flow_provenance_json,
+                canonical_flow_conflicts_json=payload.canonical_flow_conflicts_json,
+                canonical_flow_validation_errors_json=payload.canonical_flow_validation_errors_json,
             ),
         )
 
