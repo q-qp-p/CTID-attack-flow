@@ -29,6 +29,7 @@ export const StixToTemplate: { [key in StixObjectType]: string | null } = {
     // Attack Flow
     "attack-flow"           : null,
     "attack-action"         : "action",
+    "mitigation"            : "mitigation",
     "attack-operator"       : null,
     "attack-condition"      : "condition",
     "attack-asset"          : "asset",

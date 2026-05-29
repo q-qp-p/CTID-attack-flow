@@ -28,6 +28,7 @@ export type StixDomainObjectType
 export type AttackFlowObjectType
     = "attack-flow"
     | "attack-action"
+    | "mitigation"
     | "attack-operator"
     | "attack-condition"
     | "attack-asset";

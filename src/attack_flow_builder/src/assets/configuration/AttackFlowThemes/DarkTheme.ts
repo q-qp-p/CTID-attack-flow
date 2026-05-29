@@ -62,6 +62,11 @@ const AttackObjects = {
         attributes: Alignment.Grid,
         style: DarkStyle.DictionaryBlock({ head: Colors.DarkThemeBlue })
     },
+    mitigation: {
+        type: FaceType.DictionaryBlock,
+        attributes: Alignment.Grid,
+        style: DarkStyle.DictionaryBlock({ head: Colors.DarkThemeGray })
+    },
     asset: {
         type: FaceType.DictionaryBlock,
         attributes: Alignment.Grid,

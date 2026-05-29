@@ -115,6 +115,7 @@ describe("AttackFlowRecommender", () => {
         expect(recommendations.items.some(item => item.isTieRecommendation)).toBe(false);
         expect(genericRecommendationIds(recommendations.items.map(item => item.id))).toEqual([
             "action",
+            "mitigation",
             "asset",
             "condition",
             "OR_operator",
@@ -135,6 +136,7 @@ describe("AttackFlowRecommender", () => {
         expect(recommendations.items.some(item => item.isTieRecommendation)).toBe(false);
         expect(genericRecommendationIds(recommendations.items.map(item => item.id))).toEqual([
             "action",
+            "mitigation",
             "asset",
             "condition",
             "OR_operator",
