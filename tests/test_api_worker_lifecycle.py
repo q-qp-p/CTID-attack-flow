@@ -9,6 +9,16 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from attack_flow_api.main import create_app
+from attack_flow_api.services.ai_orchestration_service import AIOrchestrationExecutionResult
+from attack_flow_api.services.afb_extraction_contracts import (
+    AfbExtractionResult,
+    AttackFlowMetadata,
+    ExtractionValidationState,
+    OrchestrationMode,
+    SourceClassification,
+)
+from attack_flow_api.services.afb_fusion_assembler import build_fused_output_candidate
+from attack_flow_api.storage.repositories import InputSourceCreate, JobCreate
 from attack_flow_api.services.plaintext_extraction import PlaintextExtractionError
 from attack_flow_api.services.pdf_extraction import PdfExtractionResult
 from attack_flow_api.services.url_fetch import UrlFetchError
@@ -21,8 +31,8 @@ def _build_client(monkeypatch, tmp_path: Path) -> TestClient:
     providers_path.write_text(
         """
 providers:
-  - id: default-openai
-    type: openai
+  - provider_id: default-openai
+    provider_type: openai
     enabled: true
     base_url: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY
@@ -175,7 +185,191 @@ def test_worker_persists_intermediate_updates_and_completion(monkeypatch, tmp_pa
             ).fetchone()
             assert row is not None
             assert row["updated_at"] >= row["created_at"]
-            assert row["completed_at"] is not None
+        assert row["completed_at"] is not None
+
+
+def test_worker_persists_fused_output_after_ai_extraction(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        worker = client.app.state.job_worker
+        persistence = client.app.state.persistence_service
+
+        input_source = persistence.create_input_source(
+            InputSourceCreate(
+                id="input-1",
+                type="file",
+                file_class="stix_json",
+                normalized_source_type="stix_structured",
+                normalized_package_json=json.dumps(
+                    {
+                        "version": "v1",
+                        "source_type": "stix_structured",
+                        "metadata": {"authors": ["analyst-a"], "external_references": ["https://example.com/a"]},
+                        "attack_refs": [{"technique_id": "T1059", "source_object_id": "attack-pattern--1"}],
+                        "entities": [{"object_id": "malware--1", "object_type": "malware"}],
+                        "relationships": [
+                            {
+                                "relationship_id": "relationship--1",
+                                "relationship_type": "uses",
+                                "source_ref": "threat-actor--1",
+                                "target_ref": "malware--1",
+                                "source_object_type": "threat-actor",
+                            }
+                        ],
+                    }
+                ),
+            )
+        )
+        persistence.create_job(
+            JobCreate(
+                id="job-fusion-1",
+                status="ai_extraction",
+                stage="ai_extraction",
+                input_source_id=input_source.id,
+            )
+        )
+
+        extraction_result = AfbExtractionResult.model_validate(
+            {
+                "validation_state": ExtractionValidationState.VALID,
+                "provider_invoked": True,
+                "attack_flow": AttackFlowMetadata(
+                    id="attack-flow--1",
+                    name="Example flow",
+                    scope="incident",
+                    orchestration_mode=OrchestrationMode.AI_ENRICHMENT,
+                    source_classification=SourceClassification.STIX_STRUCTURED,
+                ).model_dump(mode="json"),
+                "attack_actions": [
+                    {
+                        "id": "attack-action--1",
+                        "name": "Deterministic step",
+                        "description": "Observed command exactly as reported.",
+                        "confidence": 0.8,
+                        "evidence": [
+                            {
+                                "source": "narrative",
+                                "excerpt": "Observed command exactly as reported.",
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+        execution = AIOrchestrationExecutionResult(
+            succeeded=True,
+            provider_invoked=True,
+            provider_id="default-openai",
+            model_used="gpt-4.1-mini",
+            extraction_mode="ai_enrichment",
+            extraction_payload_json=extraction_result.model_dump_json(),
+            extraction_validation_state="valid",
+            repair_attempted=False,
+            provenance_classification="stix_structured",
+            authors_json='["analyst-a"]',
+            external_references_json='["https://example.com/a"]',
+        )
+
+        worker._ai_orchestration_service.run_for_job = lambda **kwargs: execution
+
+        worker._run_ai_extraction_orchestration("job-fusion-1")
+
+        updated = persistence.get_job("job-fusion-1")
+        assert updated is not None
+        assert updated.result_json is not None
+        assert json.loads(updated.result_json)["schema_version"] == "afb-v2-fused-candidate"
+        assert updated.fusion_result_json is not None
+        assert json.loads(updated.fusion_result_json)["fusion_validation_state"] == "ready"
+        assert json.loads(updated.fusion_provenance_json or "{}")
+
+
+def test_worker_invokes_fusion_on_successful_ai_extraction(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        worker = client.app.state.job_worker
+        persistence = client.app.state.persistence_service
+
+        input_source = persistence.create_input_source(
+            InputSourceCreate(
+                id="input-2",
+                type="file",
+                file_class="stix_json",
+                normalized_source_type="stix_structured",
+                normalized_package_json=json.dumps(
+                    {
+                        "version": "v1",
+                        "source_type": "stix_structured",
+                        "metadata": {"authors": ["analyst-a"], "external_references": ["https://example.com/a"]},
+                        "attack_refs": [{"technique_id": "T1059", "source_object_id": "attack-pattern--1"}],
+                        "entities": [{"object_id": "malware--1", "object_type": "malware"}],
+                    }
+                ),
+            )
+        )
+        persistence.create_job(
+            JobCreate(
+                id="job-fusion-2",
+                status="ai_extraction",
+                stage="ai_extraction",
+                input_source_id=input_source.id,
+            )
+        )
+
+        extraction_result = AfbExtractionResult.model_validate(
+            {
+                "validation_state": ExtractionValidationState.VALID,
+                "provider_invoked": True,
+                "attack_flow": AttackFlowMetadata(
+                    id="attack-flow--2",
+                    name="Example flow",
+                    scope="incident",
+                    orchestration_mode=OrchestrationMode.AI_ENRICHMENT,
+                    source_classification=SourceClassification.STIX_STRUCTURED,
+                ).model_dump(mode="json"),
+                "attack_actions": [
+                    {
+                        "id": "attack-action--2",
+                        "name": "Deterministic step",
+                        "description": "Observed command exactly as reported.",
+                        "confidence": 0.8,
+                        "evidence": [
+                            {
+                                "source": "narrative",
+                                "excerpt": "Observed command exactly as reported.",
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+        execution = AIOrchestrationExecutionResult(
+            succeeded=True,
+            provider_invoked=True,
+            provider_id="default-openai",
+            model_used="gpt-4.1-mini",
+            extraction_mode="ai_enrichment",
+            extraction_payload_json=extraction_result.model_dump_json(),
+            extraction_validation_state="valid",
+            repair_attempted=False,
+            provenance_classification="stix_structured",
+            authors_json='["analyst-a"]',
+            external_references_json='["https://example.com/a"]',
+        )
+        candidate = build_fused_output_candidate(
+            attack_flow=AttackFlowMetadata(
+                id="attack-flow--2",
+                name="Example flow",
+                scope="incident",
+                orchestration_mode=OrchestrationMode.AI_ENRICHMENT,
+                source_classification=SourceClassification.STIX_STRUCTURED,
+            )
+        )
+
+        worker._ai_orchestration_service.run_for_job = lambda **kwargs: execution
+
+        with patch("attack_flow_api.services.job_worker_service.build_fused_output_candidate_from_sources") as mocked_build:
+            mocked_build.return_value = candidate
+            worker._run_ai_extraction_orchestration("job-fusion-2")
+
+        assert mocked_build.call_count == 1
 
 
 def test_worker_failure_marks_failed_and_continues_with_next_job(monkeypatch, tmp_path: Path):

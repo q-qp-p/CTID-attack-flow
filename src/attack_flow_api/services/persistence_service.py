@@ -13,9 +13,11 @@ from attack_flow_api.storage.repositories import (
     InputSourceTextUpdate,
     JobCreate,
     JobExtractionUpdate,
+    JobFusionUpdate,
     JobUpdate,
     PersistenceRepository,
 )
+from attack_flow_api.services.afb_fusion_assembler import FusedOutputCandidate
 
 
 class PersistenceService:
@@ -169,6 +171,23 @@ class PersistenceService:
 
     def update_job_extraction(self, job_id: str, payload: JobExtractionUpdate) -> Job | None:
         return self.repository.update_job_extraction(job_id, payload)
+
+    def update_job_fusion(self, job_id: str, payload: JobFusionUpdate) -> Job | None:
+        return self.repository.update_job_fusion(job_id, payload)
+
+    def persist_fused_output_candidate(self, job_id: str, payload: FusedOutputCandidate) -> Job | None:
+        return self.update_job_fusion(
+            job_id,
+            JobFusionUpdate(
+                fusion_result_json=payload.model_dump_json(),
+                fusion_validation_state=payload.fusion_validation_state,
+                fusion_provenance_json=json.dumps(payload.provenance),
+                fusion_conflicts_json=json.dumps([conflict.model_dump(mode="json") for conflict in payload.conflicts]),
+                fusion_attack_refs_json=json.dumps([item.model_dump(mode="json") for item in payload.attack_refs]),
+                fusion_entities_json=json.dumps([item.model_dump(mode="json") for item in payload.entities]),
+                fusion_relationships_json=json.dumps([item.model_dump(mode="json") for item in payload.relationships]),
+            ),
+        )
 
     def mark_job_completed(self, job_id: str) -> Job | None:
         return self.repository.mark_job_completed(job_id)

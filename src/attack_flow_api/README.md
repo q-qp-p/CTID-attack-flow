@@ -57,6 +57,20 @@ For full self-hosting guidance (API/UI separate deployment, persistence, env set
 On startup, the API initializes SQLite automatically at `SQLITE_PATH` (default: `data/attack-flow.db`).
 It also ensures local storage directories exist for uploads, artifacts, and normalized content under `DATA_DIR`.
 
+## AFA-34 Fusion
+
+The API worker now performs conservative fusion after successful AI extraction.
+
+- Deterministic STIX/OpenCTI findings and AI-derived findings are merged without introducing new ATT&CK inference.
+- Deterministic ATT&CK/source facts remain authoritative when AI output disagrees.
+- Source-grounded steps without ATT&CK mappings are preserved as-is.
+- Verbatim descriptions are preserved.
+- Only `AND`/`OR` operators and `true`/`false` conditions are accepted into fused output.
+- Source-grounded attachment semantics are preserved; attachment expansion is not heuristic.
+- Conflicts are recorded explicitly in fused output instead of being silently discarded.
+
+This fusion pass is internal to the worker pipeline and does not change the public API surface.
+
 Quick check:
 
 ```bash
@@ -166,4 +180,3 @@ AFA-32 adds orchestration and structured extraction assembly for downstream flow
 Current limitations in AFA-32:
 
 - Output is an intermediate extraction result, not final flow graph/export output.
-- Deep conflict-resolution/fusion policy is intentionally deferred.

@@ -36,6 +36,13 @@ class JobCreate:
     model: str | None = None
     input_source_id: str | None = None
     result_json: str | None = None
+    fusion_result_json: str | None = None
+    fusion_validation_state: str | None = None
+    fusion_provenance_json: str | None = None
+    fusion_conflicts_json: str | None = None
+    fusion_attack_refs_json: str | None = None
+    fusion_entities_json: str | None = None
+    fusion_relationships_json: str | None = None
     extraction_mode: str | None = None
     provider_invoked: bool | None = None
     extraction_result_json: str | None = None
@@ -60,6 +67,13 @@ class JobUpdate:
     model: str | None = None
     input_source_id: str | None = None
     result_json: str | None = None
+    fusion_result_json: str | None = None
+    fusion_validation_state: str | None = None
+    fusion_provenance_json: str | None = None
+    fusion_conflicts_json: str | None = None
+    fusion_attack_refs_json: str | None = None
+    fusion_entities_json: str | None = None
+    fusion_relationships_json: str | None = None
     extraction_mode: str | None = None
     provider_invoked: bool | None = None
     extraction_result_json: str | None = None
@@ -86,6 +100,17 @@ class JobExtractionUpdate:
     extraction_provenance_classification: str | None = None
     extraction_authors_json: str | None = None
     extraction_external_references_json: str | None = None
+
+
+@dataclass(slots=True)
+class JobFusionUpdate:
+    fusion_result_json: str | None = None
+    fusion_validation_state: str | None = None
+    fusion_provenance_json: str | None = None
+    fusion_conflicts_json: str | None = None
+    fusion_attack_refs_json: str | None = None
+    fusion_entities_json: str | None = None
+    fusion_relationships_json: str | None = None
 
 
 @dataclass(slots=True)
@@ -256,14 +281,17 @@ class PersistenceRepository:
                 """
                 INSERT INTO jobs (
                     id, status, stage, provider_id, model, input_source_id,
-                    result_json, extraction_mode, provider_invoked, extraction_result_json,
+                    result_json, fusion_result_json, fusion_validation_state,
+                    fusion_provenance_json, fusion_conflicts_json, fusion_attack_refs_json,
+                    fusion_entities_json, fusion_relationships_json,
+                    extraction_mode, provider_invoked, extraction_result_json,
                     extraction_validation_state, extraction_repair_attempted,
                     extraction_provenance_classification, extraction_authors_json,
                     extraction_external_references_json,
                     progress_percent, started_at, last_heartbeat_at,
                     worker_id, attempt_count, created_at, updated_at, request_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
@@ -273,6 +301,13 @@ class PersistenceRepository:
                     payload.model,
                     payload.input_source_id,
                     payload.result_json,
+                    payload.fusion_result_json,
+                    payload.fusion_validation_state,
+                    payload.fusion_provenance_json,
+                    payload.fusion_conflicts_json,
+                    payload.fusion_attack_refs_json,
+                    payload.fusion_entities_json,
+                    payload.fusion_relationships_json,
                     payload.extraction_mode,
                     int(payload.provider_invoked) if payload.provider_invoked is not None else None,
                     payload.extraction_result_json,
@@ -310,6 +345,13 @@ class PersistenceRepository:
             "model",
             "input_source_id",
             "result_json",
+            "fusion_result_json",
+            "fusion_validation_state",
+            "fusion_provenance_json",
+            "fusion_conflicts_json",
+            "fusion_attack_refs_json",
+            "fusion_entities_json",
+            "fusion_relationships_json",
             "extraction_mode",
             "provider_invoked",
             "extraction_result_json",
@@ -363,6 +405,13 @@ class PersistenceRepository:
             model=row["model"],
             input_source_id=row["input_source_id"],
             result_json=row["result_json"],
+            fusion_result_json=row["fusion_result_json"],
+            fusion_validation_state=row["fusion_validation_state"],
+            fusion_provenance_json=row["fusion_provenance_json"],
+            fusion_conflicts_json=row["fusion_conflicts_json"],
+            fusion_attack_refs_json=row["fusion_attack_refs_json"],
+            fusion_entities_json=row["fusion_entities_json"],
+            fusion_relationships_json=row["fusion_relationships_json"],
             extraction_mode=row["extraction_mode"],
             provider_invoked=bool(row["provider_invoked"]) if row["provider_invoked"] is not None else None,
             extraction_result_json=row["extraction_result_json"],
@@ -467,6 +516,20 @@ class PersistenceRepository:
                 extraction_provenance_classification=payload.extraction_provenance_classification,
                 extraction_authors_json=payload.extraction_authors_json,
                 extraction_external_references_json=payload.extraction_external_references_json,
+            ),
+        )
+
+    def update_job_fusion(self, job_id: str, payload: JobFusionUpdate) -> Job | None:
+        return self.update_job(
+            job_id,
+            JobUpdate(
+                fusion_result_json=payload.fusion_result_json,
+                fusion_validation_state=payload.fusion_validation_state,
+                fusion_provenance_json=payload.fusion_provenance_json,
+                fusion_conflicts_json=payload.fusion_conflicts_json,
+                fusion_attack_refs_json=payload.fusion_attack_refs_json,
+                fusion_entities_json=payload.fusion_entities_json,
+                fusion_relationships_json=payload.fusion_relationships_json,
             ),
         )
 

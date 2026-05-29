@@ -8,6 +8,8 @@ from attack_flow_api.config import AppSettings
 from attack_flow_api.providers.registry import ProviderRegistry
 from attack_flow_api.services.ai_orchestration_service import AIOrchestrationService
 from attack_flow_api.services.ai_provider_invocation_service import AIProviderInvocationService
+from attack_flow_api.services.afb_extraction_contracts import AfbExtractionResult
+from attack_flow_api.services.afb_fusion_assembler import build_fused_output_candidate_from_sources
 from attack_flow_api.services.file_classification import FileRoutingResult, classify_file_for_routing
 from attack_flow_api.services.normalized_package_assembler import (
     build_narrative_normalized_update,
@@ -365,10 +367,17 @@ class JobWorkerService:
         )
 
         if execution.succeeded:
+            normalized_package = self.persistence_service.resolve_normalized_package_for_job(job_id) or {}
+            extraction_result = AfbExtractionResult.model_validate_json(execution.extraction_payload_json)
+            fused_candidate = build_fused_output_candidate_from_sources(
+                normalized_package=normalized_package,
+                extraction_result=extraction_result,
+            )
+            self.persistence_service.persist_fused_output_candidate(job_id, fused_candidate)
             self.persistence_service.update_job(
                 job_id,
                 JobUpdate(
-                    result_json=execution.extraction_payload_json,
+                    result_json=fused_candidate.model_dump_json(),
                     provider_id=execution.provider_id,
                     model=execution.model_used,
                 ),

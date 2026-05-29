@@ -11,6 +11,13 @@ class Job:
     model: str | None
     input_source_id: str | None
     result_json: str | None
+    fusion_result_json: str | None
+    fusion_validation_state: str | None
+    fusion_provenance_json: str | None
+    fusion_conflicts_json: str | None
+    fusion_attack_refs_json: str | None
+    fusion_entities_json: str | None
+    fusion_relationships_json: str | None
     extraction_mode: str | None
     provider_invoked: bool | None
     extraction_result_json: str | None

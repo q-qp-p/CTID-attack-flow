@@ -4,7 +4,7 @@ import json
 
 from attack_flow_api.services.persistence_service import PersistenceService
 from attack_flow_api.storage.database import initialize_database
-from attack_flow_api.storage.repositories import JobCreate, JobExtractionUpdate
+from attack_flow_api.storage.repositories import JobCreate, JobExtractionUpdate, JobFusionUpdate
 
 
 def test_update_job_extraction_persists_afb_intermediate_fields(tmp_path: Path) -> None:
@@ -54,3 +54,43 @@ def test_update_job_extraction_persists_afb_intermediate_fields(tmp_path: Path) 
     assert updated.extraction_authors_json == '["analyst-a"]'
     assert updated.extraction_external_references_json == '["https://example.com/report"]'
     assert json.loads(updated.extraction_result_json or "{}")["schema_version"] == "afb-v2-intermediate"
+
+
+def test_update_job_fusion_persists_fusion_fields(tmp_path: Path) -> None:
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    service = PersistenceService(db_path)
+
+    created = service.create_job(
+        JobCreate(
+            id="job-fusion-1",
+            status="queued",
+            stage="queued",
+        )
+    )
+    assert created is not None
+
+    fusion_payload = {
+        "schema_version": "attack-flow-fusion-v1",
+        "fused": True,
+    }
+
+    updated = service.update_job_fusion(
+        "job-fusion-1",
+        JobFusionUpdate(
+            fusion_result_json=json.dumps(fusion_payload),
+            fusion_validation_state="pending",
+            fusion_provenance_json='{"deterministic":1,"ai":2}',
+            fusion_conflicts_json='[{"field":"attack_actions","resolution":"unresolved"}]',
+            fusion_attack_refs_json='[{"technique_id":"T1059"}]',
+            fusion_entities_json='[{"object_id":"malware--1"}]',
+            fusion_relationships_json='[{"relationship_id":"relationship--1"}]',
+        ),
+    )
+
+    assert updated is not None
+    assert updated.fusion_validation_state == "pending"
+    assert json.loads(updated.fusion_result_json or "{}") == fusion_payload
+    assert updated.fusion_attack_refs_json == '[{"technique_id":"T1059"}]'
+    assert updated.fusion_entities_json == '[{"object_id":"malware--1"}]'
+    assert updated.fusion_relationships_json == '[{"relationship_id":"relationship--1"}]'

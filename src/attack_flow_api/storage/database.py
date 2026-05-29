@@ -111,6 +111,13 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
             model TEXT,
             input_source_id TEXT,
             result_json TEXT,
+            fusion_result_json TEXT,
+            fusion_validation_state TEXT,
+            fusion_provenance_json TEXT,
+            fusion_conflicts_json TEXT,
+            fusion_attack_refs_json TEXT,
+            fusion_entities_json TEXT,
+            fusion_relationships_json TEXT,
             extraction_mode TEXT,
             provider_invoked INTEGER,
             extraction_result_json TEXT,
@@ -168,6 +175,13 @@ def _ensure_jobs_columns(connection: sqlite3.Connection) -> None:
         "extraction_provenance_classification": "TEXT",
         "extraction_authors_json": "TEXT",
         "extraction_external_references_json": "TEXT",
+        "fusion_result_json": "TEXT",
+        "fusion_validation_state": "TEXT",
+        "fusion_provenance_json": "TEXT",
+        "fusion_conflicts_json": "TEXT",
+        "fusion_attack_refs_json": "TEXT",
+        "fusion_entities_json": "TEXT",
+        "fusion_relationships_json": "TEXT",
     }
 
     rows = connection.execute("PRAGMA table_info(jobs)").fetchall()

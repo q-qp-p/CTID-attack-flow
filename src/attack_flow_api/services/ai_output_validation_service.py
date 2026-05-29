@@ -179,6 +179,9 @@ def _filter_explicit_object_relationship_attachments(merged: dict[str, Any]) -> 
                 if isinstance(ref, str) and ref:
                     allowed_refs.add(ref)
 
+    filtered_action_refs = 0
+    filtered_asset_refs = 0
+
     actions = merged.get("attack_actions")
     if isinstance(actions, list):
         filtered_actions: list[dict[str, Any]] = []
@@ -188,7 +191,9 @@ def _filter_explicit_object_relationship_attachments(merged: dict[str, Any]) -> 
             out = dict(action)
             object_refs = _as_str_list(out.get("object_refs"))
             if object_refs:
-                out["object_refs"] = [ref for ref in object_refs if ref in allowed_refs]
+                filtered = [ref for ref in object_refs if ref in allowed_refs]
+                filtered_action_refs += max(0, len(object_refs) - len(filtered))
+                out["object_refs"] = filtered
             filtered_actions.append(out)
         merged["attack_actions"] = filtered_actions
 
@@ -202,6 +207,7 @@ def _filter_explicit_object_relationship_attachments(merged: dict[str, Any]) -> 
             object_ref = out.get("object_ref")
             if isinstance(object_ref, str) and object_ref and object_ref not in allowed_refs:
                 out["object_ref"] = None
+                filtered_asset_refs += 1
             filtered_assets.append(out)
         merged["attack_assets"] = filtered_assets
 
