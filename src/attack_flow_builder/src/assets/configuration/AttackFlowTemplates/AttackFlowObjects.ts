@@ -94,6 +94,37 @@ export const AttackFlowObjects: DiagramObjectTemplate[] = [
         anchors: AnchorConfiguration
     },
     {
+        name: "detection",
+        namespace: ["attack_flow", "detection"],
+        type: DiagramObjectType.Block,
+        properties: {
+            name: {
+                type: PropertyType.String,
+                is_representative: true,
+                metadata: {
+                    validator: {
+                        is_required: true
+                    }
+                }
+            },
+            id: {
+                name: "ID",
+                type: PropertyType.String
+            },
+            description: {
+                type: PropertyType.String
+            },
+            detection_analytic: {
+                type: PropertyType.String
+            },
+            log_source: {
+                type: PropertyType.String
+            },
+            tags: TagsProperty
+        },
+        anchors: AnchorConfiguration
+    },
+    {
         name: "asset",
         namespace: ["attack_flow", "asset"],
         type: DiagramObjectType.Block,

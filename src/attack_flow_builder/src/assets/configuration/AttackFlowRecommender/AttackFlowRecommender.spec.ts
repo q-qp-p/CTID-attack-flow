@@ -116,6 +116,7 @@ describe("AttackFlowRecommender", () => {
         expect(genericRecommendationIds(recommendations.items.map(item => item.id))).toEqual([
             "action",
             "mitigation",
+            "detection",
             "asset",
             "condition",
             "OR_operator",
@@ -137,6 +138,7 @@ describe("AttackFlowRecommender", () => {
         expect(genericRecommendationIds(recommendations.items.map(item => item.id))).toEqual([
             "action",
             "mitigation",
+            "detection",
             "asset",
             "condition",
             "OR_operator",

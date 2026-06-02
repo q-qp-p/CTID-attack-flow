@@ -69,6 +69,12 @@ const AttackObjects = {
         properties: { include: ["id", "description"] },
         style: BlogStyle.DictionaryBlock({ head: Colors.SimpleGray })
     },
+    detection: {
+        type: FaceType.DictionaryBlock,
+        attributes: Alignment.Grid,
+        properties: { include: ["id", "description"] },
+        style: BlogStyle.DictionaryBlock({ head: Colors.SimpleGray })
+    },
     asset: {
         type: FaceType.DictionaryBlock,
         attributes: Alignment.Grid,
