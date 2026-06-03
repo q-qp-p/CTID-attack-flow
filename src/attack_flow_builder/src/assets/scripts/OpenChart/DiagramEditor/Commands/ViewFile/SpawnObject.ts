@@ -34,7 +34,24 @@ export class SpawnObject extends GroupCommand {
         this.configureObject(this.object, id);
         // Calculate object size
         this.object.calculateLayout();
-        // Calculate coordinate
+        // Position object
+        this.positionObject(file, x, y, fromCorner);
+        // Add object to group
+        this.do(addObjectToGroup(this.object, file.canvas));
+    }
+
+    /**
+     * Positions the object.
+     * @param file
+     *  The diagram file.
+     * @param x
+     *  The object's x-coordinate.
+     * @param y
+     *  The object's y-coordinate.
+     * @param fromCorner
+     *  Whether to position the object from its top-left corner or its center.
+     */
+    protected positionObject(file: DiagramViewFile, x: number, y: number, fromCorner: boolean = false): void {
         if (fromCorner) {
             x += this.object.face.boundingBox.width / 2;
             y += this.object.face.boundingBox.height / 2;
@@ -49,8 +66,6 @@ export class SpawnObject extends GroupCommand {
         }
         // Position object
         this.object.moveTo(x, y);
-        // Add object to group
-        this.do(addObjectToGroup(this.object, file.canvas));
     }
 
     /**

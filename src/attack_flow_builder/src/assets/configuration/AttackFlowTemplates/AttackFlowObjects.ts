@@ -114,6 +114,9 @@ export const AttackFlowObjects: DiagramObjectTemplate[] = [
             description: {
                 type: PropertyType.String
             },
+            system: {
+                type: PropertyType.String
+            },
             detection_analytic: {
                 type: PropertyType.String
             },

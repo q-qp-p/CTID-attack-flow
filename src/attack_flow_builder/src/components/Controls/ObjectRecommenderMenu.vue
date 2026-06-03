@@ -254,7 +254,7 @@ export default defineComponent({
   margin-right: 6px;
 }
 
-.recommendation.tie-recommendation .dot {
+.recommendation.child .dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -268,7 +268,7 @@ export default defineComponent({
   color: var(--af-text-color-primary);
 }
 
-.recommendation.tie-recommendation .name {
+.recommendation.child .name {
   font-weight: 600;
   font-size: 12px;
   text-transform: none;

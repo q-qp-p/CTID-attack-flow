@@ -37,7 +37,7 @@ import type { DiagramViewEditor, ObjectRecommendation, ObjectRecommender } from 
 // Components
 import ContextMenu from "@/components/Controls/ContextMenu.vue";
 import ObjectRecommenderMenu from "@/components/Controls/ObjectRecommenderMenu.vue";
-import { SpawnAction, SpawnObject } from "@/assets/scripts/OpenChart/DiagramEditor/Commands/index.commands";
+import { SpawnAction, SpawnDetection, SpawnMitigation, SpawnObject } from "@/assets/scripts/OpenChart/DiagramEditor/Commands/index.commands";
 import { SpawnObjectConnectedToLatch } from "@/assets/scripts/OpenChart/DiagramEditor/Commands/ViewFile/SpawnObjectConnectedToLatch";
 
 export default defineComponent({
@@ -148,18 +148,36 @@ export default defineComponent({
 
         if (!this.lastRecommenderObject) return;
 
-        const isTieRecommendation = item.isTieRecommendation === true;
-        const spawnCommand = isTieRecommendation ? new SpawnAction(
-            this.editor.file,
-            item.id,
-            this.lastRecommenderObject.x,
-            this.lastRecommenderObject.y,
-        ) : new SpawnObject(
-            this.editor.file,
-            item.id,
-            this.lastRecommenderObject.x,
-            this.lastRecommenderObject.y,
-        );
+        let spawnCommand: SpawnObject;
+        if (item.isTieRecommendation === true) {
+            spawnCommand = new SpawnAction(
+                this.editor.file,
+                item.id,
+                this.lastRecommenderObject.x,
+                this.lastRecommenderObject.y
+            );
+        } else if (item.defensiveObjectType === "mitigation") {
+            spawnCommand = new SpawnMitigation(
+                this.editor.file,
+                item.id,
+                this.lastRecommenderObject.x,
+                this.lastRecommenderObject.y
+            );
+        } else if (item.defensiveObjectType === "detection") {
+            spawnCommand = new SpawnDetection(
+                this.editor.file,
+                item.id,
+                this.lastRecommenderObject.x,
+                this.lastRecommenderObject.y
+            );
+        } else {
+            spawnCommand = new SpawnObject(
+                this.editor.file,
+                item.id,
+                this.lastRecommenderObject.x,
+                this.lastRecommenderObject.y
+            );
+        }
 
         let command: EditorCommands.GroupCommand;
         if (this.lastRecommenderObject instanceof LatchView) {

@@ -5,8 +5,9 @@ import { ThemeLoader } from "@OpenChart/ThemeLoader";
 import { AnchorPosition, BlockView, DiagramObjectViewFactory, DiagramViewFile, LineView, type LatchView } from "@OpenChart/DiagramView";
 import { MultiSelectProperty } from "@OpenChart/DiagramModel";
 import { AttackFlow, AttackFlowObjects, BaseObjects } from "@/assets/configuration/AttackFlowTemplates";
+import { sourceData } from "@/assets/configuration/AttackFlowTemplates/SourceEnumeration";
 import { LightTheme } from "@/assets/configuration/AttackFlowThemes/LightTheme";
-import type { DiagramViewEditor } from "@OpenChart/DiagramEditor";
+import type { DiagramViewEditor, ObjectRecommendation } from "@OpenChart/DiagramEditor";
 
 const tie = vi.hoisted(() => ({
     createEngine: vi.fn(),
@@ -49,8 +50,34 @@ function startRecommender(file: DiagramViewFile, latch: LatchView): AttackFlowRe
     return recommender;
 }
 
-function genericRecommendationIds(recommenderIds: string[]): string[] {
-    return recommenderIds.filter(id => !id.startsWith("T"));
+function selectFrameworks(file: DiagramViewFile, frameworks: string[]) {
+    file.canvas.properties.get("ttp_frameworks", MultiSelectProperty)!.setSelections(frameworks);
+}
+
+async function recommendationItemsForTechnique(
+    techniqueId: string,
+    enabledFrameworks?: string[]
+): Promise<ObjectRecommendation[]> {
+    const file = await createAttackFlowFile();
+    const techniqueFramework = sourceData.techniques[techniqueId]?.label.match(/^\[([^\]]+)\]/)?.[1];
+    selectFrameworks(file, enabledFrameworks ?? (techniqueFramework ? [techniqueFramework] : []));
+    const latch = createDanglingTargetLatch(file, techniqueId);
+    const recommender = startRecommender(file, latch);
+    return (await recommender.getRecommendations()).items;
+}
+
+function childRecommendations(recommendations: ObjectRecommendation[], parentId: string): ObjectRecommendation[] {
+    return recommendations.filter(item => item.parentId === parentId);
+}
+
+function expectRowsUnderParent(
+    recommendations: ObjectRecommendation[],
+    parentId: string,
+    rows: ObjectRecommendation[]
+) {
+    const parentIndex = recommendations.findIndex(item => item.id === parentId);
+    expect(parentIndex).toBeGreaterThanOrEqual(0);
+    expect(recommendations.slice(parentIndex + 1, parentIndex + 1 + rows.length)).toEqual(rows);
 }
 
 describe("AttackFlowRecommender", () => {
@@ -73,13 +100,9 @@ describe("AttackFlowRecommender", () => {
     });
 
     it("adds top Enterprise TIE recommendations under the generic action recommendation", async () => {
-        const file = await createAttackFlowFile();
-        const latch = createDanglingTargetLatch(file, "T1059");
-        const recommender = startRecommender(file, latch);
-
-        const recommendations = await recommender.getRecommendations();
-        const actionIndex = recommendations.items.findIndex(item => item.id === "action");
-        const tieRecommendations = recommendations.items.filter(item => item.isTieRecommendation);
+        const recommendations = await recommendationItemsForTechnique("T1059");
+        const actionIndex = recommendations.findIndex(item => item.id === "action");
+        const tieRecommendations = recommendations.filter(item => item.isTieRecommendation);
 
         expect(actionIndex).toBeGreaterThanOrEqual(0);
         expect(tie.createEngine).toHaveBeenCalledWith(
@@ -95,7 +118,7 @@ describe("AttackFlowRecommender", () => {
             "T1110",
             "T1027"
         ]);
-        expect(recommendations.items.slice(actionIndex + 1, actionIndex + 6)).toEqual(tieRecommendations);
+        expect(recommendations.slice(actionIndex + 1, actionIndex + 6)).toEqual(tieRecommendations);
         expect(tieRecommendations[0]).toMatchObject({
             id: "T1059.001",
             name: "T1059.001 PowerShell",
@@ -105,15 +128,47 @@ describe("AttackFlowRecommender", () => {
         });
     });
 
-    it("falls back to generic recommendations for non-Enterprise techniques", async () => {
-        const file = await createAttackFlowFile();
-        const latch = createDanglingTargetLatch(file, "AML.T0000");
-        const recommender = startRecommender(file, latch);
+    it("adds mapped mitigation and detection recommendations under their blank object recommendations", async () => {
+        tie.predict.mockResolvedValue([]);
+        const recommendations = await recommendationItemsForTechnique("T1059");
+        const mitigationRows = childRecommendations(recommendations, "mitigation");
+        const detectionRows = childRecommendations(recommendations, "detection");
 
-        const recommendations = await recommender.getRecommendations();
+        expectRowsUnderParent(recommendations, "mitigation", mitigationRows);
+        expectRowsUnderParent(recommendations, "detection", detectionRows);
+        expect(mitigationRows.map(item => item.id)).toContain("M1021");
+        expect(detectionRows.map(item => item.id)).toEqual(["DET0516"]);
+        expect(mitigationRows[0]).toMatchObject({
+            id: "M1021",
+            name: "M1021 Restrict Web-Based Content",
+            subtitle: "Mapped mitigation",
+            parentId: "mitigation",
+            defensiveObjectType: "mitigation"
+        });
+        expect(detectionRows[0]).toMatchObject({
+            id: "DET0516",
+            name: "DET0516 Behavioral Detection of Command and Scripting Interpreter Abuse",
+            subtitle: "Mapped detection",
+            parentId: "detection",
+            defensiveObjectType: "detection"
+        });
+    });
 
-        expect(recommendations.items.some(item => item.isTieRecommendation)).toBe(false);
-        expect(genericRecommendationIds(recommendations.items.map(item => item.id))).toEqual([
+    it("keeps blank mitigation and detection recommendations when no direct mappings exist", async () => {
+        tie.predict.mockResolvedValue([]);
+        const techniqueId = Object.values(sourceData.techniques).find(sourceObject =>
+            sourceData.relationships.tacticTechniques.some(rel => rel.techniqueId === sourceObject.id)
+            && !sourceData.relationships.techniqueMitigations.some(rel => rel.techniqueId === sourceObject.id)
+            && !sourceData.relationships.techniqueDetections.some(rel => rel.techniqueId === sourceObject.id)
+        )?.id;
+        expect(techniqueId).toBeDefined();
+
+        const recommendations = await recommendationItemsForTechnique(techniqueId!);
+
+        expect(recommendations.some(item => item.isTieRecommendation)).toBe(false);
+        expect(childRecommendations(recommendations, "mitigation")).toEqual([]);
+        expect(childRecommendations(recommendations, "detection")).toEqual([]);
+        expect(recommendations.map(item => item.id)).toEqual([
             "action",
             "mitigation",
             "detection",
@@ -122,20 +177,45 @@ describe("AttackFlowRecommender", () => {
             "OR_operator",
             "AND_operator"
         ]);
+    });
+
+    it("keeps the blank detection recommendation when only mitigation mappings exist", async () => {
+        const techniqueId = Object.values(sourceData.techniques).find(sourceObject =>
+            sourceObject.label.match(/^\[([^\]]+)\]/)?.[1] !== "ENT"
+            && sourceData.relationships.tacticTechniques.some(rel => rel.techniqueId === sourceObject.id)
+            && sourceData.relationships.techniqueMitigations.some(rel => rel.techniqueId === sourceObject.id)
+            && !sourceData.relationships.techniqueDetections.some(rel => rel.techniqueId === sourceObject.id)
+        )?.id;
+        expect(techniqueId).toBeDefined();
+
+        const recommendations = await recommendationItemsForTechnique(techniqueId!);
+
+        expect(childRecommendations(recommendations, "mitigation").length).toBeGreaterThan(0);
+        expect(childRecommendations(recommendations, "detection")).toEqual([]);
+        expect(recommendations.some(item => item.id === "detection" && !item.parentId)).toBe(true);
+        expect(tie.createEngine).not.toHaveBeenCalled();
+    });
+
+    it("does not add TIE recommendations for non-Enterprise techniques", async () => {
+        const techniqueId = Object.values(sourceData.techniques).find(sourceObject =>
+            sourceObject.label.match(/^\[([^\]]+)\]/)?.[1] !== "ENT"
+            && sourceData.relationships.tacticTechniques.some(rel => rel.techniqueId === sourceObject.id)
+            && sourceData.relationships.techniqueMitigations.some(rel => rel.techniqueId === sourceObject.id)
+            && !sourceData.relationships.techniqueDetections.some(rel => rel.techniqueId === sourceObject.id)
+        )?.id;
+        expect(techniqueId).toBeDefined();
+
+        const recommendations = await recommendationItemsForTechnique(techniqueId!);
+
+        expect(recommendations.some(item => item.isTieRecommendation)).toBe(false);
         expect(tie.createEngine).not.toHaveBeenCalled();
     });
 
     it("falls back to generic recommendations when Enterprise ATT&CK is disabled", async () => {
-        const file = await createAttackFlowFile();
-        const frameworks = file.canvas.properties.get("ttp_frameworks", MultiSelectProperty)!;
-        frameworks.setSelections(["MOB", "ICS"]);
-        const latch = createDanglingTargetLatch(file, "T1059");
-        const recommender = startRecommender(file, latch);
+        const recommendations = await recommendationItemsForTechnique("T1059", ["MOB", "ICS"]);
 
-        const recommendations = await recommender.getRecommendations();
-
-        expect(recommendations.items.some(item => item.isTieRecommendation)).toBe(false);
-        expect(genericRecommendationIds(recommendations.items.map(item => item.id))).toEqual([
+        expect(recommendations.some(item => item.isTieRecommendation)).toBe(false);
+        expect(recommendations.map(item => item.id)).toEqual([
             "action",
             "mitigation",
             "detection",
