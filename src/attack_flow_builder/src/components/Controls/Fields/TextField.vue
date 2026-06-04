@@ -28,7 +28,7 @@
         @keydown.stop="onKeyDown"
       />
       <div
-        v-if="isTagField"
+        v-if="hasCharacterLimit"
         class="character-counter"
       >
         {{ charactersLeft }} {{ charactersLeft === 1 ? 'character' : 'characters' }} left
@@ -48,9 +48,7 @@ import type { SynchronousEditorCommand } from "@OpenChart/DiagramEditor";
 // Components
 import FocusBox from "@/components/Containers/FocusBox.vue";
 import OptionsList from "./OptionsList.vue";
-
-// Maximum number of characters allowed in a tag field
-const TAG_MAX_LENGTH = 20;
+import { TAG_NAME_CHARACTER_LIMIT } from "./TagFieldLimits";
 
 export default defineComponent({
   name: "TextField",
@@ -75,6 +73,10 @@ export default defineComponent({
     },
     visibleOptions: {
       type: Set as PropType<Set<string>>,
+      required: false
+    },
+    characterLimit: {
+      type: Number,
       required: false
     }
   },
@@ -136,14 +138,21 @@ export default defineComponent({
      * Returns the character limit for the textarea.
      */
     maxLength(): number | undefined {
-      return this.isTagField ? TAG_MAX_LENGTH : undefined;
+      return this.characterLimit ?? (this.isTagField ? TAG_NAME_CHARACTER_LIMIT : undefined);
+    },
+
+    /**
+     * Checks if this field has a character limit.
+     */
+    hasCharacterLimit(): boolean {
+      return this.maxLength !== undefined;
     },
 
     /**
      * Calculates remaining characters for tag fields.
      */
     charactersLeft(): number {
-      return (this.maxLength ?? TAG_MAX_LENGTH) - this.value.length;
+      return (this.maxLength ?? 0) - this.value.length;
     },
 
   },
