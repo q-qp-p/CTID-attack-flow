@@ -6,7 +6,7 @@ import {
     EnumProperty, ListProperty, Property, SemanticAnalyzer,
     SemanticGraphNode, StringProperty
 } from "@OpenChart/DiagramModel";
-import type { GraphExport, JsonValue } from "@OpenChart/DiagramModel";
+import type { GraphExport, JsonValue, SemanticGraphEdge } from "@OpenChart/DiagramModel";
 import type { FilePublisher } from "@/assets/scripts/Application";
 import Enums from "../AttackFlowTemplates/SourceEnumeration";
 
@@ -135,7 +135,8 @@ class AttackFlowPublisher implements FilePublisher {
             if (srcNode && trgNode) {
                 stixChildren.get(srcNode)!.push({
                     obj: trgNode,
-                    via: edge.sourceVia!
+                    via: edge.sourceVia!,
+                    edge
                 });
             } else {
                 throw new Error(`Edge '${edge}' is missing one or more nodes.`);
@@ -365,6 +366,12 @@ class AttackFlowPublisher implements FilePublisher {
         const SROs = [];
         // Attempt to embed children in parent
         for (const c of children) {
+            const lineSro = this.createSroFromLineProperties(parent, c.obj, c.edge.props);
+            if (lineSro) {
+                SROs.push(lineSro);
+                continue;
+            }
+
             let sro = null;
             switch (parent.type) {
                 case "attack-action":
@@ -637,6 +644,28 @@ class AttackFlowPublisher implements FilePublisher {
      */
     private tryEmbedInDefault(parent: Sdo, child: Sdo): Sro {
         return this.createSro(parent, child);
+    }
+
+    /**
+     * Creates a Relationship Object if a line has properties that cannot be
+     * represented by an embedded reference.
+     * @param parent
+     *  The parent STIX node.
+     * @param child
+     *  The child STIX node.
+     * @param property
+     *  The line's properties.
+     * @returns
+     *  A STIX Relationship Object, if one is required.
+     */
+    private createSroFromLineProperties(parent: Sdo, child: Sdo, property: DictionaryProperty): Sro | null {
+        const confidence = this.toConfidenceValue(property);
+        if (confidence === null) {
+            return null;
+        }
+        const sro = this.createSro(parent, child);
+        sro.confidence = confidence;
+        return sro;
     }
 
 
@@ -971,6 +1000,32 @@ class AttackFlowPublisher implements FilePublisher {
         };
     }
 
+    /**
+     * Converts a confidence enum property to the STIX numeric confidence value.
+     * @param property
+     *  The object or line properties.
+     * @returns
+     *  The STIX confidence value, or null if none is set.
+     */
+    private toConfidenceValue(property: DictionaryProperty): JsonValue {
+        let prop: Property | undefined = property.value.get("confidence");
+        if (!prop) {
+            return null;
+        }
+        if (!(prop instanceof EnumProperty)) {
+            throw new Error("'confidence' is improperly defined.");
+        }
+        if (!prop.isDefined()) {
+            return null;
+        }
+        prop = prop.toReferenceValue()!;
+        if (!(prop instanceof DictionaryProperty)) {
+            throw new Error("'confidence' is improperly defined.");
+        }
+        [prop] = this.getSubproperties(prop, "value");
+        return this.toStixValue(prop);
+    }
+
 
     ///////////////////////////////////////////////////////////////////////////
     //  5. Helpers  ///////////////////////////////////////////////////////////
@@ -1060,6 +1115,7 @@ type Sro = {
     relationship_type : string;
     source_ref        : string;
     target_ref        : string;
+    confidence?       : JsonValue;
 };
 
 type ExtensionSdo = Sdo & {
@@ -1093,4 +1149,5 @@ type BundleSdo = Sdo & {
 type Link = {
     obj: Sdo;
     via: string;
+    edge: SemanticGraphEdge;
 };
