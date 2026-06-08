@@ -4,7 +4,7 @@ import { DoNothing } from "../index.commands";
 import { AppCommand } from "../index.commands";
 import { stripExtension } from "@OpenChart/Utilities";
 import { StixToAttackFlowConverter } from "@/assets/scripts/StixToAttackFlow";
-import { AutomaticLayoutEngine, DiagramObjectViewFactory, DiagramViewFile } from "@OpenChart/DiagramView";
+import { TreeContourLayoutEngine, DiagramObjectViewFactory, DiagramViewFile } from "@OpenChart/DiagramView";
 import {
     ClearFileRecoveryBank,
     ImportFile,
@@ -26,7 +26,7 @@ import type { DiagramViewEditor } from "@/assets/scripts/OpenChart/DiagramEditor
 //  1. Open Files  ////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-const autoLayoutEngine : DiagramLayoutEngine = new AutomaticLayoutEngine();
+const autoLayoutEngine : DiagramLayoutEngine = new TreeContourLayoutEngine();
 
 /**
  * Loads an empty diagram file into the application.

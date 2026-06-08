@@ -17,7 +17,8 @@ import {
 
 const COMPONENT_MARGIN = 250;
 const BLOCK_SPACING_HORIZONTAL = 500;
-const BLOCK_SPACING_VERTICAL = 400;
+const VERTICAL_LEVEL_PADDING = 120;
+const SIDE_CHILD_VERTICAL_PADDING = 40;
 const COLLISION_RADIUS = 200;
 const COLLISION_STRENGTH = 0.07;
 
@@ -28,10 +29,17 @@ interface GraphLink extends d3.SimulationLinkDatum<d3.SimulationNodeDatum> {
 
 interface MyD3Node extends d3.SimulationNodeDatum {
     id: string;
+    width: number;
+    height: number;
 }
 
 interface xyPair {
     x: number; y: number;
+}
+
+interface SideChildGroup {
+    parent: BlockView;
+    children: BlockView[];
 }
 
 export class AutomaticLayoutEngine implements DiagramLayoutEngine {
@@ -43,6 +51,7 @@ export class AutomaticLayoutEngine implements DiagramLayoutEngine {
 
         for (const block of firstObject.blocks) {
             if (block instanceof BlockView) {
+                block.calculateLayout();
                 nodes.add(block);
             }
         }
@@ -365,20 +374,33 @@ export class AutomaticLayoutEngine implements DiagramLayoutEngine {
             initialPositions.set(sideChild, childNewPos);
         }
 
+        const yPositions = this.computeVerticalPositions(initialPositions);
+        const sideChildYOverrides = this.computeSideChildYPositions(
+            sideChildren,
+            incomingEdges,
+            initialPositions,
+            yPositions
+        );
+
         // Initialize d3 nodes from calculated positions.
         for (const [key, value] of initialPositions) {
             instancesToNodes[key.instance] = key;
+            const y = sideChildYOverrides.get(key) ?? yPositions.get(value.y) ?? 0;
             if (lockedCenterNodes.has(key)) {
                 d3Nodes.push({
                     id: key.instance,
                     fx: value.x * BLOCK_SPACING_HORIZONTAL,
-                    fy: value.y * BLOCK_SPACING_VERTICAL
+                    fy: y,
+                    width: key.face.boundingBox.width,
+                    height: key.face.boundingBox.height
                 });
             } else {
                 d3Nodes.push({
                     id: key.instance,
                     x: value.x * BLOCK_SPACING_HORIZONTAL,
-                    fy: value.y * BLOCK_SPACING_VERTICAL
+                    fy: y,
+                    width: key.face.boundingBox.width,
+                    height: key.face.boundingBox.height
                 });
             }
 
@@ -399,5 +421,123 @@ export class AutomaticLayoutEngine implements DiagramLayoutEngine {
             node.moveTo(d3_node.x ?? 0, d3_node.y ?? 0);
         }
 
+    }
+
+    /**
+     * Convert logical y-levels into concrete pixel positions using the maximum
+     * measured height at each level instead of a fixed vertical step.
+     */
+    private computeVerticalPositions(
+        initialPositions: Map<BlockView, xyPair>
+    ): Map<number, number> {
+        const levelHeights = new Map<number, number>();
+        for (const [node, position] of initialPositions) {
+            const height = node.face.boundingBox.height;
+            const current = levelHeights.get(position.y) ?? 0;
+            levelHeights.set(position.y, Math.max(current, height));
+        }
+
+        const levels = [...levelHeights.keys()].sort((a, b) => a - b);
+        const yPositions = new Map<number, number>();
+
+        let previousLevel: number | undefined;
+        let previousY = 0;
+        for (const level of levels) {
+            if (previousLevel === undefined) {
+                yPositions.set(level, 0);
+                previousLevel = level;
+                continue;
+            }
+
+            const previousHeight = levelHeights.get(previousLevel) ?? 0;
+            const currentHeight = levelHeights.get(level) ?? 0;
+            const separation = (previousHeight / 2) + (currentHeight / 2) + VERTICAL_LEVEL_PADDING;
+            previousY += separation;
+
+            yPositions.set(level, previousY);
+            previousLevel = level;
+        }
+
+        return yPositions;
+    }
+
+    /**
+     * Stack children attached on the left/right of a parent around the parent's
+     * center line so they stay visually associated with that node instead of
+     * being spread across global vertical ranks.
+     */
+    private computeSideChildYPositions(
+        sideChildren: Set<BlockView>,
+        incomingEdges: Map<BlockView, Set<BlockView>>,
+        initialPositions: Map<BlockView, xyPair>,
+        yPositions: Map<number, number>
+    ): Map<BlockView, number> {
+        const groups = new Map<string, SideChildGroup>();
+
+        for (const child of sideChildren) {
+            const parents = incomingEdges.get(child);
+            if (!parents || parents.size !== 1) {
+                continue;
+            }
+
+            const parent = [...parents][0];
+            const dir = getIncomingDirectionsWithParents(child, incomingEdges).get(parent);
+            if (!dir || !this.isSideDirection(dir)) {
+                continue;
+            }
+
+            const key = `${parent.instance}:${this.sideDirectionKey(dir)}`;
+            let group = groups.get(key);
+            if (!group) {
+                group = { parent, children: [] };
+                groups.set(key, group);
+            }
+            group.children.push(child);
+        }
+
+        const overrides = new Map<BlockView, number>();
+
+        for (const group of groups.values()) {
+            group.children.sort((a, b) => {
+                const posA = initialPositions.get(a);
+                const posB = initialPositions.get(b);
+                if (posA && posB && posA.y !== posB.y) {
+                    return posA.y - posB.y;
+                }
+                return a.instance.localeCompare(b.instance);
+            });
+
+            const parentPos = initialPositions.get(group.parent);
+            if (!parentPos) {
+                continue;
+            }
+
+            const parentY = yPositions.get(parentPos.y) ?? 0;
+            const totalHeight = group.children.reduce((sum, child) => {
+                return sum + child.face.boundingBox.height;
+            }, 0);
+            const totalPadding = SIDE_CHILD_VERTICAL_PADDING * Math.max(0, group.children.length - 1);
+
+            let cursorY = parentY - ((totalHeight + totalPadding) / 2);
+            for (const child of group.children) {
+                const childHeight = child.face.boundingBox.height;
+                const centerY = cursorY + (childHeight / 2);
+                overrides.set(child, centerY);
+                cursorY += childHeight + SIDE_CHILD_VERTICAL_PADDING;
+            }
+        }
+
+        return overrides;
+    }
+
+    private isSideDirection(dir: CardinalDirection): boolean {
+        return ["e", "ene", "ese", "w", "wnw", "wsw"].includes(dir);
+    }
+
+    private sideDirectionKey(dir: CardinalDirection): "e" | "w" {
+        if (["w", "wnw", "wsw"].includes(dir)) {
+            return "w";
+        }
+        return "e";
     }
 }
