@@ -75,7 +75,7 @@ class OpenAIProviderAdapter(ProviderAdapter):
                     json_body={
                         "model": model,
                         "input": "ping",
-                        "max_output_tokens": 1,
+                        "max_output_tokens": 16,
                     },
                 )
             ),

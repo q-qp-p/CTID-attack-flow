@@ -52,6 +52,12 @@ Optional same-origin proxy example:
 - See `deploy/nginx/ui-api-proxy.conf` for a minimal nginx example that serves UI static files and proxies `/api/` to the backend API.
 - This is optional convenience only; separate API and UI deployment remains the default model.
 
+Proxy certificate support:
+
+- Put corporate root CA certificates into `certs/` as `.crt` files.
+- The API image copies `certs/` at build time and imports any `.crt` files into the trust store.
+- Rebuild the API image after changing certificates.
+
 For full self-hosting guidance (API/UI separate deployment, persistence, env setup, and CORS notes), see `docs/deployment-self-hosting.md`.
 
 On startup, the API initializes SQLite automatically at `SQLITE_PATH` (default: `data/attack-flow.db`).

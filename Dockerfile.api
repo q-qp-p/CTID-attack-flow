@@ -6,11 +6,21 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir poetry
 
 COPY pyproject.toml poetry.lock ./
 COPY src ./src
 COPY config ./config
+COPY certs ./certs
+
+RUN if [ -d /app/certs ]; then \
+      find /app/certs -type f -name '*.crt' -exec cp {} /usr/local/share/ca-certificates/ \; ; \
+      update-ca-certificates; \
+    fi
 
 RUN poetry install --with api --no-interaction --no-ansi
 

@@ -22,6 +22,12 @@ Key variables:
 - `VITE_API_BASE_URL_PROXY`: API base path for bundled proxy deployment
 - `DATA_DIR`, `SQLITE_PATH`, `UPLOAD_DIR`, `ARTIFACT_DIR`: backend persistence paths
 
+Proxy certificate support:
+
+- Place corporate root CA certificates in `certs/` as `.crt` files.
+- `Dockerfile.api` copies `certs/` into the image and imports those certificates during build.
+- Rebuild the API image after changing certificates.
+
 ## Provider Configuration and Metadata (AFA-30)
 
 Provider configuration is loaded from `PROVIDERS_CONFIG_PATH` into a registry-backed abstraction layer.
