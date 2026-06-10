@@ -111,6 +111,18 @@ def test_worker_claims_queued_job_and_persists_claim_fields(monkeypatch, tmp_pat
             assert row["worker_id"]
             assert row["attempt_count"] >= 1
 
+            audit_rows = connection.execute(
+                "SELECT event_type, details_json FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+                (job_id,),
+            ).fetchall()
+            assert [row["event_type"] for row in audit_rows[:3]] == [
+                "job_submitted",
+                "job_queued",
+                "worker_claimed",
+            ]
+            assert "stage_changed" in {row["event_type"] for row in audit_rows}
+            assert json.loads(audit_rows[2]["details_json"])["worker_id"]
+
 
 def test_worker_progresses_through_expected_stages_in_order(monkeypatch, tmp_path: Path):
     expected = ["extracting", "normalizing", "ai_extraction", "flow_building", "exporting"]
@@ -186,6 +198,12 @@ def test_worker_persists_intermediate_updates_and_completion(monkeypatch, tmp_pa
 
         with sqlite3.connect(client.app.state.sqlite_path) as connection:
             connection.row_factory = sqlite3.Row
+            audit_rows = connection.execute(
+                "SELECT event_type FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+                (job_id,),
+            ).fetchall()
+            event_types = {row["event_type"] for row in audit_rows}
+            assert {"stage_changed", "text_normalized", "normalized_package_created", "provider_invocation_started", "provider_invocation_skipped", "provider_invocation_completed", "structured_extraction_validated", "fusion_completed", "canonical_flow_created", "job_completed"}.issubset(event_types)
             row = connection.execute(
                 "SELECT created_at, updated_at, completed_at FROM jobs WHERE id = ?",
                 (job_id,),
@@ -606,6 +624,12 @@ def test_worker_failure_marks_failed_and_continues_with_next_job(monkeypatch, tm
             assert failed_row["completed_at"] is not None
             assert failed_row["updated_at"] is not None
 
+            failed_audit_rows = connection.execute(
+                "SELECT event_type FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+                (first_job_id,),
+            ).fetchall()
+            assert "job_failed" in {row["event_type"] for row in failed_audit_rows}
+
 
 def test_post_jobs_remains_non_blocking_while_worker_processes(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
@@ -673,6 +697,20 @@ def test_worker_processes_url_job_and_persists_fetch_and_normalized_text(monkeyp
             assert input_row["content_text"] == "Report\n\nInitial access observed."
             assert input_row["normalized_char_count"] == len("Report\n\nInitial access observed.")
 
+            audit_rows = connection.execute(
+                "SELECT event_type FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+                (job_id,),
+            ).fetchall()
+            event_types = [row["event_type"] for row in audit_rows]
+            assert event_types[:5] == [
+                "job_submitted",
+                "job_queued",
+                "worker_claimed",
+                "stage_changed",
+                "url_validation_started",
+            ]
+            assert {"url_fetch_started", "url_fetch_completed", "text_normalized", "normalized_package_created", "provider_invocation_started", "provider_invocation_completed", "provider_invocation_skipped", "structured_extraction_validated", "fusion_completed", "canonical_flow_created", "job_completed"}.issubset(set(event_types))
+
 
 def test_worker_fails_url_job_with_unsupported_content_type(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
@@ -709,6 +747,13 @@ def test_worker_fails_url_job_with_unsupported_content_type(monkeypatch, tmp_pat
             assert input_row["fetch_error_code"] == "unsupported_content_type"
             assert "unsupported content type" in input_row["fetch_error_message"]
 
+            audit_rows = connection.execute(
+                "SELECT event_type FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+                (job_id,),
+            ).fetchall()
+            event_types = {row["event_type"] for row in audit_rows}
+            assert {"stage_changed", "url_validation_started", "url_fetch_started", "url_fetch_completed", "job_failed"}.issubset(event_types)
+
 
 def test_worker_persists_url_fetch_failure_and_continues_next_job(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
@@ -744,6 +789,12 @@ def test_worker_persists_url_fetch_failure_and_continues_next_job(monkeypatch, t
             assert failed_job_row is not None
             assert failed_job_row["error_code"] == "url_fetch_timeout"
             assert "timed out" in failed_job_row["error_message"]
+
+            failed_audit_rows = connection.execute(
+                "SELECT event_type FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+                (first_job_id,),
+            ).fetchall()
+            assert "job_failed" in {row["event_type"] for row in failed_audit_rows}
 
             input_source_id = connection.execute(
                 "SELECT input_source_id FROM jobs WHERE id = ?",
@@ -1029,6 +1080,13 @@ def test_worker_persists_structured_stix_extraction_package(monkeypatch, tmp_pat
             assert normalized_package["source_type"] == "stix_structured"
             assert normalized_package["structured_summary"]["bundle_metadata"]["id"] == "bundle--12345678-1234-1234-1234-123456789012"
 
+            audit_rows = connection.execute(
+                "SELECT event_type FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+                (job_id,),
+            ).fetchall()
+            event_types = {row["event_type"] for row in audit_rows}
+            assert {"file_validated", "file_classified", "stix_parsed", "normalized_package_created", "provider_invocation_started", "provider_invocation_completed", "provider_invocation_skipped", "structured_extraction_validated", "fusion_completed", "canonical_flow_created", "job_completed"}.issubset(event_types)
+
         resolved_package = client.app.state.persistence_service.resolve_normalized_package_for_job(job_id)
         assert resolved_package is not None
         assert resolved_package["source_type"] == "stix_structured"
@@ -1099,6 +1157,13 @@ def test_worker_persists_stix_extraction_failure_and_continues_next_job(monkeypa
             assert input_row["ingestion_error_code"] == "stix_extraction_failed"
             assert input_row["ingestion_error_message"] == "failed to extract structured stix content"
 
+            audit_rows = connection.execute(
+                "SELECT event_type FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+                (failing_job_id,),
+            ).fetchall()
+            event_types = {row["event_type"] for row in audit_rows}
+            assert {"file_validated", "file_classified", "job_failed"}.issubset(event_types)
+
 
 def test_worker_processes_stix_job_asynchronously_through_lifecycle_stages(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
@@ -1145,3 +1210,12 @@ def test_worker_processes_stix_job_asynchronously_through_lifecycle_stages(monke
         completed_payload = _wait_for_status(client, job_id, "completed", max_wait_seconds=6.0)
         assert completed_payload is not None
         assert completed_payload["stage"] == "completed"
+
+        with sqlite3.connect(client.app.state.sqlite_path) as connection:
+            connection.row_factory = sqlite3.Row
+            audit_rows = connection.execute(
+                "SELECT event_type FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+                (job_id,),
+            ).fetchall()
+            event_types = {row["event_type"] for row in audit_rows}
+            assert {"file_validated", "file_classified", "stix_parsed", "normalized_package_created", "provider_invocation_started", "provider_invocation_completed", "provider_invocation_skipped", "structured_extraction_validated", "fusion_completed", "canonical_flow_created", "job_completed"}.issubset(event_types)

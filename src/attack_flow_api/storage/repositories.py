@@ -27,6 +27,19 @@ def _require_datetime(value: str | None, field_name: str) -> datetime:
     return parsed
 
 
+def _row_to_bool(value: object) -> bool | None:
+    if value is None:
+        return None
+    return bool(value)
+
+
+def _audit_details_json(row: object) -> str | None:
+    details_json = row["details_json"]
+    if details_json is not None:
+        return details_json
+    return row["metadata_json"]
+
+
 @dataclass(slots=True)
 class JobCreate:
     id: str
@@ -285,8 +298,15 @@ class AuditEventCreate:
     id: str
     event_type: str
     job_id: str | None = None
+    sequence: int | None = None
+    timestamp: datetime | None = None
+    status: str | None = None
+    stage: str | None = None
     request_id: str | None = None
-    metadata_json: str | None = None
+    source_component: str | None = None
+    message: str | None = None
+    details_json: str | None = None
+    redacted: bool | None = None
 
 
 class PersistenceRepository:
@@ -1042,20 +1062,39 @@ class PersistenceRepository:
         ]
 
     def create_audit_event(self, payload: AuditEventCreate) -> AuditEvent:
-        now = _utcnow_iso()
         with create_connection(self.sqlite_path) as connection:
+            sequence = payload.sequence
+            if sequence is None and payload.job_id is not None:
+                row = connection.execute(
+                    "SELECT COALESCE(MAX(sequence), 0) + 1 AS next_sequence FROM audit_events WHERE job_id = ?",
+                    (payload.job_id,),
+                ).fetchone()
+                sequence = int(row["next_sequence"]) if row is not None else 1
+
+            timestamp = payload.timestamp or _utcnow()
+            details_json = payload.details_json
             connection.execute(
                 """
-                INSERT INTO audit_events (id, job_id, request_id, event_type, created_at, metadata_json)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO audit_events (
+                    id, job_id, sequence, request_id, event_type, created_at,
+                    status, stage, source_component, message, details_json, metadata_json, redacted
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
                     payload.job_id,
+                    sequence,
                     payload.request_id,
                     payload.event_type,
-                    now,
-                    payload.metadata_json,
+                    timestamp.isoformat().replace("+00:00", "Z"),
+                    payload.status,
+                    payload.stage,
+                    payload.source_component,
+                    payload.message,
+                    details_json,
+                    details_json,
+                    int(payload.redacted) if payload.redacted is not None else None,
                 ),
             )
 
@@ -1068,11 +1107,47 @@ class PersistenceRepository:
         return AuditEvent(
             id=row["id"],
             job_id=row["job_id"],
+            sequence=row["sequence"],
             request_id=row["request_id"],
             event_type=row["event_type"],
-            created_at=_require_datetime(row["created_at"], "created_at"),
-            metadata_json=row["metadata_json"],
+            timestamp=_require_datetime(row["created_at"], "created_at"),
+            status=row["status"],
+            stage=row["stage"],
+            source_component=row["source_component"],
+            message=row["message"],
+            details_json=_audit_details_json(row),
+            redacted=_row_to_bool(row["redacted"]),
         )
+
+    def list_audit_events(self, job_id: str) -> list[AuditEvent]:
+        with create_connection(self.sqlite_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM audit_events
+                WHERE job_id = ?
+                ORDER BY CASE WHEN sequence IS NULL THEN 1 ELSE 0 END, sequence ASC, created_at ASC, id ASC
+                """,
+                (job_id,),
+            ).fetchall()
+
+        return [
+            AuditEvent(
+                id=row["id"],
+                job_id=row["job_id"],
+                sequence=row["sequence"],
+                request_id=row["request_id"],
+                event_type=row["event_type"],
+                timestamp=_require_datetime(row["created_at"], "created_at"),
+                status=row["status"],
+                stage=row["stage"],
+                source_component=row["source_component"],
+                message=row["message"],
+                details_json=_audit_details_json(row),
+                redacted=_row_to_bool(row["redacted"]),
+            )
+            for row in rows
+        ]
 
     def is_database_ready(self) -> bool:
         with create_connection(self.sqlite_path) as connection:

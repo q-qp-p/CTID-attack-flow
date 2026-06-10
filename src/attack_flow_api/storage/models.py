@@ -116,7 +116,13 @@ class Artifact:
 class AuditEvent:
     id: str
     job_id: str | None
+    sequence: int | None
     request_id: str | None
     event_type: str
-    created_at: datetime
-    metadata_json: str | None
+    timestamp: datetime
+    status: str | None
+    stage: str | None
+    source_component: str | None
+    message: str | None
+    details_json: str | None
+    redacted: bool | None

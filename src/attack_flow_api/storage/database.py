@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 
 def create_connection(sqlite_path: Path) -> sqlite3.Connection:
@@ -159,10 +159,17 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS audit_events (
             id TEXT PRIMARY KEY,
             job_id TEXT,
+            sequence INTEGER,
             request_id TEXT,
             event_type TEXT NOT NULL,
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             metadata_json TEXT,
+            status TEXT,
+            stage TEXT,
+            source_component TEXT,
+            message TEXT,
+            details_json TEXT,
+            redacted INTEGER,
             FOREIGN KEY (job_id) REFERENCES jobs(id)
         );
         """

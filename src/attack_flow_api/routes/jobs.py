@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from starlette.datastructures import UploadFile
 
 from attack_flow_api.errors import BadRequestError, ConflictError, NotFoundError, PayloadTooLargeError
+from attack_flow_api.audit_contracts import JobAuditResponse
 from attack_flow_api.services.file_upload import FileUploadValidationError, validate_and_describe_upload
 from attack_flow_api.services.stix_json_validation import (
     StixJsonValidationError,
@@ -440,6 +441,28 @@ def _create_queued_job_response(request: Request, input_source_id: str) -> JobSu
             request_id=request.state.request_id,
         )
     )
+    input_source = persistence_service.get_input_source(input_source_id)
+    if input_source is not None:
+        persistence_service.record_job_submitted(
+            job=job,
+            input_source_id=input_source_id,
+            source_type=input_source.type,
+            request_id=request.state.request_id,
+        )
+    persistence_service.record_job_queued(job=job, request_id=request.state.request_id)
+    if input_source is not None and input_source.type == "text" and input_source.normalized_text is not None:
+        persistence_service.record_job_event(
+            job=job,
+            event_type="text_normalized",
+            source_component="api",
+            message="text normalized",
+            details={
+                "input_source_id": input_source.id,
+                "source_type": input_source.type,
+                "normalized_char_count": input_source.normalized_char_count,
+                "normalization_version": input_source.normalization_version,
+            },
+        )
     settings = request.app.state.settings
     submitted_at = job.created_at.astimezone(UTC).isoformat().replace("+00:00", "Z")
     return JobSubmissionResponse(
@@ -949,6 +972,40 @@ def get_job_result(request: Request, job_id: str) -> JobResultResponse:
         result=parsed_result,
         request_id=request.state.request_id,
     )
+
+
+@router.get(
+    "/jobs/{job_id}/audit",
+    response_model=JobAuditResponse,
+    responses={
+        404: {
+            "description": "Job not found",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "code": "job_not_found",
+                            "message": "Job not found",
+                            "details": [],
+                        },
+                        "request_id": "<request-id>",
+                    }
+                }
+            },
+        }
+    },
+)
+def get_job_audit(request: Request, job_id: str) -> JobAuditResponse:
+    """Retrieve the current job snapshot and ordered audit history for debugging/support.
+
+    The response is sanitized for safe support use: secrets and raw incident content
+    are redacted or suppressed before persistence/serialization.
+    """
+    retrieval_service = request.app.state.audit_retrieval_service
+    result = retrieval_service.get_job_audit(job_id, request.state.request_id)
+    if not result.found or result.response is None:
+        raise NotFoundError(code="job_not_found", message="Job not found", details=[])
+    return result.response
 
 
 def _get_job_or_404(persistence_service: Any, job_id: str) -> Any:

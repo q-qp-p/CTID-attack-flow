@@ -77,6 +77,19 @@ The API worker now performs conservative fusion after successful AI extraction.
 
 This fusion pass is internal to the worker pipeline and does not change the public API surface.
 
+## AFA-14 Audit Trail
+
+The API now records structured audit events as jobs move through submission, worker claim, stage transitions, and downstream processing.
+
+- `GET /api/v1/jobs/{job_id}/audit` returns the current job snapshot plus ordered audit history.
+- The audit view is intended for debugging and supportability.
+- Audit output is sanitized: secrets and unsafe raw content are redacted or suppressed by default.
+- Event details remain practical for debugging, such as status/stage transitions, provider identifiers, model names, content counts, file classifications, and error codes.
+
+Practical limitation:
+
+- Audit data is intentionally version-1 pragmatic and does not expose raw incident payloads or secrets by default.
+
 Quick check:
 
 ```bash

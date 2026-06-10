@@ -66,6 +66,20 @@ class AIOrchestrationService:
         packaged_input = build_provider_orchestration_input(normalized_package)
         prompt_bundle = build_prompt_template_bundle(packaged_input)
 
+        job = self.persistence_service.get_job(job_id)
+        if job is not None:
+            self.persistence_service.record_job_event(
+                job=job,
+                event_type="provider_invocation_started",
+                source_component="orchestration",
+                message="provider invocation started",
+                details={
+                    "requested_provider_id": requested_provider_id,
+                    "requested_model": requested_model,
+                    "deterministic_input_sufficient": packaged_input.deterministic_input_sufficient,
+                },
+            )
+
         invocation_result = self.provider_invocation_service.invoke_if_needed(
             packaged_input=packaged_input,
             prompt_bundle=prompt_bundle,
@@ -73,10 +87,55 @@ class AIOrchestrationService:
             requested_model=requested_model,
         )
 
+        job = self.persistence_service.get_job(job_id)
+        if job is not None:
+            if not invocation_result.provider_invoked:
+                self.persistence_service.record_job_event(
+                    job=job,
+                    event_type="provider_invocation_skipped",
+                    source_component="orchestration",
+                    message="provider invocation skipped",
+                    details={
+                        "requested_provider_id": requested_provider_id,
+                        "requested_model": requested_model,
+                        "deterministic_input_sufficient": invocation_result.deterministic_input_sufficient,
+                    },
+                )
+            self.persistence_service.record_job_event(
+                job=job,
+                event_type="provider_invocation_completed",
+                source_component="orchestration",
+                message="provider invocation completed",
+                details={
+                    "provider_invoked": invocation_result.provider_invoked,
+                    "provider_id": invocation_result.provider_id,
+                    "model_used": invocation_result.model_used,
+                    "deterministic_input_sufficient": invocation_result.deterministic_input_sufficient,
+                    "error_code": invocation_result.error_code,
+                    "error_category": invocation_result.error_category,
+                    "retryable": invocation_result.retryable,
+                },
+            )
+
         validated = parse_validate_and_repair_extraction_output(
             invocation_result=invocation_result,
             packaged_input=packaged_input,
         )
+
+        job = self.persistence_service.get_job(job_id)
+        if job is not None:
+            self.persistence_service.record_job_event(
+                job=job,
+                event_type="structured_extraction_validated",
+                source_component="orchestration",
+                message="structured extraction validated",
+                details={
+                    "valid": validated.valid,
+                    "repair_attempted": validated.repair_attempted,
+                    "error_code": validated.error_code,
+                    "error_message": validated.error_message,
+                },
+            )
 
         return _to_execution_result(
             invocation_result=invocation_result,

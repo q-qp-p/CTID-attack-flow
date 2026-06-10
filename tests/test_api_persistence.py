@@ -10,6 +10,7 @@ from attack_flow_api.storage.database import initialize_database
 from attack_flow_api.storage.filesystem import LocalFileStorage
 from attack_flow_api.storage.repositories import (
     ArtifactCreate,
+    AuditEventCreate,
     InputSourceCreate,
     InputSourceFileUpdate,
     JobCreate,
@@ -35,6 +36,47 @@ def test_database_initializes_and_creates_required_tables(tmp_path: Path):
     assert "input_sources" in table_names
     assert "artifacts" in table_names
     assert "audit_events" in table_names
+
+
+def test_audit_events_can_be_created_and_listed_in_order(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    repository = PersistenceRepository(db_path)
+
+    repository.create_job(JobCreate(id="job-1", status="queued", stage="created"))
+
+    first = repository.create_audit_event(
+        AuditEventCreate(
+            id="audit-1",
+            job_id="job-1",
+            event_type="job.created",
+            status="queued",
+            stage="created",
+            source_component="api",
+            message="job created",
+            details_json='{"job_id":"job-1"}',
+        )
+    )
+    second = repository.create_audit_event(
+        AuditEventCreate(
+            id="audit-2",
+            job_id="job-1",
+            event_type="job.started",
+            status="running",
+            stage="processing",
+            source_component="worker",
+            message="job started",
+            details_json='{"job_id":"job-1"}',
+        )
+    )
+
+    assert first.sequence == 1
+    assert second.sequence == 2
+
+    events = repository.list_audit_events("job-1")
+    assert [event.id for event in events] == ["audit-1", "audit-2"]
+    assert events[0].details_json == '{"job_id":"job-1"}'
+    assert events[0].timestamp is not None
 
 
 def test_job_record_can_be_created_updated_and_fetched(tmp_path: Path):
@@ -100,6 +142,35 @@ def test_artifact_metadata_can_be_created_and_retrieved(tmp_path: Path):
     fetched_list = repository.list_artifacts(job_id="job-1", artifact_type="stix")
     assert len(fetched_list) == 1
     assert fetched_list[0].id == "artifact-1"
+
+
+def test_artifact_creation_records_an_audit_event(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    service = PersistenceService(db_path)
+
+    service.create_job(JobCreate(id="job-1", status="queued", stage="created"))
+    artifact = service.create_artifact(
+        ArtifactCreate(
+            id="artifact-1",
+            job_id="job-1",
+            type="stix",
+            path="artifacts/2026/01/01/abc123.json",
+            size_bytes=128,
+        )
+    )
+
+    assert artifact.id == "artifact-1"
+
+    with sqlite3.connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            "SELECT event_type, message, details_json FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+            ("job-1",),
+        ).fetchall()
+
+    assert [row["event_type"] for row in rows] == ["artifact_created"]
+    assert rows[0]["message"] == "artifact created"
 
 
 def test_configured_directories_are_created(tmp_path: Path):

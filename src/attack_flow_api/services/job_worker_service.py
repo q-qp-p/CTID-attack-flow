@@ -136,6 +136,18 @@ class JobWorkerService:
     def force_failure_for_job(self, job_id: str) -> None:
         self._forced_failure_job_ids.add(job_id)
 
+    def _record_job_event(self, job_id: str, *, event_type: str, message: str, details: dict[str, object]) -> None:
+        job = self.persistence_service.get_job(job_id)
+        if job is None:
+            return
+        self.persistence_service.record_job_event(
+            job=job,
+            event_type=event_type,
+            source_component="worker",
+            message=message,
+            details=details,
+        )
+
     async def _process_claimed_job(self, job_id: str) -> None:
         try:
             for stage in self._processing_stages:
@@ -215,7 +227,7 @@ class JobWorkerService:
             return
 
         if input_source.type == "text" and stage == "normalizing":
-            self._persist_narrative_normalized_package(input_source.id)
+            self._persist_narrative_normalized_package(job_id, input_source.id)
             await asyncio.sleep(0)
             return
 
@@ -290,6 +302,17 @@ class JobWorkerService:
                     job_error_message=f"unsupported content type: {content_type or 'unknown'}",
                 )
             extracted = extract_readable_text_from_html(context.body.decode("utf-8", errors="replace"))
+            self._record_job_event(
+                job_id,
+                event_type="text_normalized",
+                message="text normalized",
+                details={
+                    "input_source_id": input_source.id,
+                    "source_type": input_source.type,
+                    "normalized_char_count": extracted.normalized_char_count,
+                    "normalization_version": extracted.normalization_version,
+                },
+            )
             self.persistence_service.update_input_source_fetch(
                 input_source.id,
                 payload=InputSourceFetchUpdate(
@@ -300,7 +323,7 @@ class JobWorkerService:
                     content_text=extracted.normalized_text,
                 ),
             )
-            self._persist_narrative_normalized_package(input_source.id)
+            self._persist_narrative_normalized_package(job_id, input_source.id)
             return
 
         if stage == "ai_extraction":
@@ -308,6 +331,22 @@ class JobWorkerService:
             self._run_ai_extraction_orchestration(job_id)
 
     async def _fetch_url_content(self, job_id: str, input_source_id: str, source_url: str) -> None:
+        job = self.persistence_service.get_job(job_id)
+        if job is not None:
+            self.persistence_service.record_job_event(
+                job=job,
+                event_type="url_validation_started",
+                source_component="worker",
+                message="url validation started",
+                details={"source_url": source_url, "allowed_schemes": sorted(self._allowed_url_schemes)},
+            )
+            self.persistence_service.record_job_event(
+                job=job,
+                event_type="url_fetch_started",
+                source_component="worker",
+                message="url fetch started",
+                details={"source_url": source_url},
+            )
         try:
             fetched = fetch_url_bounded(
                 source_url,
@@ -342,6 +381,18 @@ class JobWorkerService:
                 fetch_error_message=None,
             ),
         )
+        self._record_job_event(
+            job_id,
+            event_type="url_fetch_completed",
+            message="url fetch completed",
+            details={
+                "source_url": source_url,
+                "final_url": fetched.final_url,
+                "status_code": fetched.status_code,
+                "content_type": fetched.content_type,
+                "size_bytes": fetched.size_bytes,
+            },
+        )
         self._url_job_context[job_id] = _UrlJobContext(
             content_type=fetched.content_type,
             body=fetched.body,
@@ -372,10 +423,10 @@ class JobWorkerService:
             )
             self.persistence_service.update_input_source_file(input_source.id, update)
             if context.routing.file_class in {"plaintext", "pdf"}:
-                self._persist_narrative_normalized_package(input_source.id)
+                self._persist_narrative_normalized_package(job_id, input_source.id)
             if context.stix_update is not None:
                 self.persistence_service.update_input_source_stix(input_source.id, context.stix_update)
-                self._persist_structured_stix_normalized_package(input_source.id)
+                self._persist_structured_stix_normalized_package(job_id, input_source.id)
             return
 
         if stage == "ai_extraction":
@@ -447,11 +498,34 @@ class JobWorkerService:
                 job_error_message="unable to read stored upload",
             ) from exc
 
+        self._record_job_event(
+            job_id,
+            event_type="file_validated",
+            message="file validated",
+            details={
+                "input_source_id": input_source.id,
+                "storage_path": input_source.storage_path,
+                "size_bytes": len(file_bytes),
+            },
+        )
+
         routing = classify_file_for_routing(
             original_filename=input_source.original_name,
             declared_mime_type=input_source.mime_type,
             detected_mime_type=input_source.detected_mime_type,
             file_bytes=file_bytes,
+        )
+        self._record_job_event(
+            job_id,
+            event_type="file_classified",
+            message="file classified",
+            details={
+                "input_source_id": input_source.id,
+                "file_class": routing.file_class,
+                "detected_mime_type": routing.detected_mime_type,
+                "is_supported": routing.is_supported,
+                "unsupported_reason": routing.unsupported_reason,
+            },
         )
 
         if not routing.is_supported:
@@ -512,6 +586,17 @@ class JobWorkerService:
                 normalized_char_count=extracted.normalized_char_count,
                 normalization_version=extracted.normalization_version,
             )
+            self._record_job_event(
+                job_id,
+                event_type="text_normalized",
+                message="text normalized",
+                details={
+                    "input_source_id": input_source.id,
+                    "source_type": input_source.type,
+                    "normalized_char_count": extracted.normalized_char_count,
+                    "normalization_version": extracted.normalization_version,
+                },
+            )
             return
 
         if routing.file_class == "pdf":
@@ -533,6 +618,17 @@ class JobWorkerService:
                 normalized_text=extracted.normalized_text,
                 normalized_char_count=extracted.normalized_char_count,
                 normalization_version=extracted.normalization_version,
+            )
+            self._record_job_event(
+                job_id,
+                event_type="text_normalized",
+                message="text normalized",
+                details={
+                    "input_source_id": input_source.id,
+                    "source_type": input_source.type,
+                    "normalized_char_count": extracted.normalized_char_count,
+                    "normalization_version": extracted.normalization_version,
+                },
             )
             return
 
@@ -609,6 +705,33 @@ class JobWorkerService:
                     stix_provenance_json=json.dumps(extraction_package.provenance),
                 ),
             )
+            self._record_job_event(
+                job_id,
+                event_type="stix_parsed",
+                message="stix parsed",
+                details={
+                    "input_source_id": input_source.id,
+                    "stix_json_kind": stix_validation.stix_json_kind,
+                    "stix_json_valid": stix_validation.stix_json_valid,
+                    "bundle_id": stix_validation.bundle_id,
+                    "spec_version": stix_validation.spec_version,
+                    "object_count": inventory.object_count,
+                    "relationship_count": len(relationships),
+                    "attack_ref_count": len(attack_refs),
+                },
+            )
+            if inventory.narrative_normalized_text is not None:
+                self._record_job_event(
+                    job_id,
+                    event_type="text_normalized",
+                    message="text normalized",
+                    details={
+                        "input_source_id": input_source.id,
+                        "source_type": input_source.type,
+                        "normalized_char_count": inventory.narrative_normalized_char_count,
+                        "normalization_version": inventory.narrative_normalization_version,
+                    },
+                )
             return
 
         raise _FileJobProcessingError(
@@ -685,7 +808,7 @@ class JobWorkerService:
             job_error_message=job_error_message,
         )
 
-    def _persist_narrative_normalized_package(self, input_source_id: str) -> None:
+    def _persist_narrative_normalized_package(self, job_id: str, input_source_id: str) -> None:
         input_source = self.persistence_service.get_input_source(input_source_id)
         if input_source is None:
             return
@@ -697,8 +820,18 @@ class JobWorkerService:
         if update is None:
             return
         self.persistence_service.update_input_source_normalized(input_source_id, update)
+        self._record_job_event(
+            job_id,
+            event_type="normalized_package_created",
+            message="normalized package created",
+            details={
+                "normalized_source_type": update.normalized_source_type,
+                "pipeline_version": update.normalized_pipeline_version,
+                "content_budget_chars": update.normalized_content_budget_chars,
+            },
+        )
 
-    def _persist_structured_stix_normalized_package(self, input_source_id: str) -> None:
+    def _persist_structured_stix_normalized_package(self, job_id: str, input_source_id: str) -> None:
         input_source = self.persistence_service.get_input_source(input_source_id)
         if input_source is None:
             return
@@ -710,6 +843,16 @@ class JobWorkerService:
         if update is None:
             return
         self.persistence_service.update_input_source_normalized(input_source_id, update)
+        self._record_job_event(
+            job_id,
+            event_type="normalized_package_created",
+            message="normalized package created",
+            details={
+                "normalized_source_type": update.normalized_source_type,
+                "pipeline_version": update.normalized_pipeline_version,
+                "content_budget_chars": update.normalized_content_budget_chars,
+            },
+        )
 
 
 class _UrlJobProcessingError(RuntimeError):
