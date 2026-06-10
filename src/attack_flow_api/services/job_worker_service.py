@@ -521,12 +521,12 @@ class JobWorkerService:
             message="file classified",
             details={
                 "input_source_id": input_source.id,
-                "file_class": routing.file_class,
-                "detected_mime_type": routing.detected_mime_type,
-                "is_supported": routing.is_supported,
-                "unsupported_reason": routing.unsupported_reason,
-            },
-        )
+            "file_class": routing.file_class,
+            "detected_mime_type": input_source.detected_mime_type,
+            "is_supported": routing.is_supported,
+            "unsupported_reason": routing.unsupported_reason,
+        },
+    )
 
         if not routing.is_supported:
             if routing.unsupported_reason == "json_not_stix_bundle_shape":

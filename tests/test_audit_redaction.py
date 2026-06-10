@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -37,12 +38,13 @@ def test_audit_event_details_are_sanitized_before_persistence(tmp_path: Path):
 
     events = service.list_audit_events(job.id)
     assert len(events) == 1
-    details = events[0].details_json or "{}"
-    assert "classified incident text" not in details
-    assert "sk-test-secret" not in details
-    assert "token=secret" not in details
-    assert '"provider_id": "provider-a"' in details
-    assert '"model_used": "model-x"' in details
+    details = json.loads(events[0].details_json or "{}")
+    assert details["provider_id"] == "provider-a"
+    assert details["provider_payload"] == "[redacted]"
+    assert details["raw_text"] == "[redacted]"
+    assert details["raw_html"] == "[redacted]"
+    assert details["source_url"] == "[redacted]"
+    assert details["model_used"] == "model-x"
 
 
 def test_audit_response_sanitizes_unsafe_persisted_details():

@@ -253,6 +253,9 @@ class PersistenceService:
     def delete_artifacts_for_job(self, job_id: str) -> int:
         return self.repository.delete_artifacts_for_job(job_id)
 
+    def delete_audit_events_for_job(self, job_id: str) -> int:
+        return self.repository.delete_audit_events_for_job(job_id)
+
     def delete_job(self, job_id: str) -> bool:
         return self.repository.delete_job(job_id)
 

@@ -1173,6 +1173,11 @@ class PersistenceRepository:
             result = connection.execute("DELETE FROM artifacts WHERE job_id = ?", (job_id,))
         return int(result.rowcount)
 
+    def delete_audit_events_for_job(self, job_id: str) -> int:
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute("DELETE FROM audit_events WHERE job_id = ?", (job_id,))
+        return int(result.rowcount)
+
     def delete_job(self, job_id: str) -> bool:
         with create_connection(self.sqlite_path) as connection:
             result = connection.execute("DELETE FROM jobs WHERE id = ?", (job_id,))

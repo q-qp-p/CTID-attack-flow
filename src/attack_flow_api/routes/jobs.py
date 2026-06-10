@@ -783,6 +783,7 @@ def delete_job(request: Request, job_id: str) -> JobDeleteResponse:
             pass
 
     persistence_service.delete_artifacts_for_job(job.id)
+    persistence_service.delete_audit_events_for_job(job.id)
     persistence_service.delete_job(job.id)
     if job.input_source_id is not None and persistence_service.count_jobs_by_input_source(job.input_source_id) == 0:
         persistence_service.delete_input_source(job.input_source_id)

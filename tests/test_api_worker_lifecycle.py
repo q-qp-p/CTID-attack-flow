@@ -115,13 +115,15 @@ def test_worker_claims_queued_job_and_persists_claim_fields(monkeypatch, tmp_pat
                 "SELECT event_type, details_json FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
                 (job_id,),
             ).fetchall()
-            assert [row["event_type"] for row in audit_rows[:3]] == [
+            assert [row["event_type"] for row in audit_rows[:4]] == [
                 "job_submitted",
                 "job_queued",
+                "text_normalized",
                 "worker_claimed",
             ]
             assert "stage_changed" in {row["event_type"] for row in audit_rows}
-            assert json.loads(audit_rows[2]["details_json"])["worker_id"]
+            worker_claim_event = next(row for row in audit_rows if row["event_type"] == "worker_claimed")
+            assert json.loads(worker_claim_event["details_json"])["worker_id"]
 
 
 def test_worker_progresses_through_expected_stages_in_order(monkeypatch, tmp_path: Path):

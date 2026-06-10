@@ -98,14 +98,14 @@ def test_submit_job_text_returns_202_and_persists_records(monkeypatch, tmp_path:
             "SELECT event_type, status, stage, request_id, message, details_json FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
             (payload["job_id"],),
         ).fetchall()
-        assert [row["event_type"] for row in audit_rows] == ["job_submitted", "job_queued"]
+        assert [row["event_type"] for row in audit_rows] == ["job_submitted", "job_queued", "text_normalized"]
         assert audit_rows[0]["status"] == "queued"
         assert audit_rows[0]["stage"] == "queued"
         assert audit_rows[0]["request_id"] == payload["request_id"]
         assert audit_rows[0]["message"] == "job submitted"
         assert json.loads(audit_rows[0]["details_json"])["source_type"] == "text"
         assert json.loads(audit_rows[1]["details_json"])["job_id"] == payload["job_id"]
-        assert "text_normalized" in {row["event_type"] for row in audit_rows}
+        assert json.loads(audit_rows[2]["details_json"])["normalized_char_count"] == len("investigation content")
 
 
 def test_submit_job_text_persists_normalized_text(monkeypatch, tmp_path: Path):
