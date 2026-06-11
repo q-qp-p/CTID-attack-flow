@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 
 def create_connection(sqlite_path: Path) -> sqlite3.Connection:
@@ -111,6 +111,26 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
             model TEXT,
             input_source_id TEXT,
             result_json TEXT,
+            fusion_result_json TEXT,
+            fusion_validation_state TEXT,
+            fusion_provenance_json TEXT,
+            fusion_conflicts_json TEXT,
+            fusion_attack_refs_json TEXT,
+            fusion_entities_json TEXT,
+            fusion_relationships_json TEXT,
+            canonical_flow_json TEXT,
+            canonical_flow_validation_state TEXT,
+            canonical_flow_provenance_json TEXT,
+            canonical_flow_conflicts_json TEXT,
+            canonical_flow_validation_errors_json TEXT,
+            extraction_mode TEXT,
+            provider_invoked INTEGER,
+            extraction_result_json TEXT,
+            extraction_validation_state TEXT,
+            extraction_repair_attempted INTEGER,
+            extraction_provenance_classification TEXT,
+            extraction_authors_json TEXT,
+            extraction_external_references_json TEXT,
             progress_percent INTEGER,
             started_at TEXT,
             last_heartbeat_at TEXT,

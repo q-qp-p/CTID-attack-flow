@@ -11,6 +11,26 @@ class Job:
     model: str | None
     input_source_id: str | None
     result_json: str | None
+    fusion_result_json: str | None
+    fusion_validation_state: str | None
+    fusion_provenance_json: str | None
+    fusion_conflicts_json: str | None
+    fusion_attack_refs_json: str | None
+    fusion_entities_json: str | None
+    fusion_relationships_json: str | None
+    canonical_flow_json: str | None
+    canonical_flow_validation_state: str | None
+    canonical_flow_provenance_json: str | None
+    canonical_flow_conflicts_json: str | None
+    canonical_flow_validation_errors_json: str | None
+    extraction_mode: str | None
+    provider_invoked: bool | None
+    extraction_result_json: str | None
+    extraction_validation_state: str | None
+    extraction_repair_attempted: bool | None
+    extraction_provenance_classification: str | None
+    extraction_authors_json: str | None
+    extraction_external_references_json: str | None
     progress_percent: int | None
     started_at: datetime | None
     last_heartbeat_at: datetime | None

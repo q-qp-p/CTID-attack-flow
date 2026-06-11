@@ -667,6 +667,13 @@ def get_job_status(request: Request, job_id: str) -> JobStatusResponse:
     inventory/entity/relationship extraction, explicit ATT&CK reference extraction,
     and narrative text capture from report/note/description fields.
 
+    During `ai_extraction`, orchestration consumes canonical normalized package input
+    and may run in `full_extraction` or `enrichment` mode. Deterministic STIX/OpenCTI
+    findings remain authoritative and can reduce or bypass provider invocation when
+    sufficient. Intermediate extraction output is constrained to an AFB-compatible
+    shape with grounded-only ATT&CK mappings, verbatim action excerpts, AND/OR
+    operators, and true/false condition values.
+
     Downstream processing should read canonical normalized package content when available
     instead of re-reading source-specific raw fields ad hoc.
     """
@@ -918,7 +925,9 @@ def get_job_result(request: Request, job_id: str) -> JobResultResponse:
     is not yet available.
 
     Note: before final result materialization, normalized canonical source packages are
-    persisted per input source and used by downstream deterministic processing stages.
+    persisted per input source and used by downstream orchestration/extraction stages.
+    Result payloads in this phase represent intermediate constrained extraction output
+    rather than final flow graph/export artifacts.
     """
     persistence_service = request.app.state.persistence_service
     job = _get_job_or_404(persistence_service, job_id)

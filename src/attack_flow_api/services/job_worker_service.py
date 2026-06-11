@@ -5,6 +5,14 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from attack_flow_api.config import AppSettings
+from attack_flow_api.providers.registry import ProviderRegistry
+from attack_flow_api.services.ai_orchestration_service import AIOrchestrationService
+from attack_flow_api.services.ai_provider_invocation_service import AIProviderInvocationService
+from attack_flow_api.services.afb_extraction_contracts import AfbExtractionResult
+from attack_flow_api.services.afb_fusion_assembler import build_fused_output_candidate_from_sources
+from attack_flow_api.services.afb_fusion_assembler import FusedOutputCandidate
+from attack_flow_api.services.canonical_flow_conversion_service import build_canonical_flow_output
+from attack_flow_api.services.canonical_flow_validation_service import validate_canonical_flow_output
 from attack_flow_api.services.file_classification import FileRoutingResult, classify_file_for_routing
 from attack_flow_api.services.normalized_package_assembler import (
     build_narrative_normalized_update,
@@ -33,6 +41,8 @@ from attack_flow_api.storage.models import InputSource
 from attack_flow_api.storage.repositories import (
     InputSourceFetchUpdate,
     InputSourceFileUpdate,
+    JobExtractionUpdate,
+    JobUpdate,
     InputSourceStixUpdate,
 )
 
@@ -43,11 +53,13 @@ class JobWorkerService:
         persistence_service: PersistenceService,
         settings: AppSettings,
         file_storage: LocalFileStorage,
+        provider_registry: ProviderRegistry,
         poll_interval_seconds: float = 1.0,
     ):
         self.persistence_service = persistence_service
         self.settings = settings
         self.file_storage = file_storage
+        self.provider_registry = provider_registry
         self.poll_interval_seconds = poll_interval_seconds
         self.worker_id = f"worker-{uuid4()}"
         self._shutdown_event = asyncio.Event()
@@ -78,6 +90,11 @@ class JobWorkerService:
         )
         self._stix_extraction_failed_code = "stix_extraction_failed"
         self._stix_extraction_failed_message = "failed to extract structured stix content"
+        self._provider_invocation_service = AIProviderInvocationService(provider_registry)
+        self._ai_orchestration_service = AIOrchestrationService(
+            persistence_service=persistence_service,
+            provider_invocation_service=self._provider_invocation_service,
+        )
 
     async def run(self) -> None:
         self._logger.info("job worker started", extra={"worker_id": self.worker_id})
@@ -182,6 +199,11 @@ class JobWorkerService:
             await asyncio.sleep(0)
             return
 
+        if stage == "flow_building":
+            self._run_canonical_flow_building(job_id)
+            await asyncio.sleep(0)
+            return
+
         if input_source.type == "url":
             await self._run_url_stage(job_id, stage, input_source)
             await asyncio.sleep(0)
@@ -200,8 +222,46 @@ class JobWorkerService:
         normalized_text = None
         if stage == "ai_extraction":
             normalized_text = self.persistence_service.resolve_canonical_text_for_job(job_id)
+            self._run_ai_extraction_orchestration(job_id)
         _ = (job_id, stage, normalized_text)
         await asyncio.sleep(0)
+
+    def _run_canonical_flow_building(self, job_id: str) -> None:
+        job = self.persistence_service.get_job(job_id)
+        if job is None:
+            return
+
+        fused_output: FusedOutputCandidate | None = None
+        extraction_output: AfbExtractionResult | None = None
+
+        if job.fusion_result_json:
+            fused_output = FusedOutputCandidate.model_validate_json(job.fusion_result_json)
+        elif job.extraction_result_json:
+            extraction_output = AfbExtractionResult.model_validate_json(job.extraction_result_json)
+        else:
+            return
+
+        canonical_flow = build_canonical_flow_output(fused_output=fused_output, extraction_output=extraction_output)
+        if canonical_flow is None:
+            return
+
+        validation = validate_canonical_flow_output(canonical_flow)
+        persisted_canonical_flow = canonical_flow.model_copy(
+            update={
+                "validation_state": "valid" if validation.valid else "invalid",
+                "validation_errors": list(validation.errors),
+            }
+        )
+        self.persistence_service.persist_canonical_flow_output(job_id, persisted_canonical_flow)
+        if not validation.valid:
+            self._logger.warning(
+                "canonical flow validation failed",
+                extra={
+                    "worker_id": self.worker_id,
+                    "job_id": job_id,
+                    "error_count": len(validation.errors),
+                },
+            )
 
     async def _run_url_stage(self, job_id: str, stage: str, input_source: InputSource) -> None:
         if input_source.source_url is None:
@@ -245,6 +305,7 @@ class JobWorkerService:
 
         if stage == "ai_extraction":
             _ = self.persistence_service.resolve_canonical_text_for_job(job_id)
+            self._run_ai_extraction_orchestration(job_id)
 
     async def _fetch_url_content(self, job_id: str, input_source_id: str, source_url: str) -> None:
         try:
@@ -319,6 +380,56 @@ class JobWorkerService:
 
         if stage == "ai_extraction":
             _ = self.persistence_service.resolve_canonical_text_for_job(job_id)
+            self._run_ai_extraction_orchestration(job_id)
+
+    def _run_ai_extraction_orchestration(self, job_id: str) -> None:
+        job = self.persistence_service.get_job(job_id)
+        if job is None:
+            return
+
+        requested_provider_id = job.provider_id
+        requested_model = job.model
+        execution = self._ai_orchestration_service.run_for_job(
+            job_id=job_id,
+            requested_provider_id=requested_provider_id,
+            requested_model=requested_model,
+        )
+
+        self.persistence_service.update_job_extraction(
+            job_id,
+            JobExtractionUpdate(
+                extraction_mode=execution.extraction_mode,
+                provider_invoked=execution.provider_invoked,
+                provider_id=execution.provider_id,
+                model=execution.model_used,
+                extraction_result_json=execution.extraction_payload_json,
+                extraction_validation_state=execution.extraction_validation_state,
+                extraction_repair_attempted=execution.repair_attempted,
+                extraction_provenance_classification=execution.provenance_classification,
+                extraction_authors_json=execution.authors_json,
+                extraction_external_references_json=execution.external_references_json,
+            ),
+        )
+
+        if execution.succeeded:
+            normalized_package = self.persistence_service.resolve_normalized_package_for_job(job_id) or {}
+            extraction_result = AfbExtractionResult.model_validate_json(execution.extraction_payload_json)
+            fused_candidate = build_fused_output_candidate_from_sources(
+                normalized_package=normalized_package,
+                extraction_result=extraction_result,
+            )
+            self.persistence_service.persist_fused_output_candidate(job_id, fused_candidate)
+            self.persistence_service.update_job(
+                job_id,
+                JobUpdate(
+                    result_json=fused_candidate.model_dump_json(),
+                    provider_id=execution.provider_id,
+                    model=execution.model_used,
+                ),
+            )
+            return
+
+        raise RuntimeError(execution.error_message or execution.error_code or "ai extraction failed")
 
     async def _extract_file_content(self, job_id: str, input_source: InputSource) -> None:
         try:

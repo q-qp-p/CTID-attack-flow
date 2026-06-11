@@ -1,22 +1,110 @@
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+ProviderType = Literal["openai", "azure_openai", "anthropic", "openai_compatible"]
+
+
 class ProviderConfig(BaseModel):
-    id: str
-    type: str
+    provider_id: str
+    provider_type: ProviderType
     enabled: bool = True
-    base_url: str | None = None
-    api_key_env: str | None = None
     default_model: str | None = None
-    models: list[str] = Field(default_factory=list)
+    allowed_models: list[str] = Field(default_factory=list)
+
+    # Common provider connection/config fields (non-secret values only)
+    base_url: str | None = None
+    api_version: str | None = None
+    organization: str | None = None
+    project: str | None = None
+
+    # Secret references (environment variable names only)
+    api_key_env: str | None = None
+    azure_api_key_env: str | None = None
+    azure_ad_token_env: str | None = None
+
+    # Provider-specific extras for extensibility
+    provider_config: dict[str, str] = Field(default_factory=dict)
+
+    # Runtime request behavior settings (non-secret)
+    timeout_seconds: float | None = Field(default=None, gt=0)
+    connect_timeout_seconds: float | None = Field(default=None, gt=0)
+    read_timeout_seconds: float | None = Field(default=None, gt=0)
+    retry_max_attempts: int | None = Field(default=None, ge=1)
+    retry_base_delay_ms: int | None = Field(default=None, ge=0)
+    retry_max_delay_ms: int | None = Field(default=None, ge=0)
+
+    def to_public_metadata(self) -> "ProviderPublicMetadata":
+        return ProviderPublicMetadata(
+            provider_id=self.provider_id,
+            provider_type=self.provider_type,
+            enabled=self.enabled,
+            default_model=self.default_model,
+            allowed_models=self.allowed_models,
+            base_url=self.base_url,
+            api_version=self.api_version,
+            organization=self.organization,
+            project=self.project,
+        )
+
+
+class ProviderPublicMetadata(BaseModel):
+    provider_id: str
+    provider_type: ProviderType
+    enabled: bool
+    default_model: str | None = None
+    allowed_models: list[str] = Field(default_factory=list)
+    base_url: str | None = None
+    api_version: str | None = None
+    organization: str | None = None
+    project: str | None = None
 
 
 class ProvidersConfig(BaseModel):
     providers: list[ProviderConfig] = Field(default_factory=list)
+
+    def get_provider_by_id(self, provider_id: str) -> ProviderConfig | None:
+        normalized = provider_id.strip()
+        if not normalized:
+            return None
+        for provider in self.providers:
+            if provider.provider_id == normalized:
+                return provider
+        return None
+
+    def list_enabled_providers(self) -> list[ProviderConfig]:
+        return [provider for provider in self.providers if provider.enabled]
+
+    def list_public_metadata(self) -> list[ProviderPublicMetadata]:
+        return [provider.to_public_metadata() for provider in self.providers]
+
+    def get_openai_provider_by_id(self, provider_id: str) -> ProviderConfig | None:
+        provider = self.get_provider_by_id(provider_id)
+        if provider is None:
+            return None
+        if provider.provider_type != "openai":
+            return None
+        return provider
+
+    def validate_openai_provider_config(self, provider_id: str) -> list[str]:
+        provider = self.get_openai_provider_by_id(provider_id)
+        if provider is None:
+            return ["provider_not_found_or_not_openai"]
+
+        errors: list[str] = []
+        if not provider.enabled:
+            errors.append("provider_disabled")
+        if provider.api_key_env is None or not provider.api_key_env.strip():
+            errors.append("api_key_env_missing")
+        if provider.default_model is None and not provider.allowed_models:
+            errors.append("model_configuration_missing")
+        if provider.base_url is not None and not provider.base_url.strip():
+            errors.append("base_url_invalid")
+        return errors
 
 
 class AppSettings(BaseSettings):

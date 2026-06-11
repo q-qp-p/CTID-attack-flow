@@ -1,10 +1,13 @@
-from pathlib import Path
 import json
+from pathlib import Path
+
+from pydantic import BaseModel
 
 from attack_flow_api.storage.models import Artifact, AuditEvent, InputSource, Job
 from attack_flow_api.storage.repositories import (
     ArtifactCreate,
     AuditEventCreate,
+    JobCanonicalFlowUpdate,
     InputSourceCreate,
     InputSourceFileUpdate,
     InputSourceFetchUpdate,
@@ -12,9 +15,13 @@ from attack_flow_api.storage.repositories import (
     InputSourceStixUpdate,
     InputSourceTextUpdate,
     JobCreate,
+    JobExtractionUpdate,
+    JobFusionUpdate,
     JobUpdate,
     PersistenceRepository,
 )
+from attack_flow_api.services.afb_fusion_assembler import FusedOutputCandidate
+from attack_flow_api.services.canonical_flow_contracts import CanonicalFlowOutput
 
 
 class PersistenceService:
@@ -166,8 +173,51 @@ class PersistenceService:
             worker_id=worker_id,
         )
 
+    def update_job_extraction(self, job_id: str, payload: JobExtractionUpdate) -> Job | None:
+        return self.repository.update_job_extraction(job_id, payload)
+
+    def update_job_fusion(self, job_id: str, payload: JobFusionUpdate) -> Job | None:
+        return self.repository.update_job_fusion(job_id, payload)
+
+    def update_job_canonical_flow(self, job_id: str, payload: JobCanonicalFlowUpdate) -> Job | None:
+        return self.repository.update_job_canonical_flow(job_id, payload)
+
+    def persist_fused_output_candidate(self, job_id: str, payload: FusedOutputCandidate) -> Job | None:
+        return self.update_job_fusion(
+            job_id,
+            JobFusionUpdate(
+                fusion_result_json=payload.model_dump_json(),
+                fusion_validation_state=payload.fusion_validation_state,
+                fusion_provenance_json=_json_dumps(payload.provenance),
+                fusion_conflicts_json=_json_dumps_model_list(payload.conflicts),
+                fusion_attack_refs_json=_json_dumps_model_list(payload.attack_refs),
+                fusion_entities_json=_json_dumps_model_list(payload.entities),
+                fusion_relationships_json=_json_dumps_model_list(payload.relationships),
+            ),
+        )
+
+    def persist_canonical_flow_output(self, job_id: str, payload: CanonicalFlowOutput) -> Job | None:
+        return self.update_job_canonical_flow(
+            job_id,
+            JobCanonicalFlowUpdate(
+                canonical_flow_json=payload.model_dump_json(),
+                canonical_flow_validation_state=payload.validation_state,
+                canonical_flow_provenance_json=_json_dumps(payload.provenance),
+                canonical_flow_conflicts_json=_json_dumps_model_list(payload.conflicts),
+                canonical_flow_validation_errors_json=_json_dumps_model_list(payload.validation_errors),
+            ),
+        )
+
     def mark_job_completed(self, job_id: str) -> Job | None:
         return self.repository.mark_job_completed(job_id)
 
     def mark_job_failed(self, job_id: str, error_code: str, error_message: str) -> Job | None:
         return self.repository.mark_job_failed(job_id, error_code=error_code, error_message=error_message)
+
+
+def _json_dumps(payload: object) -> str:
+    return json.dumps(payload)
+
+
+def _json_dumps_model_list(items: list[BaseModel]) -> str:
+    return json.dumps([item.model_dump(mode="json") for item in items])

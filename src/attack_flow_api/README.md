@@ -52,10 +52,30 @@ Optional same-origin proxy example:
 - See `deploy/nginx/ui-api-proxy.conf` for a minimal nginx example that serves UI static files and proxies `/api/` to the backend API.
 - This is optional convenience only; separate API and UI deployment remains the default model.
 
+Proxy certificate support:
+
+- Put corporate root CA certificates into `certs/` as `.crt` files.
+- The API image copies `certs/` at build time and imports any `.crt` files into the trust store.
+- Rebuild the API image after changing certificates.
+
 For full self-hosting guidance (API/UI separate deployment, persistence, env setup, and CORS notes), see `docs/deployment-self-hosting.md`.
 
 On startup, the API initializes SQLite automatically at `SQLITE_PATH` (default: `data/attack-flow.db`).
 It also ensures local storage directories exist for uploads, artifacts, and normalized content under `DATA_DIR`.
+
+## AFA-34 Fusion
+
+The API worker now performs conservative fusion after successful AI extraction.
+
+- Deterministic STIX/OpenCTI findings and AI-derived findings are merged without introducing new ATT&CK inference.
+- Deterministic ATT&CK/source facts remain authoritative when AI output disagrees.
+- Source-grounded steps without ATT&CK mappings are preserved as-is.
+- Verbatim descriptions are preserved.
+- Only `AND`/`OR` operators and `true`/`false` conditions are accepted into fused output.
+- Source-grounded attachment semantics are preserved; attachment expansion is not heuristic.
+- Conflicts are recorded explicitly in fused output instead of being silently discarded.
+
+This fusion pass is internal to the worker pipeline and does not change the public API surface.
 
 Quick check:
 
@@ -97,3 +117,87 @@ Optional environment variables:
 - `FILE_STORAGE_STRICT_MODE`
 - `FILE_STORAGE_MAX_BYTES`
 - `PROVIDERS_CONFIG_PATH`
+
+## Provider Abstraction (AFA-30)
+
+The API now treats AI providers through a shared provider abstraction and a registry built from `PROVIDERS_CONFIG_PATH`.
+
+- Provider configuration is loaded into internal models (`ProviderConfig`, `ProvidersConfig`) and registered once at startup.
+- Provider adapters are resolved by `provider_id` via the registry instead of direct vendor-specific calls.
+- Public/safe provider metadata is separated from secret-bearing configuration.
+  - Public metadata includes fields such as provider id/type, enabled status, default model, and allowed models.
+  - Secret-bearing fields (for example API key env var references) remain internal and are not returned from `/api/v1/providers`.
+- A normalized provider error model exists for consistent error semantics across providers (auth, timeout, rate limit, unavailable, invalid response, configuration error).
+- Optional provider invocation is explicitly represented:
+  - no provider requested,
+  - provider requested but skipped when deterministic structured input is sufficient,
+  - provider requested and resolved.
+
+Current limitations in AFA-30:
+
+- Concrete provider vendor behavior is intentionally placeholder-only.
+- Registry/adapters are for abstraction and wiring; provider validation execution and orchestration logic are handled in later tickets.
+
+## Provider Validation (AFA-31)
+
+AFA-31 adds the first concrete provider adapter implementation: OpenAI.
+
+- `POST /api/v1/providers/validate` validates a configured provider by `provider_id`.
+- Validation executes through the provider abstraction/registry layer and then the concrete OpenAI adapter.
+- OpenAI adapter runtime behavior includes:
+  - model selection (explicit request model, then provider default, then first allowed model),
+  - bounded timeout handling,
+  - bounded retry/backoff for transient failures only.
+- Validation responses are normalized and safe:
+  - practical fields include `valid`, `provider_id`, `provider_type`, optional `model`, `latency_ms`, and `request_id`,
+  - failure details are normalized (error code/category/retryable/status),
+  - secret-bearing values are never returned.
+
+Practical limitations in AFA-31:
+
+- Only OpenAI is implemented as a concrete adapter in this ticket.
+- Other provider types remain registry-configurable but adapter behavior is not implemented yet.
+
+## Orchestration and Intermediate Extraction (AFA-32)
+
+AFA-32 adds orchestration and structured extraction assembly for downstream flow-building.
+
+- Orchestration input is the canonical normalized package produced by AFA-23.
+- Two orchestration modes are supported:
+  - `full_extraction` for narrative-heavy inputs,
+  - `enrichment` for deterministic structured inputs.
+- Deterministic STIX/OpenCTI findings from AFA-24 are preserved explicitly in output:
+  - ATT&CK refs,
+  - entities,
+  - relationships,
+  - provenance.
+- Provider invocation is optional:
+  - deterministic-structured sufficiency may reduce or bypass provider invocation.
+- Extraction output is intentionally constrained to an AFB v2-compatible intermediate shape.
+- Hard constraints enforced in extraction output validation:
+  - ATT&CK techniques must be explicitly grounded in source,
+  - steps may exist without ATT&CK mappings,
+  - attack-action descriptions must be verbatim source excerpts,
+  - operators are limited to `AND`/`OR`,
+  - conditions are limited to `true`/`false`,
+  - authors and external references are preserved as lists.
+- Malformed provider output is validated and may receive one practical bounded repair attempt.
+
+Current limitations in AFA-32:
+
+- Output is an intermediate extraction result, not final flow graph/export output.
+
+## Canonical Flow (AFA-33)
+
+AFA-33 converts AFA-34 fused output into one canonical internal flow model.
+
+- AFA-34 fused output is the primary input.
+- AFA-32 direct extraction output may be used only as a fallback if the canonical converter is given that input.
+- The canonical model preserves actions, conditions, operators, assets/attachments, ATT&CK refs, evidence, confidence, provenance, authors, external references, and upstream conflict metadata where available.
+- Only explicit source-grounded ATT&CK techniques are allowed.
+- Steps without ATT&CK mappings are allowed.
+- Only `AND`/`OR` operators and `true`/`false` conditions are allowed.
+- Descriptions remain verbatim source excerpts.
+- Source-grounded attachment semantics are enforced.
+
+This canonical model is internal to the worker pipeline and is what the backend persists before export-specific handling.

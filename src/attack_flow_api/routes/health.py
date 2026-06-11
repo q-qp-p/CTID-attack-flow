@@ -3,6 +3,11 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from attack_flow_api.config import ProviderPublicMetadata
+from attack_flow_api.services.provider_validation_service import (
+    ProviderValidationService,
+    ProviderValidationServiceResult,
+)
 from attack_flow_api.services.status_service import StatusService
 
 
@@ -48,6 +53,25 @@ class ProvidersResponse(BaseModel):
     request_id: str
 
 
+class ProviderValidateRequest(BaseModel):
+    provider_id: str
+    model: str | None = None
+
+
+class ProviderValidateResponse(BaseModel):
+    valid: bool
+    provider_id: str
+    provider_type: str | None = None
+    model: str | None = None
+    latency_ms: int
+    error_code: str | None = None
+    error_category: str | None = None
+    error_message: str | None = None
+    retryable: bool | None = None
+    status_code: int | None = None
+    request_id: str
+
+
 @router.get("/health", response_model=HealthResponse)
 def health_check(request: Request) -> HealthResponse:
     return HealthResponse(
@@ -61,6 +85,11 @@ def health_check(request: Request) -> HealthResponse:
 
 @router.get("/status", response_model=StatusResponse)
 def service_status(request: Request) -> StatusResponse:
+    """Return lightweight operational status, including configured provider count.
+
+    Provider information exposed here is intentionally non-secret and reflects
+    registry-driven provider configuration loaded at startup.
+    """
     persistence_service = request.app.state.persistence_service
     providers_config = request.app.state.providers_config
     runtime_paths = request.app.state.runtime_paths
@@ -88,16 +117,61 @@ def service_status(request: Request) -> StatusResponse:
 
 @router.get("/providers", response_model=ProvidersResponse)
 def list_providers(request: Request) -> ProvidersResponse:
+    """Return safe/public provider metadata only.
+
+    This endpoint intentionally excludes secret-bearing provider configuration
+    (for example API key environment variable references).
+    """
     providers_config = request.app.state.providers_config
     providers = [
-        ProviderPublic(
-            id=provider.id,
-            type=provider.type,
-            enabled=provider.enabled,
-            default_model=provider.default_model,
-            models=provider.models,
-        )
-        for provider in providers_config.providers
+        _to_provider_public(provider)
+        for provider in providers_config.list_public_metadata()
     ]
 
     return ProvidersResponse(providers=providers, request_id=request.state.request_id)
+
+
+@router.post("/providers/validate", response_model=ProviderValidateResponse)
+def validate_provider(request: Request, payload: ProviderValidateRequest) -> ProviderValidateResponse:
+    """Validate a configured provider by provider_id.
+
+    Validation executes through the provider registry and adapter abstraction.
+    Responses are normalized and intentionally exclude secret-bearing fields.
+    """
+    provider_registry = request.app.state.provider_registry
+    validation_service = ProviderValidationService(provider_registry)
+    result = validation_service.validate_provider(
+        provider_id=payload.provider_id,
+        model=payload.model,
+    )
+    return _to_provider_validate_response(result, request_id=request.state.request_id)
+
+
+def _to_provider_public(provider: ProviderPublicMetadata) -> ProviderPublic:
+    return ProviderPublic(
+        id=provider.provider_id,
+        type=provider.provider_type,
+        enabled=provider.enabled,
+        default_model=provider.default_model,
+        models=provider.allowed_models,
+    )
+
+
+def _to_provider_validate_response(
+    result: ProviderValidationServiceResult,
+    *,
+    request_id: str,
+) -> ProviderValidateResponse:
+    return ProviderValidateResponse(
+        valid=result.valid,
+        provider_id=result.provider_id,
+        provider_type=result.provider_type,
+        model=result.model,
+        latency_ms=result.latency_ms,
+        error_code=result.error_code,
+        error_category=result.error_category,
+        error_message=result.error_message,
+        retryable=result.retryable,
+        status_code=result.status_code,
+        request_id=request_id,
+    )

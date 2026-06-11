@@ -22,6 +22,80 @@ Key variables:
 - `VITE_API_BASE_URL_PROXY`: API base path for bundled proxy deployment
 - `DATA_DIR`, `SQLITE_PATH`, `UPLOAD_DIR`, `ARTIFACT_DIR`: backend persistence paths
 
+Proxy certificate support:
+
+- Place corporate root CA certificates in `certs/` as `.crt` files.
+- `Dockerfile.api` copies `certs/` into the image and imports those certificates during build.
+- Rebuild the API image after changing certificates.
+
+## Provider Configuration and Metadata (AFA-30)
+
+Provider configuration is loaded from `PROVIDERS_CONFIG_PATH` into a registry-backed abstraction layer.
+
+- Providers are configured by `provider_id` and `provider_type` (for example `openai`, `azure_openai`, `anthropic`, `openai_compatible`).
+- Runtime provider access is registry-driven by `provider_id`, not hardcoded to a vendor client.
+- Public provider metadata is intentionally separate from secret-bearing configuration.
+  - `/api/v1/providers` exposes safe metadata only.
+  - Secret-bearing fields are internal and must not be returned in API responses.
+- Provider invocation can be explicitly skipped when deterministic structured input is sufficient.
+
+Keep provider secrets in environment variables or your secret manager. Do not store secret values in repository config files.
+
+## Provider Validation API (AFA-31)
+
+AFA-31 introduces provider validation through the API:
+
+- `POST /api/v1/providers/validate` validates a configured provider by `provider_id`.
+- Validation runs through the provider abstraction/registry layer and currently uses the OpenAI concrete adapter for `provider_type=openai`.
+- OpenAI adapter behavior for validation supports practical runtime controls:
+  - model selection from request/default/allowed models,
+  - bounded timeout behavior,
+  - bounded retry/backoff for transient failures.
+- Validation output is normalized and safe for API clients:
+  - includes result/status metadata and `request_id`,
+  - does not expose provider secrets or secret-bearing config fields.
+
+## Orchestration Behavior (AFA-32)
+
+AFA-32 introduces orchestration in the worker pipeline (`ai_extraction` stage) using canonical normalized input.
+
+- Canonical normalized package data (AFA-23) is the orchestration source input.
+- Orchestration modes:
+  - `full_extraction` for narrative-heavy inputs,
+  - `enrichment` for deterministic structured STIX/OpenCTI-derived inputs.
+- Deterministic findings from AFA-24 are preserved in intermediate output:
+  - explicit ATT&CK refs,
+  - entities,
+  - relationships,
+  - provenance.
+- Provider invocation is optional when deterministic input is sufficient.
+- Output is constrained to an AFB v2-compatible intermediate extraction shape.
+- Validation enforces practical safety/grounding constraints:
+  - only explicitly grounded ATT&CK techniques,
+  - steps may remain unmapped to ATT&CK,
+  - action descriptions must be verbatim source excerpts,
+  - operators limited to `AND`/`OR`,
+  - conditions limited to `true`/`false`,
+  - authors and external references remain list-valued metadata.
+- Malformed provider output may receive one bounded repair attempt before failing cleanly.
+
+This stage intentionally does not produce final flow graph/export artifacts.
+
+## Canonical Flow Behavior (AFA-33)
+
+AFA-33 adds the internal canonical flow model used after orchestration/extraction.
+
+- AFA-34 fused output is converted into one canonical internal flow model.
+- AFA-32 direct extraction output may be used as fallback only if it is passed into the canonical converter.
+- The canonical model preserves actions, conditions, operators, assets/attachments, ATT&CK refs, evidence, confidence, provenance, authors, external references, and conflict metadata when present.
+- Only explicit source-grounded ATT&CK techniques are allowed.
+- Steps without ATT&CK mappings are allowed.
+- Only `AND`/`OR` operators and `true`/`false` conditions are allowed.
+- Descriptions remain verbatim source excerpts.
+- Source-grounded attachment semantics are enforced.
+
+This is an internal worker-stage model and does not change the public API surface.
+
 ## Start API Independently
 
 Container run:
