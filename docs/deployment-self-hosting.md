@@ -96,6 +96,20 @@ AFA-33 adds the internal canonical flow model used after orchestration/extractio
 
 This is an internal worker-stage model and does not change the public API surface.
 
+## Audit Trail (AFA-14)
+
+Jobs emit structured audit events across the lifecycle, and the API exposes a debug-oriented retrieval endpoint:
+
+- `GET /api/v1/jobs/{job_id}/audit`
+- Returns the current job snapshot plus ordered audit events.
+- Intended for support/debug workflows rather than end-user reporting.
+- Secrets and unsafe raw content are redacted or suppressed by default.
+- Useful fields remain available, such as status/stage transitions, provider IDs, model names, counts, file classifications, and error codes.
+
+Practical limitation:
+
+- Audit history is kept intentionally conservative and does not surface raw incident text or provider payloads by default.
+
 ## Start API Independently
 
 Container run:

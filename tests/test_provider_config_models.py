@@ -82,12 +82,14 @@ def test_get_openai_provider_by_id_returns_only_openai_provider() -> None:
     providers = ProvidersConfig(
         providers=[
             ProviderConfig(provider_id="p1", provider_type="openai", enabled=True),
-            ProviderConfig(provider_id="p2", provider_type="anthropic", enabled=True),
+            ProviderConfig(provider_id="p2", provider_type="azure_openai", enabled=True),
+            ProviderConfig(provider_id="p3", provider_type="anthropic", enabled=True),
         ]
     )
 
     assert providers.get_openai_provider_by_id("p1") is not None
-    assert providers.get_openai_provider_by_id("p2") is None
+    assert providers.get_openai_provider_by_id("p2") is not None
+    assert providers.get_openai_provider_by_id("p3") is None
     assert providers.get_openai_provider_by_id("missing") is None
 
 
@@ -109,13 +111,39 @@ def test_validate_openai_provider_config_reports_usable_and_error_states() -> No
                 allowed_models=[],
                 base_url="   ",
             ),
+            ProviderConfig(
+                provider_id="azure-usable",
+                provider_type="azure_openai",
+                enabled=True,
+                azure_api_key_env="AZURE_OPENAI_KEY",
+                default_model="gpt-4.1-mini",
+                base_url="https://example.openai.azure.com",
+                api_version="2024-10-21",
+            ),
+            ProviderConfig(
+                provider_id="azure-invalid",
+                provider_type="azure_openai",
+                enabled=False,
+                allowed_models=[],
+                base_url="   ",
+                api_version="   ",
+            ),
         ]
     )
 
     assert providers.validate_openai_provider_config("usable") == []
+    assert providers.validate_openai_provider_config("azure-usable") == []
     assert providers.validate_openai_provider_config("missing") == ["provider_not_found_or_not_openai"]
     assert providers.validate_openai_provider_config("invalid") == [
         "provider_disabled",
+        "api_key_env_missing",
+        "model_configuration_missing",
+        "base_url_invalid",
+    ]
+    assert providers.validate_openai_provider_config("azure-invalid") == [
+        "provider_disabled",
+        "base_url_missing",
+        "api_version_missing",
         "api_key_env_missing",
         "model_configuration_missing",
         "base_url_invalid",

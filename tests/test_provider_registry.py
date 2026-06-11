@@ -28,6 +28,16 @@ def _build_providers_config() -> ProvidersConfig:
                 enabled=False,
                 default_model="claude-3-5-haiku-latest",
             ),
+            ProviderConfig(
+                provider_id="azure-openai",
+                provider_type="azure_openai",
+                enabled=True,
+                base_url="https://example.openai.azure.com",
+                api_version="2024-10-21",
+                azure_ad_token_env="AZURE_AD_TOKEN",
+                default_model="gpt-4.1-mini",
+                allowed_models=["gpt-4.1-mini"],
+            ),
         ]
     )
 
@@ -41,6 +51,17 @@ def test_registry_resolves_enabled_provider_adapter() -> None:
     assert isinstance(adapter, OpenAIProviderAdapter)
     assert adapter.provider_id == "default-openai"
     assert adapter.provider_type == "openai"
+
+
+def test_registry_resolves_azure_provider_adapter() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    adapter = registry.resolve_adapter("azure-openai")
+
+    assert isinstance(adapter, ProviderAdapter)
+    assert isinstance(adapter, OpenAIProviderAdapter)
+    assert adapter.provider_id == "azure-openai"
+    assert adapter.provider_type == "azure_openai"
 
 
 def test_registry_raises_for_missing_provider() -> None:
@@ -78,7 +99,11 @@ def test_registry_lists_public_metadata_for_all_configured_providers() -> None:
 
     providers = registry.list_public_metadata()
 
-    assert [item.provider_id for item in providers] == ["default-openai", "disabled-anthropic"]
+    assert [item.provider_id for item in providers] == [
+        "default-openai",
+        "disabled-anthropic",
+        "azure-openai",
+    ]
 
 
 def test_registry_optional_invocation_not_requested() -> None:

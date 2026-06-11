@@ -1,4 +1,6 @@
 import json
+import logging
+import time
 from dataclasses import dataclass
 
 from attack_flow_api.providers.adapter import ProviderAdapterInvocationError
@@ -25,6 +27,7 @@ class ProviderInvocationResult:
 class AIProviderInvocationService:
     def __init__(self, provider_registry: ProviderRegistry):
         self.provider_registry = provider_registry
+        self._logger = logging.getLogger("attack_flow_api.provider_invocation")
 
     def invoke_if_needed(
         self,
@@ -34,9 +37,21 @@ class AIProviderInvocationService:
         requested_provider_id: str | None,
         requested_model: str | None = None,
     ) -> ProviderInvocationResult:
+        effective_provider_id = requested_provider_id
+        if effective_provider_id is None or not effective_provider_id.strip():
+            effective_provider_id = self.provider_registry.get_default_enabled_provider_id()
+
         plan = self.provider_registry.plan_optional_invocation(
-            requested_provider_id=requested_provider_id,
+            requested_provider_id=effective_provider_id,
             deterministic_input_sufficient=packaged_input.deterministic_input_sufficient,
+        )
+
+        self._logger.info(
+            "provider invocation planned requested_provider_id=%s effective_provider_id=%s mode=%s adapter_resolved=%s",
+            requested_provider_id,
+            effective_provider_id,
+            plan.mode.value,
+            plan.adapter is not None,
         )
 
         if plan.adapter is None:
@@ -47,12 +62,17 @@ class AIProviderInvocationService:
                 deterministic_input_sufficient=packaged_input.deterministic_input_sufficient,
             )
 
+        provider_config = self.provider_registry.get_provider_config(plan.provider_id or "")
+
         selected_model = requested_model
         if selected_model is None:
-            provider_config = self.provider_registry.get_provider_config(plan.provider_id or "")
             selected_model = provider_config.default_model or (
                 provider_config.allowed_models[0] if provider_config.allowed_models else None
             )
+
+        max_attempts = provider_config.retry_max_attempts if provider_config.retry_max_attempts is not None else 3
+        base_delay_ms = provider_config.retry_base_delay_ms if provider_config.retry_base_delay_ms is not None else 200
+        max_delay_ms = provider_config.retry_max_delay_ms if provider_config.retry_max_delay_ms is not None else 2000
 
         generation_request = StructuredGenerationRequest(
             provider_id=plan.provider_id or "",
@@ -62,28 +82,50 @@ class AIProviderInvocationService:
             response_format=StructuredResponseFormat.JSON_OBJECT,
         )
 
-        try:
-            response = plan.adapter.generate_structured(generation_request)
-            return ProviderInvocationResult(
-                provider_invoked=True,
-                provider_id=response.provider_id,
-                model_used=response.model,
-                deterministic_input_sufficient=packaged_input.deterministic_input_sufficient,
-                output_json=response.output_json,
-                output_text=response.output_text,
-            )
-        except ProviderAdapterInvocationError as exc:
-            normalized_error = exc.error
-            return ProviderInvocationResult(
-                provider_invoked=True,
-                provider_id=plan.provider_id,
-                model_used=selected_model,
-                deterministic_input_sufficient=packaged_input.deterministic_input_sufficient,
-                error_code=normalized_error.code,
-                error_category=normalized_error.category.value,
-                error_message=normalized_error.message,
-                retryable=normalized_error.retryable,
-            )
+        self._logger.debug(
+            "provider invocation prompt provider_id=%s model=%s\n%s",
+            plan.provider_id,
+            selected_model,
+            generation_request.prompt,
+        )
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = plan.adapter.generate_structured(generation_request)
+                return ProviderInvocationResult(
+                    provider_invoked=True,
+                    provider_id=response.provider_id,
+                    model_used=response.model,
+                    deterministic_input_sufficient=packaged_input.deterministic_input_sufficient,
+                    output_json=response.output_json,
+                    output_text=response.output_text,
+                )
+            except ProviderAdapterInvocationError as exc:
+                normalized_error = exc.error
+                is_last_attempt = attempt >= max_attempts
+                if normalized_error.retryable and not is_last_attempt:
+                    delay_seconds = min(base_delay_ms * (2 ** (attempt - 1)), max_delay_ms) / 1000.0
+                    self._logger.info(
+                        "provider invocation retrying provider_id=%s model=%s attempt=%s delay_seconds=%.3f error_code=%s",
+                        plan.provider_id,
+                        selected_model,
+                        attempt,
+                        delay_seconds,
+                        normalized_error.code,
+                    )
+                    time.sleep(delay_seconds)
+                    continue
+
+                return ProviderInvocationResult(
+                    provider_invoked=True,
+                    provider_id=plan.provider_id,
+                    model_used=selected_model,
+                    deterministic_input_sufficient=packaged_input.deterministic_input_sufficient,
+                    error_code=normalized_error.code,
+                    error_category=normalized_error.category.value,
+                    error_message=normalized_error.message,
+                    retryable=normalized_error.retryable,
+                )
 
     def _compose_provider_prompt(self, prompt_bundle: PromptTemplateBundle) -> str:
         schema_json = json.dumps(prompt_bundle.output_schema, indent=2, sort_keys=True)

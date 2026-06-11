@@ -2,10 +2,9 @@ providers:
   - provider_id: default-openai
     provider_type: openai
     enabled: true
-    base_url: https://api.openai.com/v1
+    base_url: https://api.openai.com/v1/
     api_key_env: OPENAI_API_KEY
-    default_model: gpt-4o-mini
+    default_model: "gpt-5.5"
     allowed_models:
-      - gpt-4o-mini
-
+      - "gpt-5.5"
 # Set OPENAI_API_KEY in your environment before starting the API.

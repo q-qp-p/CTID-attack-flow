@@ -64,6 +64,21 @@ def test_build_provider_input_preserves_deterministic_findings() -> None:
     assert packaged.deterministic_relationships[0]["relationship_type"] == "uses"
 
 
+def test_build_provider_input_requires_attack_refs_to_skip_provider() -> None:
+    packaged = build_provider_orchestration_input(
+        {
+            "source_type": "document_extracted_text",
+            "normalized_text": "Observed artifact without deterministic refs",
+            "structured_summary": {"bundle_metadata": {"id": "bundle--1"}},
+            "entities": [{"object_id": "malware--1", "object_type": "malware"}],
+            "relationships": [{"relationship_id": "relationship--1"}],
+        }
+    )
+
+    assert packaged.mode == OrchestrationMode.ENRICHMENT
+    assert packaged.deterministic_input_sufficient is False
+
+
 def test_build_provider_input_includes_explicit_constraints() -> None:
     packaged = build_provider_orchestration_input(
         {

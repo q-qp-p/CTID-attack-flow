@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,6 +30,7 @@ from attack_flow_api.logging_utils import setup_logging
 from attack_flow_api.routes.jobs import router as jobs_router
 from attack_flow_api.middleware import RequestContextMiddleware
 from attack_flow_api.providers.registry import ProviderRegistry
+from attack_flow_api.services.audit_retrieval_service import AuditRetrievalService
 from attack_flow_api.routes.health import router as health_router
 from attack_flow_api.services.job_worker_service import JobWorkerService
 from attack_flow_api.services.persistence_service import PersistenceService
@@ -49,6 +51,13 @@ async def lifespan(app: FastAPI):
     setup_logging(settings.log_level)
     providers_config = load_providers_config(settings.providers_config_path)
     provider_registry = ProviderRegistry(providers_config)
+    startup_logger = logging.getLogger("attack_flow_api.startup")
+    startup_logger.info(
+        "provider registry resolved default_provider_id=%s enabled_provider_ids=%s config_path=%s",
+        provider_registry.get_default_enabled_provider_id(),
+        [provider.provider_id for provider in providers_config.list_enabled_providers()],
+        settings.providers_config_path,
+    )
     runtime_paths = resolve_runtime_paths(settings)
     ensure_runtime_directories(runtime_paths)
     initialize_database(settings.sqlite_path)
@@ -67,6 +76,7 @@ async def lifespan(app: FastAPI):
     app.state.runtime_paths = runtime_paths
     app.state.sqlite_path = settings.sqlite_path
     app.state.persistence_service = persistence_service
+    app.state.audit_retrieval_service = AuditRetrievalService(persistence_service)
     app.state.file_storage = file_storage
     job_worker = JobWorkerService(
         persistence_service=persistence_service,
