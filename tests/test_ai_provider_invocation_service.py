@@ -157,6 +157,32 @@ def test_invocation_service_invokes_provider_for_full_extraction() -> None:
     assert result.output_json == {"attack_actions": []}
 
 
+def test_invocation_service_logs_generated_prompt(caplog) -> None:
+    packaged = build_provider_orchestration_input(
+        {
+            "source_type": "narrative_text",
+            "normalized_text": "Observed activity details",
+        }
+    )
+    bundle = build_prompt_template_bundle(packaged)
+    service = AIProviderInvocationService(
+        _registry_with_fake_adapter(_FakeSuccessAdapter("default-openai", "openai"))
+    )
+
+    with caplog.at_level("DEBUG", logger="attack_flow_api.provider_invocation"):
+        service.invoke_if_needed(
+            packaged_input=packaged,
+            prompt_bundle=bundle,
+            requested_provider_id="default-openai",
+        )
+
+    message = "\n".join(record.message for record in caplog.records)
+    assert "provider invocation prompt provider_id=default-openai" in message
+    assert "SYSTEM_INSTRUCTION:" in message
+    assert "USER_PROMPT:" in message
+    assert "OUTPUT_SCHEMA:" in message
+
+
 def test_invocation_service_uses_default_enabled_provider_when_unrequested() -> None:
     packaged = build_provider_orchestration_input(
         {

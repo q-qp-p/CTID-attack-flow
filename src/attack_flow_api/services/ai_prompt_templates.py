@@ -32,17 +32,18 @@ def _build_system_instruction() -> str:
     return (
         "You are an extraction engine that returns JSON only.\n"
         "Follow these hard constraints exactly:\n"
-        "1) Use ATT&CK techniques only when explicitly grounded in source evidence.\n"
-        "2) Never infer missing ATT&CK techniques.\n"
-        "3) Create attack-action steps even when no technique mapping is available.\n"
-        "4) attack-action descriptions must be verbatim source excerpts only.\n"
-        "5) Do not paraphrase, summarize, or modify cited source text.\n"
-        "6) attack-operator values may only be AND or OR.\n"
-        "7) attack-condition values may only be true or false.\n"
-        "8) Only create conditions/branching when explicitly grounded in source evidence.\n"
-        "9) Preserve authors and external references from source metadata.\n"
-        "10) Technique confidence must be in [0.0, 1.0].\n"
-        "11) Return output that conforms to the provided AFB-compatible extraction schema."
+        "1) Prefer explicit ATT&CK mappings when they are named in source evidence.\n"
+        "2) If the source strongly implies a tactic or technique, infer the most likely ATT&CK mapping instead of leaving it blank.\n"
+        "3) When you infer a tactic or technique, set confidence lower than explicit mappings and explain the reasoning in grounded_by.\n"
+        "4) Create attack-action steps even when no technique mapping is available.\n"
+        "5) attack-action descriptions must be verbatim source excerpts only.\n"
+        "6) Do not paraphrase, summarize, or modify cited source text.\n"
+        "7) attack-operator values may only be AND or OR.\n"
+        "8) attack-condition values may only be true or false.\n"
+        "9) Only create conditions/branching when explicitly grounded in source evidence.\n"
+        "10) Preserve authors and external references from source metadata.\n"
+        "11) Technique confidence must be in [0.0, 1.0].\n"
+        "12) Return output that conforms to the provided AFB-compatible extraction schema."
     )
 
 
@@ -55,7 +56,9 @@ def _build_full_extraction_prompt(packaged_input: ProviderOrchestrationInput) ->
         "constraints": _constraints_payload(packaged_input),
         "required_output_behavior": {
             "allow_actions_without_techniques": True,
-            "techniques_must_be_explicitly_grounded": True,
+            "allow_best_effort_technique_inference": True,
+            "allow_best_effort_tactic_inference": True,
+            "techniques_may_be_inferred_when_strongly_supported": True,
             "description_must_be_verbatim": True,
             "preserve_authors": True,
             "preserve_external_references": True,
@@ -82,7 +85,9 @@ def _build_enrichment_prompt(packaged_input: ProviderOrchestrationInput) -> str:
             "preserve_deterministic_findings": True,
             "do_not_drop_or_rewrite_deterministic_attack_refs": True,
             "allow_actions_without_techniques": True,
-            "techniques_must_be_explicitly_grounded": True,
+            "allow_best_effort_technique_inference": True,
+            "allow_best_effort_tactic_inference": True,
+            "techniques_may_be_inferred_when_strongly_supported": True,
             "description_must_be_verbatim": True,
             "preserve_authors": True,
             "preserve_external_references": True,
@@ -95,7 +100,7 @@ def _constraints_payload(packaged_input: ProviderOrchestrationInput) -> dict[str
     constraints = packaged_input.constraints
     return {
         "explicit_attack_refs_only": constraints.explicit_attack_refs_only,
-        "no_missing_technique_inference": constraints.no_missing_technique_inference,
+        "no_missing_technique_inference": False,
         "descriptions_must_be_verbatim_excerpts": constraints.descriptions_must_be_verbatim_excerpts,
         "conditions_must_be_source_grounded": constraints.conditions_must_be_source_grounded,
         "operators_must_be_source_grounded": constraints.operators_must_be_source_grounded,

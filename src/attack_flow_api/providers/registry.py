@@ -138,7 +138,7 @@ class ProviderRegistry:
         return registration
 
     def _build_adapter(self, provider: ProviderConfig) -> ProviderAdapter:
-        if provider.provider_type == "openai":
+        if provider.provider_type in {"openai", "azure_openai"}:
             return OpenAIProviderAdapter(provider)
         return ProviderNotImplementedAdapter(
             provider_id=provider.provider_id,

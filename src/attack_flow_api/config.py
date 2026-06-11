@@ -86,7 +86,7 @@ class ProvidersConfig(BaseModel):
         provider = self.get_provider_by_id(provider_id)
         if provider is None:
             return None
-        if provider.provider_type != "openai":
+        if provider.provider_type not in {"openai", "azure_openai"}:
             return None
         return provider
 
@@ -98,7 +98,21 @@ class ProvidersConfig(BaseModel):
         errors: list[str] = []
         if not provider.enabled:
             errors.append("provider_disabled")
-        if provider.api_key_env is None or not provider.api_key_env.strip():
+        if provider.provider_type == "azure_openai":
+            if provider.base_url is None or not provider.base_url.strip():
+                errors.append("base_url_missing")
+            if provider.api_version is None or not provider.api_version.strip():
+                errors.append("api_version_missing")
+            if all(
+                not (env_var and env_var.strip())
+                for env_var in (
+                    provider.azure_api_key_env,
+                    provider.azure_ad_token_env,
+                    provider.api_key_env,
+                )
+            ):
+                errors.append("api_key_env_missing")
+        elif provider.api_key_env is None or not provider.api_key_env.strip():
             errors.append("api_key_env_missing")
         if provider.default_model is None and not provider.allowed_models:
             errors.append("model_configuration_missing")

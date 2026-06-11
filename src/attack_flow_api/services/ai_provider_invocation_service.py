@@ -82,6 +82,13 @@ class AIProviderInvocationService:
             response_format=StructuredResponseFormat.JSON_OBJECT,
         )
 
+        self._logger.debug(
+            "provider invocation prompt provider_id=%s model=%s\n%s",
+            plan.provider_id,
+            selected_model,
+            generation_request.prompt,
+        )
+
         for attempt in range(1, max_attempts + 1):
             try:
                 response = plan.adapter.generate_structured(generation_request)

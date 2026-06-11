@@ -14,13 +14,14 @@ def test_full_extraction_prompt_contains_required_rules() -> None:
     bundle = build_prompt_template_bundle(packaged)
 
     assert bundle.mode.value == "full_extraction"
-    assert "Never infer missing ATT&CK techniques" in bundle.system_instruction
+    assert "infer the most likely ATT&CK mapping" in bundle.system_instruction
     assert "attack-action descriptions must be verbatim source excerpts only" in bundle.system_instruction
     assert "AND or OR" in bundle.system_instruction
     assert "true or false" in bundle.system_instruction
     assert "PACKAGED_INPUT" in bundle.user_prompt
     assert '"mode": "full_extraction"' in bundle.user_prompt
     assert '"allow_actions_without_techniques": true' in bundle.user_prompt
+    assert '"allow_best_effort_technique_inference": true' in bundle.user_prompt
 
 
 def test_enrichment_prompt_preserves_deterministic_findings() -> None:
@@ -51,6 +52,7 @@ def test_enrichment_prompt_preserves_deterministic_findings() -> None:
     assert '"preserve_deterministic_findings": true' in bundle.user_prompt
     assert '"do_not_drop_or_rewrite_deterministic_attack_refs": true' in bundle.user_prompt
     assert '"technique_id": "T1059"' in bundle.user_prompt
+    assert '"allow_best_effort_tactic_inference": true' in bundle.user_prompt
 
 
 def test_prompt_bundle_includes_afb_schema() -> None:

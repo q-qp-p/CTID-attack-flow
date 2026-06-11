@@ -67,6 +67,9 @@ class OpenAIProviderAdapter(ProviderAdapter):
         return self._provider.provider_type
 
     def validate(self, request: ProviderValidationRequest) -> ProviderValidationResult:
+        if self._provider.provider_type == "azure_openai":
+            return self._validate_azure(request)
+
         api_key = self._resolve_api_key(operation=ProviderOperation.VALIDATE)
         model = self._resolve_model(request.model)
         self._execute_with_retry(
@@ -94,6 +97,9 @@ class OpenAIProviderAdapter(ProviderAdapter):
         )
 
     def generate_structured(self, request: StructuredGenerationRequest) -> StructuredGenerationResult:
+        if self._provider.provider_type == "azure_openai":
+            return self._generate_structured_azure(request)
+
         api_key = self._resolve_api_key(operation=ProviderOperation.STRUCTURED_GENERATION)
         model = self._resolve_model(request.model)
 
@@ -105,12 +111,12 @@ class OpenAIProviderAdapter(ProviderAdapter):
                     timeout_seconds=self._resolve_timeout_seconds(request.timeout_seconds),
                     method="POST",
                     url=self._responses_url(),
-                    json_body={
-                        "model": model,
-                        "input": request.prompt,
-                        "temperature": request.temperature,
-                        "max_output_tokens": request.max_output_tokens,
-                    },
+                    json_body=_build_openai_generation_body(
+                        model=model,
+                        prompt=request.prompt,
+                        temperature=request.temperature,
+                        max_output_tokens=request.max_output_tokens,
+                    ),
                 )
             ),
             model=model,
@@ -131,6 +137,34 @@ class OpenAIProviderAdapter(ProviderAdapter):
         )
 
     def list_model_ids(self) -> list[str]:
+        if self._provider.provider_type == "azure_openai":
+            response = self._execute_with_retry(
+                operation=ProviderOperation.VALIDATE,
+                action=lambda: self._request_executor(
+                    self._build_azure_request(
+                        headers=self._azure_headers(operation=ProviderOperation.VALIDATE),
+                        timeout_seconds=self._resolve_timeout_seconds(10.0),
+                        method="GET",
+                        url=self._azure_models_url(),
+                        json_body=None,
+                    )
+                ),
+                model=self._provider.default_model or "",
+            )
+
+            data = response.json_body.get("data")
+            if not isinstance(data, list):
+                return []
+
+            model_ids: list[str] = []
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                model_id = item.get("id")
+                if isinstance(model_id, str) and model_id.strip():
+                    model_ids.append(model_id.strip())
+            return sorted(dict.fromkeys(model_ids))
+
         api_key = self._resolve_api_key(operation=ProviderOperation.VALIDATE)
         response = self._execute_with_retry(
             operation=ProviderOperation.VALIDATE,
@@ -187,6 +221,60 @@ class OpenAIProviderAdapter(ProviderAdapter):
             )
         return api_key
 
+    def _resolve_azure_api_key(self, *, operation: ProviderOperation) -> str:
+        for env_var_name in (
+            self._provider.azure_api_key_env,
+            self._provider.api_key_env,
+        ):
+            env_var = (env_var_name or "").strip()
+            if not env_var:
+                continue
+            api_key = os.environ.get(env_var)
+            if api_key is not None and api_key.strip():
+                return api_key
+
+        raise ProviderAdapterInvocationError(
+            build_normalized_provider_error(
+                category=ProviderErrorCategory.AUTH_FAILURE,
+                code="provider_api_key_missing",
+                message="provider api key is missing",
+                operation=operation,
+                provider_id=self.provider_id,
+                provider_type=self.provider_type,
+                details={
+                    "api_key_env": (self._provider.azure_api_key_env or self._provider.api_key_env or "").strip(),
+                },
+            )
+        )
+
+    def _resolve_azure_bearer_token(self, *, operation: ProviderOperation) -> str:
+        env_var = (self._provider.azure_ad_token_env or "").strip()
+        if not env_var:
+            raise ProviderAdapterInvocationError(
+                build_normalized_provider_error(
+                    category=ProviderErrorCategory.CONFIGURATION_ERROR,
+                    code="provider_api_key_env_missing",
+                    message="provider api key environment variable is not configured",
+                    operation=operation,
+                    provider_id=self.provider_id,
+                    provider_type=self.provider_type,
+                )
+            )
+        token = os.environ.get(env_var)
+        if token is None or not token.strip():
+            raise ProviderAdapterInvocationError(
+                build_normalized_provider_error(
+                    category=ProviderErrorCategory.AUTH_FAILURE,
+                    code="provider_api_key_missing",
+                    message="provider api key is missing",
+                    operation=operation,
+                    provider_id=self.provider_id,
+                    provider_type=self.provider_type,
+                    details={"api_key_env": env_var},
+                )
+            )
+        return token
+
     def _build_openai_request(
         self,
         *,
@@ -195,7 +283,7 @@ class OpenAIProviderAdapter(ProviderAdapter):
         method: str,
         url: str,
         json_body: dict[str, object] | None,
-    ) -> OpenAIHttpRequest:
+        ) -> OpenAIHttpRequest:
         return OpenAIHttpRequest(
             method=method,
             url=url,
@@ -206,6 +294,163 @@ class OpenAIProviderAdapter(ProviderAdapter):
             timeout_seconds=timeout_seconds,
             json_body=json_body,
         )
+
+    def _build_azure_request(
+        self,
+        *,
+        headers: dict[str, str],
+        timeout_seconds: float,
+        method: str,
+        url: str,
+        json_body: dict[str, object] | None,
+    ) -> OpenAIHttpRequest:
+        return OpenAIHttpRequest(
+            method=method,
+            url=url,
+            headers=headers,
+            timeout_seconds=timeout_seconds,
+            json_body=json_body,
+        )
+
+    def _validate_azure(self, request: ProviderValidationRequest) -> ProviderValidationResult:
+        model = self._resolve_model(request.model)
+        self._execute_with_retry(
+            operation=ProviderOperation.VALIDATE,
+            action=lambda: self._request_executor(
+                self._build_azure_request(
+                    headers=self._azure_headers(operation=ProviderOperation.VALIDATE),
+                    timeout_seconds=self._resolve_timeout_seconds(request.timeout_seconds),
+                    method="POST",
+                    url=self._azure_chat_completions_url(model),
+                    json_body={
+                        "messages": [{"role": "user", "content": "ping"}],
+                        "max_completion_tokens": 16,
+                    },
+                )
+            ),
+            model=model,
+        )
+        return ProviderValidationResult(
+            provider_id=self.provider_id,
+            provider_type=self.provider_type,
+            is_valid=True,
+            checked_model=model,
+        )
+
+    def _generate_structured_azure(self, request: StructuredGenerationRequest) -> StructuredGenerationResult:
+        model = self._resolve_model(request.model)
+        response = self._execute_with_retry(
+            operation=ProviderOperation.STRUCTURED_GENERATION,
+            action=lambda: self._request_executor(
+                self._build_azure_request(
+                    headers=self._azure_headers(operation=ProviderOperation.STRUCTURED_GENERATION),
+                    timeout_seconds=self._resolve_timeout_seconds(request.timeout_seconds),
+                    method="POST",
+                    url=self._azure_chat_completions_url(model),
+                    json_body=_build_azure_generation_body(
+                        messages=self._compose_chat_messages(request.prompt),
+                        temperature=request.temperature,
+                        max_completion_tokens=request.max_output_tokens,
+                    ),
+                )
+            ),
+            model=model,
+        )
+
+        usage = _extract_usage(response.json_body)
+        output_text = _extract_output_text(response.json_body)
+        output_json = _extract_output_json(output_text, request.response_format)
+
+        return StructuredGenerationResult(
+            provider_id=self.provider_id,
+            provider_type=self.provider_type,
+            model=model,
+            finish_reason=StructuredFinishReason.UNKNOWN,
+            output_text=output_text,
+            output_json=output_json,
+            usage=usage,
+        )
+
+    def _azure_headers(self, *, operation: ProviderOperation) -> dict[str, str]:
+        if self._provider.azure_ad_token_env and self._provider.azure_ad_token_env.strip():
+            token = self._resolve_azure_bearer_token(operation=operation)
+            return {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }
+
+        api_key = self._resolve_azure_api_key(operation=operation)
+        return {
+            "api-key": api_key,
+            "Content-Type": "application/json",
+        }
+
+    def _azure_chat_completions_url(self, deployment_name: str) -> str:
+        base_url = self._normalize_azure_base_url()
+        if not base_url:
+            raise ProviderAdapterInvocationError(
+                build_normalized_provider_error(
+                    category=ProviderErrorCategory.CONFIGURATION_ERROR,
+                    code="provider_base_url_missing",
+                    message="provider base url is not configured",
+                    operation=ProviderOperation.STRUCTURED_GENERATION,
+                    provider_id=self.provider_id,
+                    provider_type=self.provider_type,
+                )
+            )
+        api_version = (self._provider.api_version or "").strip()
+        if not api_version:
+            raise ProviderAdapterInvocationError(
+                build_normalized_provider_error(
+                    category=ProviderErrorCategory.CONFIGURATION_ERROR,
+                    code="provider_api_version_missing",
+                    message="provider api version is not configured",
+                    operation=ProviderOperation.STRUCTURED_GENERATION,
+                    provider_id=self.provider_id,
+                    provider_type=self.provider_type,
+                )
+            )
+        return f"{base_url}/deployments/{deployment_name}/chat/completions?api-version={api_version}"
+
+    def _azure_models_url(self) -> str:
+        base_url = self._normalize_azure_base_url()
+        if not base_url:
+            raise ProviderAdapterInvocationError(
+                build_normalized_provider_error(
+                    category=ProviderErrorCategory.CONFIGURATION_ERROR,
+                    code="provider_base_url_missing",
+                    message="provider base url is not configured",
+                    operation=ProviderOperation.VALIDATE,
+                    provider_id=self.provider_id,
+                    provider_type=self.provider_type,
+                )
+            )
+        api_version = (self._provider.api_version or "").strip()
+        if not api_version:
+            raise ProviderAdapterInvocationError(
+                build_normalized_provider_error(
+                    category=ProviderErrorCategory.CONFIGURATION_ERROR,
+                    code="provider_api_version_missing",
+                    message="provider api version is not configured",
+                    operation=ProviderOperation.VALIDATE,
+                    provider_id=self.provider_id,
+                    provider_type=self.provider_type,
+                )
+            )
+        return f"{base_url}/openai/models?api-version={api_version}"
+
+    def _normalize_azure_base_url(self) -> str:
+        base_url = (self._provider.base_url or "").rstrip("/")
+        if base_url.endswith("/openai"):
+            return base_url[: -len("/openai")]
+        return base_url
+
+    def _compose_chat_messages(self, prompt: str) -> list[dict[str, str]]:
+        system_prompt, user_prompt = _split_provider_prompt(prompt)
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
 
     def _resolve_model(self, requested_model: str | None) -> str:
         if requested_model is not None and requested_model.strip():
@@ -319,6 +564,15 @@ class OpenAIProviderAdapter(ProviderAdapter):
         if isinstance(exc, OpenAIHttpError):
             status_code = exc.status_code
             response_headers = exc.response_headers or {}
+            self._logger.warning(
+                "provider http error provider_type=%s operation=%s status_code=%s request_id=%s error_type=%s body_excerpt=%s",
+                self.provider_type,
+                operation.value,
+                status_code,
+                response_headers.get("x-request-id"),
+                _extract_openai_error_type(exc.response_body),
+                _truncate_for_log(exc.response_body),
+            )
             if status_code == 429:
                 self._logger.warning(
                     "openai rate limited status_code=%s request_id=%s retry_after=%s ratelimit_limit=%s ratelimit_remaining=%s ratelimit_reset=%s body_excerpt=%s",
@@ -454,7 +708,11 @@ def _extract_usage(payload: dict[str, object]) -> ProviderTokenUsage:
     if not isinstance(usage_raw, dict):
         return ProviderTokenUsage()
     input_tokens = usage_raw.get("input_tokens")
+    if input_tokens is None:
+        input_tokens = usage_raw.get("prompt_tokens")
     output_tokens = usage_raw.get("output_tokens")
+    if output_tokens is None:
+        output_tokens = usage_raw.get("completion_tokens")
     total_tokens = usage_raw.get("total_tokens")
     return ProviderTokenUsage(
         input_tokens=input_tokens if isinstance(input_tokens, int) and input_tokens >= 0 else None,
@@ -467,6 +725,16 @@ def _extract_output_text(payload: dict[str, object]) -> str | None:
     output_text = payload.get("output_text")
     if isinstance(output_text, str):
         return output_text
+
+    choices = payload.get("choices")
+    if isinstance(choices, list) and choices:
+        first_choice = choices[0]
+        if isinstance(first_choice, dict):
+            message = first_choice.get("message")
+            if isinstance(message, dict):
+                content = message.get("content")
+                if isinstance(content, str):
+                    return content
     return None
 
 
@@ -531,3 +799,51 @@ def _extract_openai_error_type(response_body: str | None) -> str | None:
         return None
     error_type = error.get("type")
     return error_type if isinstance(error_type, str) and error_type.strip() else None
+
+
+def _build_openai_generation_body(
+    *,
+    model: str,
+    prompt: str,
+    temperature: float | None,
+    max_output_tokens: int | None,
+) -> dict[str, object]:
+    body: dict[str, object] = {
+        "model": model,
+        "input": prompt,
+    }
+    if temperature is not None:
+        body["temperature"] = temperature
+    if max_output_tokens is not None:
+        body["max_output_tokens"] = max_output_tokens
+    return body
+
+
+def _build_azure_generation_body(
+    *,
+    messages: list[dict[str, str]],
+    temperature: float | None,
+    max_completion_tokens: int | None,
+) -> dict[str, object]:
+    body: dict[str, object] = {"messages": messages}
+    if temperature is not None:
+        body["temperature"] = temperature
+    if max_completion_tokens is not None:
+        body["max_completion_tokens"] = max_completion_tokens
+    return body
+
+
+def _split_provider_prompt(prompt: str) -> tuple[str, str]:
+    system_prefix = "SYSTEM_INSTRUCTION:\n"
+    user_prefix = "\n\nUSER_PROMPT:\n"
+    schema_prefix = "\n\nOUTPUT_SCHEMA:\n"
+
+    if prompt.startswith(system_prefix) and user_prefix in prompt and schema_prefix in prompt:
+        system_end = prompt.index(user_prefix)
+        user_start = system_end + len(user_prefix)
+        user_end = prompt.index(schema_prefix)
+        system_prompt = prompt[len(system_prefix):system_end]
+        user_prompt = prompt[user_start:user_end]
+        return system_prompt, user_prompt
+
+    return prompt, prompt

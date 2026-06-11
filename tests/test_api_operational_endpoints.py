@@ -3,6 +3,12 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from attack_flow_api.main import create_app
+from attack_flow_api.providers.adapter import ProviderAdapterInvocationError
+from attack_flow_api.providers.contracts import (
+    ProviderErrorCategory,
+    ProviderOperation,
+    build_normalized_provider_error,
+)
 
 
 def _build_client(monkeypatch, tmp_path: Path) -> TestClient:
@@ -100,6 +106,68 @@ def test_provider_models_endpoint_returns_accessible_model_ids(monkeypatch, tmp_
         "model_ids": ["gpt-5.5", "gpt-5.5-pro"],
         "request_id": payload["request_id"],
     }
+
+
+def test_provider_models_endpoint_falls_back_when_azure_discovery_fails(monkeypatch, tmp_path: Path, capsys):
+    providers_path = tmp_path / "providers.yml"
+    providers_path.write_text(
+        """
+providers:
+  - provider_id: default-openai
+    provider_type: azure_openai
+    enabled: true
+    base_url: https://example.openai.azure.com/openai
+    api_version: "2024-10-21"
+    azure_api_key_env: OPENAI_API_KEY
+    default_model: gpt-5
+    allowed_models:
+      - gpt-5
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("APP_NAME", "attack-flow-api")
+    monkeypatch.setenv("API_PREFIX", "/api/v1")
+    monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "data" / "attack-flow.db"))
+    monkeypatch.setenv("UPLOAD_DIR", str(tmp_path / "data" / "uploads"))
+    monkeypatch.setenv("ARTIFACT_DIR", str(tmp_path / "data" / "artifacts"))
+    monkeypatch.setenv("PROVIDERS_CONFIG_PATH", str(providers_path))
+
+    def raiser(self):
+        raise ProviderAdapterInvocationError(
+            build_normalized_provider_error(
+                category=ProviderErrorCategory.CONFIGURATION_ERROR,
+                code="provider_request_invalid",
+                message="provider request configuration is invalid",
+                operation=ProviderOperation.VALIDATE,
+                provider_id="default-openai",
+                provider_type="azure_openai",
+            )
+        )
+
+    monkeypatch.setattr(
+        "attack_flow_api.providers.openai_adapter.OpenAIProviderAdapter.list_model_ids",
+        raiser,
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.get("/api/v1/providers/default-openai/models")
+    captured = capsys.readouterr()
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload == {
+        "provider_id": "default-openai",
+        "provider_type": "azure_openai",
+        "model_ids": ["gpt-5"],
+        "request_id": payload["request_id"],
+    }
+    message = captured.err + captured.out
+    assert "provider model discovery failed" in message
+    assert "provider_id=default-openai" in message
+    assert "error_code=provider_request_invalid" in message
 
 
 def test_endpoints_are_wired_under_api_v1_prefix(monkeypatch, tmp_path: Path):

@@ -1,9 +1,11 @@
+import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from attack_flow_api.config import ProviderPublicMetadata
+from attack_flow_api.providers.adapter import ProviderAdapterInvocationError
 from attack_flow_api.providers.openai_adapter import OpenAIProviderAdapter
 from attack_flow_api.services.provider_validation_service import (
     ProviderValidationService,
@@ -13,6 +15,7 @@ from attack_flow_api.services.status_service import StatusService
 
 
 router = APIRouter(tags=["health"])
+_logger = logging.getLogger("attack_flow_api.routes.health")
 
 
 class HealthResponse(BaseModel):
@@ -167,10 +170,28 @@ def list_provider_models(request: Request, provider_id: str) -> ProviderModelsRe
             request_id=request.state.request_id,
         )
 
+    try:
+        model_ids = adapter.list_model_ids()
+    except ProviderAdapterInvocationError as exc:
+        error = exc.error
+        _logger.warning(
+            "provider model discovery failed provider_id=%s provider_type=%s request_id=%s error_code=%s error_category=%s status_code=%s",
+            provider_id,
+            adapter.provider_type,
+            request.state.request_id,
+            error.code,
+            error.category.value,
+            error.status_code,
+        )
+        provider_config = provider_registry.get_provider_config(provider_id)
+        model_ids = list(provider_config.allowed_models)
+        if not model_ids and provider_config.default_model:
+            model_ids = [provider_config.default_model]
+
     return ProviderModelsResponse(
         provider_id=provider_id,
         provider_type=adapter.provider_type,
-        model_ids=adapter.list_model_ids(),
+        model_ids=model_ids,
         request_id=request.state.request_id,
     )
 
