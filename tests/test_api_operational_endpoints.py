@@ -83,6 +83,25 @@ def test_providers_endpoint_returns_safe_provider_metadata(monkeypatch, tmp_path
     assert "base_url" not in provider
 
 
+def test_provider_models_endpoint_returns_accessible_model_ids(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        "attack_flow_api.providers.openai_adapter.OpenAIProviderAdapter.list_model_ids",
+        lambda self: ["gpt-5.5", "gpt-5.5-pro"],
+    )
+
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.get("/api/v1/providers/default-openai/models")
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload == {
+        "provider_id": "default-openai",
+        "provider_type": "openai",
+        "model_ids": ["gpt-5.5", "gpt-5.5-pro"],
+        "request_id": payload["request_id"],
+    }
+
+
 def test_endpoints_are_wired_under_api_v1_prefix(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
         assert client.get("/health").status_code == 404
@@ -126,8 +145,10 @@ def test_openapi_includes_operational_endpoints_and_response_models(monkeypatch,
     assert "/api/v1/health" in payload["paths"]
     assert "/api/v1/status" in payload["paths"]
     assert "/api/v1/providers" in payload["paths"]
+    assert "/api/v1/providers/{provider_id}/models" in payload["paths"]
 
     schemas = payload["components"]["schemas"]
     assert "HealthResponse" in schemas
     assert "StatusResponse" in schemas
     assert "ProvidersResponse" in schemas
+    assert "ProviderModelsResponse" in schemas

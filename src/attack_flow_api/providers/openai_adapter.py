@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass
@@ -41,6 +42,7 @@ class OpenAIHttpResponse:
 class OpenAIHttpError(RuntimeError):
     status_code: int
     response_body: str | None = None
+    response_headers: dict[str, str] | None = None
 
 
 class OpenAIProviderAdapter(ProviderAdapter):
@@ -54,6 +56,7 @@ class OpenAIProviderAdapter(ProviderAdapter):
         self._provider = provider_config
         self._request_executor = request_executor or _default_openai_request_executor
         self._sleep_fn = sleep_fn or time.sleep
+        self._logger = logging.getLogger("attack_flow_api.provider_openai")
 
     @property
     def provider_id(self) -> str:
@@ -72,6 +75,8 @@ class OpenAIProviderAdapter(ProviderAdapter):
                 self._build_openai_request(
                     api_key=api_key,
                     timeout_seconds=self._resolve_timeout_seconds(request.timeout_seconds),
+                    method="POST",
+                    url=self._responses_url(),
                     json_body={
                         "model": model,
                         "input": "ping",
@@ -98,6 +103,8 @@ class OpenAIProviderAdapter(ProviderAdapter):
                 self._build_openai_request(
                     api_key=api_key,
                     timeout_seconds=self._resolve_timeout_seconds(request.timeout_seconds),
+                    method="POST",
+                    url=self._responses_url(),
                     json_body={
                         "model": model,
                         "input": request.prompt,
@@ -122,6 +129,35 @@ class OpenAIProviderAdapter(ProviderAdapter):
             output_json=output_json,
             usage=usage,
         )
+
+    def list_model_ids(self) -> list[str]:
+        api_key = self._resolve_api_key(operation=ProviderOperation.VALIDATE)
+        response = self._execute_with_retry(
+            operation=ProviderOperation.VALIDATE,
+            action=lambda: self._request_executor(
+                self._build_openai_request(
+                    api_key=api_key,
+                    timeout_seconds=self._resolve_timeout_seconds(10.0),
+                    method="GET",
+                    url=self._models_url(),
+                    json_body=None,
+                )
+            ),
+            model=self._provider.default_model or "",
+        )
+
+        data = response.json_body.get("data")
+        if not isinstance(data, list):
+            return []
+
+        model_ids: list[str] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            model_id = item.get("id")
+            if isinstance(model_id, str) and model_id.strip():
+                model_ids.append(model_id.strip())
+        return sorted(dict.fromkeys(model_ids))
 
     def _resolve_api_key(self, *, operation: ProviderOperation) -> str:
         env_var = (self._provider.api_key_env or "").strip()
@@ -156,11 +192,13 @@ class OpenAIProviderAdapter(ProviderAdapter):
         *,
         api_key: str,
         timeout_seconds: float,
-        json_body: dict[str, object],
+        method: str,
+        url: str,
+        json_body: dict[str, object] | None,
     ) -> OpenAIHttpRequest:
         return OpenAIHttpRequest(
-            method="POST",
-            url=self._responses_url(),
+            method=method,
+            url=url,
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
@@ -209,6 +247,10 @@ class OpenAIProviderAdapter(ProviderAdapter):
     def _responses_url(self) -> str:
         base_url = (self._provider.base_url or "https://api.openai.com/v1").rstrip("/")
         return f"{base_url}/responses"
+
+    def _models_url(self) -> str:
+        base_url = (self._provider.base_url or "https://api.openai.com/v1").rstrip("/")
+        return f"{base_url}/models"
 
     def _execute_with_retry(
         self,
@@ -276,14 +318,35 @@ class OpenAIProviderAdapter(ProviderAdapter):
 
         if isinstance(exc, OpenAIHttpError):
             status_code = exc.status_code
+            response_headers = exc.response_headers or {}
+            if status_code == 429:
+                self._logger.warning(
+                    "openai rate limited status_code=%s request_id=%s retry_after=%s ratelimit_limit=%s ratelimit_remaining=%s ratelimit_reset=%s body_excerpt=%s",
+                    status_code,
+                    response_headers.get("x-request-id"),
+                    response_headers.get("retry-after"),
+                    response_headers.get("x-ratelimit-limit-requests")
+                    or response_headers.get("x-ratelimit-limit-tokens"),
+                    response_headers.get("x-ratelimit-remaining-requests")
+                    or response_headers.get("x-ratelimit-remaining-tokens"),
+                    response_headers.get("x-ratelimit-reset-requests")
+                    or response_headers.get("x-ratelimit-reset-tokens"),
+                    _truncate_for_log(exc.response_body),
+                )
             if status_code in {401, 403}:
                 category = ProviderErrorCategory.AUTH_FAILURE
                 code = "provider_auth_failed"
                 message = "provider authentication failed"
             elif status_code == 429:
-                category = ProviderErrorCategory.RATE_LIMIT
-                code = "provider_rate_limited"
-                message = "provider rate limit exceeded"
+                error_type = _extract_openai_error_type(exc.response_body)
+                if error_type == "insufficient_quota":
+                    category = ProviderErrorCategory.CONFIGURATION_ERROR
+                    code = "provider_quota_exceeded"
+                    message = "provider quota exceeded"
+                else:
+                    category = ProviderErrorCategory.RATE_LIMIT
+                    code = "provider_rate_limited"
+                    message = "provider rate limit exceeded"
             elif status_code in {408} or 500 <= status_code <= 599:
                 category = (
                     ProviderErrorCategory.TIMEOUT if status_code == 408 else ProviderErrorCategory.UNAVAILABLE
@@ -308,6 +371,7 @@ class OpenAIProviderAdapter(ProviderAdapter):
                 provider_type=self.provider_type,
                 model=model,
                 status_code=status_code,
+                details=_provider_error_details(response_headers),
             )
 
         if isinstance(exc, (OSError, ConnectionError)):
@@ -364,7 +428,11 @@ def _default_openai_request_executor(request: OpenAIHttpRequest) -> OpenAIHttpRe
         payload_text = payload_bytes.decode("utf-8", errors="replace") if payload_bytes else "{}"
 
         if response.status >= 400:
-            raise OpenAIHttpError(status_code=response.status, response_body=payload_text)
+            raise OpenAIHttpError(
+                status_code=response.status,
+                response_body=payload_text,
+                response_headers=_normalize_headers(response.getheaders()),
+            )
 
         try:
             payload = json.loads(payload_text)
@@ -417,3 +485,49 @@ def _extract_output_json(
     if not isinstance(parsed, dict):
         return None
     return parsed
+
+
+def _normalize_headers(headers: list[tuple[str, str]]) -> dict[str, str]:
+    return {key.lower(): value for key, value in headers}
+
+
+def _provider_error_details(headers: dict[str, str]) -> dict[str, str]:
+    details: dict[str, str] = {}
+    for key in (
+        "x-request-id",
+        "retry-after",
+        "x-ratelimit-limit-requests",
+        "x-ratelimit-remaining-requests",
+        "x-ratelimit-reset-requests",
+        "x-ratelimit-limit-tokens",
+        "x-ratelimit-remaining-tokens",
+        "x-ratelimit-reset-tokens",
+    ):
+        value = headers.get(key)
+        if isinstance(value, str) and value.strip():
+            details[key] = value.strip()
+    return details
+
+
+def _truncate_for_log(value: str | None, limit: int = 500) -> str | None:
+    if value is None:
+        return None
+    if len(value) <= limit:
+        return value
+    return value[:limit] + "..."
+
+
+def _extract_openai_error_type(response_body: str | None) -> str | None:
+    if response_body is None:
+        return None
+    try:
+        parsed = json.loads(response_body)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    error = parsed.get("error")
+    if not isinstance(error, dict):
+        return None
+    error_type = error.get("type")
+    return error_type if isinstance(error_type, str) and error_type.strip() else None

@@ -62,6 +62,31 @@ class _FakeFailureAdapter(_FakeSuccessAdapter):
         )
 
 
+class _FakeFlakyAdapter(_FakeSuccessAdapter):
+    def __init__(self, provider_id: str, provider_type: str, failures_before_success: int):
+        super().__init__(provider_id, provider_type)
+        self.failures_before_success = failures_before_success
+        self.calls = 0
+
+    def generate_structured(self, request: StructuredGenerationRequest) -> StructuredGenerationResult:
+        from attack_flow_api.providers.adapter import ProviderAdapterInvocationError
+
+        self.calls += 1
+        if self.calls <= self.failures_before_success:
+            raise ProviderAdapterInvocationError(
+                build_normalized_provider_error(
+                    category=ProviderErrorCategory.RATE_LIMIT,
+                    code="provider_rate_limited",
+                    message="provider rate limit exceeded",
+                    operation=ProviderOperation.STRUCTURED_GENERATION,
+                    provider_id=request.provider_id,
+                    provider_type=request.provider_type,
+                    model=request.model,
+                )
+            )
+        return super().generate_structured(request)
+
+
 def _registry_with_fake_adapter(adapter: ProviderAdapter) -> ProviderRegistry:
     registry = ProviderRegistry(
         ProvidersConfig(
@@ -132,6 +157,29 @@ def test_invocation_service_invokes_provider_for_full_extraction() -> None:
     assert result.output_json == {"attack_actions": []}
 
 
+def test_invocation_service_uses_default_enabled_provider_when_unrequested() -> None:
+    packaged = build_provider_orchestration_input(
+        {
+            "source_type": "narrative_text",
+            "normalized_text": "Observed activity details",
+        }
+    )
+    bundle = build_prompt_template_bundle(packaged)
+    service = AIProviderInvocationService(
+        _registry_with_fake_adapter(_FakeSuccessAdapter("default-openai", "openai"))
+    )
+
+    result = service.invoke_if_needed(
+        packaged_input=packaged,
+        prompt_bundle=bundle,
+        requested_provider_id=None,
+    )
+
+    assert result.provider_invoked is True
+    assert result.provider_id == "default-openai"
+    assert result.model_used == "gpt-4.1-mini"
+
+
 def test_invocation_service_preserves_model_override() -> None:
     packaged = build_provider_orchestration_input(
         {
@@ -177,3 +225,49 @@ def test_invocation_service_normalizes_provider_failure() -> None:
     assert result.error_code == "provider_rate_limited"
     assert result.error_category == "rate_limit"
     assert result.retryable is True
+
+
+def test_invocation_service_retries_retryable_provider_failures(monkeypatch) -> None:
+    packaged = build_provider_orchestration_input(
+        {
+            "source_type": "narrative_text",
+            "normalized_text": "Observed activity details",
+        }
+    )
+    bundle = build_prompt_template_bundle(packaged)
+    adapter = _FakeFlakyAdapter("default-openai", "openai", failures_before_success=2)
+    registry = ProviderRegistry(
+        ProvidersConfig(
+            providers=[
+                ProviderConfig(
+                    provider_id="default-openai",
+                    provider_type="openai",
+                    enabled=True,
+                    default_model="gpt-4.1-mini",
+                    allowed_models=["gpt-4.1-mini"],
+                    api_key_env="OPENAI_API_KEY",
+                    retry_max_attempts=3,
+                    retry_base_delay_ms=0,
+                    retry_max_delay_ms=0,
+                )
+            ]
+        )
+    )
+    registry._registrations["default-openai"] = registry._registrations["default-openai"].__class__(
+        config=registry.get_provider_config("default-openai"),
+        adapter=adapter,
+    )
+    sleeps: list[float] = []
+    monkeypatch.setattr("attack_flow_api.services.ai_provider_invocation_service.time.sleep", sleeps.append)
+    service = AIProviderInvocationService(registry)
+
+    result = service.invoke_if_needed(
+        packaged_input=packaged,
+        prompt_bundle=bundle,
+        requested_provider_id="default-openai",
+    )
+
+    assert result.provider_invoked is True
+    assert result.output_json == {"attack_actions": []}
+    assert adapter.calls == 3
+    assert sleeps == [0.0, 0.0]

@@ -66,9 +66,8 @@ def build_provider_orchestration_input(
     relationships = _as_dict_list(normalized_package.get("relationships"))
     provenance = _as_dict(normalized_package.get("provenance"))
 
-    deterministic_input_sufficient = mode == OrchestrationMode.ENRICHMENT and bool(
-        structured_summary or attack_refs or entities or relationships
-    )
+    # Only skip provider work when we have deterministic attack refs to seed the flow.
+    deterministic_input_sufficient = mode == OrchestrationMode.ENRICHMENT and bool(attack_refs)
 
     return ProviderOrchestrationInput(
         mode=mode,

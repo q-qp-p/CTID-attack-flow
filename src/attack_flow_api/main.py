@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,6 +51,13 @@ async def lifespan(app: FastAPI):
     setup_logging(settings.log_level)
     providers_config = load_providers_config(settings.providers_config_path)
     provider_registry = ProviderRegistry(providers_config)
+    startup_logger = logging.getLogger("attack_flow_api.startup")
+    startup_logger.info(
+        "provider registry resolved default_provider_id=%s enabled_provider_ids=%s config_path=%s",
+        provider_registry.get_default_enabled_provider_id(),
+        [provider.provider_id for provider in providers_config.list_enabled_providers()],
+        settings.providers_config_path,
+    )
     runtime_paths = resolve_runtime_paths(settings)
     ensure_runtime_directories(runtime_paths)
     initialize_database(settings.sqlite_path)

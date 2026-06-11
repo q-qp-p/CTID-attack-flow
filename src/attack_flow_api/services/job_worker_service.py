@@ -173,6 +173,20 @@ class JobWorkerService:
                     "error_code": exc.job_error_code,
                 },
             )
+        except _AIExtractionJobProcessingError as exc:
+            self.persistence_service.mark_job_failed(
+                job_id,
+                error_code=exc.job_error_code,
+                error_message=exc.job_error_message,
+            )
+            self._logger.warning(
+                "job lifecycle failed",
+                extra={
+                    "worker_id": self.worker_id,
+                    "job_id": job_id,
+                    "error_code": exc.job_error_code,
+                },
+            )
         except Exception as exc:  # pragma: no cover
             self.persistence_service.mark_job_failed(
                 job_id,
@@ -480,7 +494,10 @@ class JobWorkerService:
             )
             return
 
-        raise RuntimeError(execution.error_message or execution.error_code or "ai extraction failed")
+        raise _AIExtractionJobProcessingError(
+            job_error_code=execution.error_code or "worker_processing_error",
+            job_error_message=execution.error_message or execution.error_code or "ai extraction failed",
+        )
 
     async def _extract_file_content(self, job_id: str, input_source: InputSource) -> None:
         try:
@@ -863,6 +880,13 @@ class _UrlJobProcessingError(RuntimeError):
 
 
 class _FileJobProcessingError(RuntimeError):
+    def __init__(self, *, job_error_code: str, job_error_message: str):
+        super().__init__(job_error_message)
+        self.job_error_code = job_error_code
+        self.job_error_message = job_error_message
+
+
+class _AIExtractionJobProcessingError(RuntimeError):
     def __init__(self, *, job_error_code: str, job_error_message: str):
         super().__init__(job_error_message)
         self.job_error_code = job_error_code

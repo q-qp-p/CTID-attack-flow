@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from attack_flow_api.config import ProviderPublicMetadata
+from attack_flow_api.providers.openai_adapter import OpenAIProviderAdapter
 from attack_flow_api.services.provider_validation_service import (
     ProviderValidationService,
     ProviderValidationServiceResult,
@@ -69,6 +70,13 @@ class ProviderValidateResponse(BaseModel):
     error_message: str | None = None
     retryable: bool | None = None
     status_code: int | None = None
+    request_id: str
+
+
+class ProviderModelsResponse(BaseModel):
+    provider_id: str
+    provider_type: str
+    model_ids: list[str] = Field(default_factory=list)
     request_id: str
 
 
@@ -145,6 +153,26 @@ def validate_provider(request: Request, payload: ProviderValidateRequest) -> Pro
         model=payload.model,
     )
     return _to_provider_validate_response(result, request_id=request.state.request_id)
+
+
+@router.get("/providers/{provider_id}/models", response_model=ProviderModelsResponse)
+def list_provider_models(request: Request, provider_id: str) -> ProviderModelsResponse:
+    provider_registry = request.app.state.provider_registry
+    adapter = provider_registry.resolve_adapter(provider_id)
+    if not isinstance(adapter, OpenAIProviderAdapter):
+        return ProviderModelsResponse(
+            provider_id=provider_id,
+            provider_type=adapter.provider_type,
+            model_ids=[],
+            request_id=request.state.request_id,
+        )
+
+    return ProviderModelsResponse(
+        provider_id=provider_id,
+        provider_type=adapter.provider_type,
+        model_ids=adapter.list_model_ids(),
+        request_id=request.state.request_id,
+    )
 
 
 def _to_provider_public(provider: ProviderPublicMetadata) -> ProviderPublic:

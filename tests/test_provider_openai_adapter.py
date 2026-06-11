@@ -147,6 +147,58 @@ def test_validate_maps_unavailable_error(monkeypatch) -> None:
     assert exc.value.error.retryable is True
 
 
+def test_rate_limit_error_logs_response_headers(monkeypatch, caplog) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    def executor(request):
+        raise OpenAIHttpError(
+            status_code=429,
+            response_body='{"error":"rate limit"}',
+            response_headers={
+                "x-request-id": "req_123",
+                "retry-after": "60",
+                "x-ratelimit-limit-requests": "10",
+                "x-ratelimit-remaining-requests": "0",
+                "x-ratelimit-reset-requests": "2026-06-11T21:10:00Z",
+            },
+        )
+
+    adapter = OpenAIProviderAdapter(_provider_config(), request_executor=executor)
+
+    with caplog.at_level("WARNING", logger="attack_flow_api.provider_openai"):
+        with pytest.raises(ProviderAdapterInvocationError):
+            adapter.validate(
+                ProviderValidationRequest(provider_id="default-openai", provider_type="openai")
+            )
+
+    message = " ".join(record.message for record in caplog.records)
+    assert "req_123" in message
+    assert "retry-after" not in message
+    assert "status_code=429" in message
+
+
+def test_quota_exceeded_is_not_retryable(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    adapter = OpenAIProviderAdapter(
+        _provider_config(),
+        request_executor=lambda request: (_ for _ in ()).throw(
+            OpenAIHttpError(
+                status_code=429,
+                response_body='{"error":{"type":"insufficient_quota","code":"insufficient_quota"}}',
+                response_headers={"x-request-id": "req_123"},
+            )
+        ),
+    )
+
+    with pytest.raises(ProviderAdapterInvocationError) as exc:
+        adapter.validate(ProviderValidationRequest(provider_id="default-openai", provider_type="openai"))
+
+    assert exc.value.error.code == "provider_quota_exceeded"
+    assert exc.value.error.category.value == "configuration_error"
+    assert exc.value.error.retryable is False
+
+
 def test_generate_structured_maps_invalid_response_error(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     adapter = OpenAIProviderAdapter(
@@ -185,6 +237,27 @@ def test_generate_structured_rejects_disallowed_model_override(monkeypatch) -> N
 
     assert exc.value.error.code == "provider_model_not_allowed"
     assert exc.value.error.category.value == "configuration_error"
+
+
+def test_list_model_ids_returns_accessible_models(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    adapter = OpenAIProviderAdapter(
+        _provider_config(),
+        request_executor=lambda request: OpenAIHttpResponse(
+            status_code=200,
+            json_body={
+                "data": [
+                    {"id": "gpt-5.5"},
+                    {"id": "gpt-5.5-pro"},
+                    {"id": "gpt-5.5"},
+                ]
+            },
+        ),
+    )
+
+    model_ids = adapter.list_model_ids()
+
+    assert model_ids == ["gpt-5.5", "gpt-5.5-pro"]
 
 
 def test_validate_uses_provider_default_model_when_request_model_missing(monkeypatch) -> None:

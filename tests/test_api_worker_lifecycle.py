@@ -3,13 +3,16 @@ import json
 import sqlite3
 import time
 from pathlib import Path
-from types import MethodType
+from types import MethodType, SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from attack_flow_api.main import create_app
+from attack_flow_api.config import ProviderConfig
+from attack_flow_api.providers.registry import ProviderRegistry
 from attack_flow_api.services.ai_orchestration_service import AIOrchestrationExecutionResult
+from attack_flow_api.services.job_worker_service import _AIExtractionJobProcessingError
 from attack_flow_api.services.afb_extraction_contracts import (
     AfbExtractionResult,
     AttackFlowMetadata,
@@ -30,6 +33,52 @@ from attack_flow_api.services.plaintext_extraction import PlaintextExtractionErr
 from attack_flow_api.services.pdf_extraction import PdfExtractionResult
 from attack_flow_api.services.url_fetch import UrlFetchError
 from attack_flow_api.services.url_fetch import UrlFetchResult
+
+
+class _FakeOpenAIAdapter:
+    def __init__(self, provider_id: str, provider_type: str):
+        self._provider_id = provider_id
+        self._provider_type = provider_type
+
+    @property
+    def provider_id(self) -> str:
+        return self._provider_id
+
+    @property
+    def provider_type(self) -> str:
+        return self._provider_type
+
+    def generate_structured(self, request):
+        return SimpleNamespace(
+            provider_id=request.provider_id,
+            provider_type=request.provider_type,
+            model=request.model,
+            output_json={
+                "validation_state": "valid",
+                "repair_attempted": False,
+                "provider_invoked": True,
+                "provider_id": request.provider_id,
+                "model": request.model,
+                "attack_flow": {
+                    "id": "attack-flow--fake",
+                    "name": "Fake extraction",
+                    "scope": "incident",
+                    "orchestration_mode": "ai_enrichment",
+                    "source_classification": "document_extracted_text",
+                    "authors": [],
+                    "external_references": [],
+                    "provenance": {},
+                },
+                "attack_actions": [],
+                "attack_conditions": [],
+                "attack_operators": [],
+                "attack_assets": [],
+                "deterministic_attack_refs": [],
+                "deterministic_entities": [],
+                "deterministic_relationships": [],
+            },
+            output_text=None,
+        )
 
 
 def _build_client(monkeypatch, tmp_path: Path) -> TestClient:
@@ -58,6 +107,15 @@ providers:
     monkeypatch.setenv("UPLOAD_DIR", str(data_dir / "uploads"))
     monkeypatch.setenv("ARTIFACT_DIR", str(data_dir / "artifacts"))
     monkeypatch.setenv("PROVIDERS_CONFIG_PATH", str(providers_path))
+
+    original_build_adapter = ProviderRegistry._build_adapter
+
+    def _build_adapter(self, provider: ProviderConfig):
+        if provider.provider_type == "openai":
+            return _FakeOpenAIAdapter(provider.provider_id, provider.provider_type)
+        return original_build_adapter(self, provider)
+
+    monkeypatch.setattr(ProviderRegistry, "_build_adapter", _build_adapter)
 
     return TestClient(create_app())
 
@@ -205,7 +263,7 @@ def test_worker_persists_intermediate_updates_and_completion(monkeypatch, tmp_pa
                 (job_id,),
             ).fetchall()
             event_types = {row["event_type"] for row in audit_rows}
-            assert {"stage_changed", "text_normalized", "normalized_package_created", "provider_invocation_started", "provider_invocation_skipped", "provider_invocation_completed", "structured_extraction_validated", "fusion_completed", "canonical_flow_created", "job_completed"}.issubset(event_types)
+            assert {"stage_changed", "text_normalized", "normalized_package_created", "ai_extraction_input_prepared", "ai_extraction_result", "fusion_completed", "canonical_flow_created", "job_completed"}.issubset(event_types)
             row = connection.execute(
                 "SELECT created_at, updated_at, completed_at FROM jobs WHERE id = ?",
                 (job_id,),
@@ -397,6 +455,47 @@ def test_worker_invokes_fusion_on_successful_ai_extraction(monkeypatch, tmp_path
             worker._run_ai_extraction_orchestration("job-fusion-2")
 
         assert mocked_build.call_count == 1
+
+
+def test_worker_preserves_provider_quota_exceeded_error_code(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        worker = client.app.state.job_worker
+        persistence = client.app.state.persistence_service
+
+        input_source = persistence.create_input_source(
+            InputSourceCreate(
+                id="input-rate-limit-1",
+                type="file",
+                file_class="stix_json",
+                normalized_source_type="stix_structured",
+                normalized_package_json=json.dumps({"version": "v1", "source_type": "stix_structured"}),
+            )
+        )
+        persistence.create_job(
+            JobCreate(
+                id="job-rate-limit-1",
+                status="queued",
+                stage="queued",
+                input_source_id=input_source.id,
+            )
+        )
+
+        async def fake_stage_hook(self, job_id: str, stage: str) -> None:
+            if stage == "ai_extraction":
+                raise _AIExtractionJobProcessingError(
+                    job_error_code="provider_quota_exceeded",
+                    job_error_message="provider quota exceeded",
+                )
+
+        worker._run_stage_hook = MethodType(fake_stage_hook, worker)
+
+        asyncio.run(worker._process_claimed_job("job-rate-limit-1"))
+
+        failed_job = persistence.get_job("job-rate-limit-1")
+        assert failed_job is not None
+        assert failed_job.status == "failed"
+        assert failed_job.error_code == "provider_quota_exceeded"
+        assert failed_job.error_message == "provider quota exceeded"
 
 
 def test_worker_builds_and_persists_canonical_flow_from_fused_output(monkeypatch, tmp_path: Path):
@@ -711,7 +810,7 @@ def test_worker_processes_url_job_and_persists_fetch_and_normalized_text(monkeyp
                 "stage_changed",
                 "url_validation_started",
             ]
-            assert {"url_fetch_started", "url_fetch_completed", "text_normalized", "normalized_package_created", "provider_invocation_started", "provider_invocation_completed", "provider_invocation_skipped", "structured_extraction_validated", "fusion_completed", "canonical_flow_created", "job_completed"}.issubset(set(event_types))
+            assert {"url_fetch_started", "url_fetch_completed", "text_normalized", "normalized_package_created", "ai_extraction_input_prepared", "ai_extraction_result", "fusion_completed", "canonical_flow_created", "job_completed"}.issubset(set(event_types))
 
 
 def test_worker_fails_url_job_with_unsupported_content_type(monkeypatch, tmp_path: Path):
@@ -1087,7 +1186,7 @@ def test_worker_persists_structured_stix_extraction_package(monkeypatch, tmp_pat
                 (job_id,),
             ).fetchall()
             event_types = {row["event_type"] for row in audit_rows}
-            assert {"file_validated", "file_classified", "stix_parsed", "normalized_package_created", "provider_invocation_started", "provider_invocation_completed", "provider_invocation_skipped", "structured_extraction_validated", "fusion_completed", "canonical_flow_created", "job_completed"}.issubset(event_types)
+            assert {"file_validated", "file_classified", "stix_parsed", "normalized_package_created", "ai_extraction_input_prepared", "ai_extraction_result", "fusion_completed", "canonical_flow_created", "job_completed"}.issubset(event_types)
 
         resolved_package = client.app.state.persistence_service.resolve_normalized_package_for_job(job_id)
         assert resolved_package is not None
@@ -1220,4 +1319,4 @@ def test_worker_processes_stix_job_asynchronously_through_lifecycle_stages(monke
                 (job_id,),
             ).fetchall()
             event_types = {row["event_type"] for row in audit_rows}
-            assert {"file_validated", "file_classified", "stix_parsed", "normalized_package_created", "provider_invocation_started", "provider_invocation_completed", "provider_invocation_skipped", "structured_extraction_validated", "fusion_completed", "canonical_flow_created", "job_completed"}.issubset(event_types)
+            assert {"file_validated", "file_classified", "stix_parsed", "normalized_package_created", "ai_extraction_input_prepared", "ai_extraction_result", "fusion_completed", "canonical_flow_created", "job_completed"}.issubset(event_types)

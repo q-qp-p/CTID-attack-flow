@@ -5,11 +5,60 @@ import time
 import os
 from pathlib import Path
 from uuid import uuid4
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
 from attack_flow_api.main import create_app
+from attack_flow_api.config import ProviderConfig
+from attack_flow_api.providers.registry import ProviderRegistry
 from attack_flow_api.storage.repositories import ArtifactCreate, JobUpdate
+
+
+class _FakeOpenAIAdapter:
+    def __init__(self, provider_id: str, provider_type: str):
+        self._provider_id = provider_id
+        self._provider_type = provider_type
+
+    @property
+    def provider_id(self) -> str:
+        return self._provider_id
+
+    @property
+    def provider_type(self) -> str:
+        return self._provider_type
+
+    def generate_structured(self, request):
+        return SimpleNamespace(
+            provider_id=request.provider_id,
+            provider_type=request.provider_type,
+            model=request.model,
+            output_json={
+                "validation_state": "valid",
+                "repair_attempted": False,
+                "provider_invoked": True,
+                "provider_id": request.provider_id,
+                "model": request.model,
+                "attack_flow": {
+                    "id": "attack-flow--fake",
+                    "name": "Fake extraction",
+                    "scope": "incident",
+                    "orchestration_mode": "ai_enrichment",
+                    "source_classification": "document_extracted_text",
+                    "authors": [],
+                    "external_references": [],
+                    "provenance": {},
+                },
+                "attack_actions": [],
+                "attack_conditions": [],
+                "attack_operators": [],
+                "attack_assets": [],
+                "deterministic_attack_refs": [],
+                "deterministic_entities": [],
+                "deterministic_relationships": [],
+            },
+            output_text=None,
+        )
 
 
 def _build_client(monkeypatch, tmp_path: Path) -> TestClient:
@@ -44,6 +93,15 @@ providers:
         monkeypatch.setenv("UPLOAD_ALLOWED_FILE_CLASSES", "pdf,plaintext,stix_json")
     if os.environ.get("UPLOAD_ALLOWED_MIME_TYPES") is None:
         monkeypatch.setenv("UPLOAD_ALLOWED_MIME_TYPES", "application/pdf,text/plain,application/json")
+
+    original_build_adapter = ProviderRegistry._build_adapter
+
+    def _build_adapter(self, provider: ProviderConfig):
+        if provider.provider_type == "openai":
+            return _FakeOpenAIAdapter(provider.provider_id, provider.provider_type)
+        return original_build_adapter(self, provider)
+
+    monkeypatch.setattr(ProviderRegistry, "_build_adapter", _build_adapter)
 
     return TestClient(create_app())
 

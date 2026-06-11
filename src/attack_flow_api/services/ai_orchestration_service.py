@@ -70,6 +70,24 @@ class AIOrchestrationService:
         if job is not None:
             self.persistence_service.record_job_event(
                 job=job,
+                event_type="ai_extraction_input_prepared",
+                source_component="orchestration",
+                message="ai extraction input prepared",
+                details={
+                    "mode": packaged_input.mode.value,
+                    "source_type": packaged_input.source_type,
+                    "deterministic_input_sufficient": packaged_input.deterministic_input_sufficient,
+                    "normalized_char_count": len(packaged_input.normalized_text),
+                    "normalized_excerpt": _build_excerpt(packaged_input.normalized_text),
+                    "attack_ref_count": len(packaged_input.deterministic_attack_refs),
+                    "entity_count": len(packaged_input.deterministic_entities),
+                    "relationship_count": len(packaged_input.deterministic_relationships),
+                },
+            )
+
+        if job is not None:
+            self.persistence_service.record_job_event(
+                job=job,
                 event_type="provider_invocation_started",
                 source_component="orchestration",
                 message="provider invocation started",
@@ -137,6 +155,37 @@ class AIOrchestrationService:
                 },
             )
 
+            result_excerpt: str | None = None
+            result_top_level_keys: list[str] = []
+            if validated.extraction_result is not None:
+                result_payload = validated.extraction_result.model_dump(mode="json")
+                result_excerpt = _build_excerpt(result_payload)
+                result_top_level_keys = sorted(result_payload.keys())
+            elif invocation_result.output_text is not None:
+                result_excerpt = _build_excerpt(invocation_result.output_text)
+            elif invocation_result.output_json is not None:
+                result_excerpt = _build_excerpt(invocation_result.output_json)
+
+            self.persistence_service.record_job_event(
+                job=job,
+                event_type="ai_extraction_result",
+                source_component="orchestration",
+                message="ai extraction result",
+                details={
+                    "provider_invoked": invocation_result.provider_invoked,
+                    "provider_id": invocation_result.provider_id,
+                    "model_used": invocation_result.model_used,
+                    "validation_state": validated.extraction_result.validation_state.value
+                    if validated.extraction_result is not None
+                    else "invalid",
+                    "repair_attempted": validated.repair_attempted,
+                    "error_code": validated.error_code,
+                    "error_message": validated.error_message,
+                    "result_excerpt": result_excerpt,
+                    "top_level_keys": result_top_level_keys,
+                },
+            )
+
         return _to_execution_result(
             invocation_result=invocation_result,
             validated=validated,
@@ -201,3 +250,15 @@ def _as_str_list(value: object) -> list[str]:
 
 def _to_json_list(values: list[str]) -> str:
     return json.dumps(values)
+
+
+def _build_excerpt(value: object, *, limit: int = 220) -> str:
+    if isinstance(value, str):
+        text = value
+    else:
+        text = json.dumps(value, sort_keys=True, ensure_ascii=False)
+
+    text = text.strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "..."
