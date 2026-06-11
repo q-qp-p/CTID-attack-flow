@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from attack_flow_api.audit_redaction import sanitize_audit_details
+from attack_flow_api.audit.audit_redaction import sanitize_audit_details
 from attack_flow_api.storage.models import Artifact, AuditEvent, InputSource, Job
 from attack_flow_api.storage.repositories import (
     ArtifactCreate,

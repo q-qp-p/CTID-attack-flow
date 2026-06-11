@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from attack_flow_api.audit_contracts import (
+from attack_flow_api.audit.audit_contracts import (
     JobAuditNotFound,
     JobAuditLookupResult,
     job_audit_response,

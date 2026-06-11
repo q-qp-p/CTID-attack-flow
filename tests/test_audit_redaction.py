@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from attack_flow_api.audit_contracts import job_audit_response
+from attack_flow_api.audit.audit_contracts import job_audit_response
 from attack_flow_api.services.persistence_service import PersistenceService
 from attack_flow_api.storage.database import initialize_database
 from attack_flow_api.storage.models import AuditEvent

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
-from attack_flow_api.audit_contracts import job_audit_response
+from attack_flow_api.audit.audit_contracts import job_audit_response
 from attack_flow_api.storage.models import AuditEvent
 
 

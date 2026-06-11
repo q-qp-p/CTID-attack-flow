@@ -6,7 +6,7 @@ from typing import Any, Sequence
 
 from pydantic import BaseModel, ConfigDict
 
-from attack_flow_api.audit_redaction import sanitize_audit_details
+from attack_flow_api.audit.audit_redaction import sanitize_audit_details
 from attack_flow_api.storage.models import AuditEvent, Job
 
 

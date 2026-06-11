@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from starlette.datastructures import UploadFile
 
 from attack_flow_api.errors import BadRequestError, ConflictError, NotFoundError, PayloadTooLargeError
-from attack_flow_api.audit_contracts import JobAuditResponse
+from attack_flow_api.audit.audit_contracts import JobAuditResponse
 from attack_flow_api.services.file_upload import FileUploadValidationError, validate_and_describe_upload
 from attack_flow_api.services.stix_json_validation import (
     StixJsonValidationError,

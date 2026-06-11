@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
-from attack_flow_api.audit_contracts import JobAuditResponse
+from attack_flow_api.audit.audit_contracts import JobAuditResponse
 from attack_flow_api.services.audit_retrieval_service import AuditRetrievalService
 from attack_flow_api.services.persistence_service import PersistenceService
 from attack_flow_api.storage.database import initialize_database
