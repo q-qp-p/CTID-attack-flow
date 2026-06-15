@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from fastapi.middleware.cors import CORSMiddleware
 
 from attack_flow_api.main import create_app
 from attack_flow_api.providers.adapter import ProviderAdapterInvocationError
@@ -294,3 +295,48 @@ def test_app_lifespan_initializes_runtime_state(monkeypatch, tmp_path: Path):
         assert client.app.state.job_worker is not None
         assert client.app.state.job_worker_task is not None
         assert not client.app.state.job_worker_task.done()
+
+
+def test_create_app_wires_cors_when_enabled(monkeypatch, tmp_path: Path):
+    data_dir = tmp_path / "data"
+    providers_path = tmp_path / "providers.yml"
+    providers_path.write_text(
+        """
+providers:
+  - provider_id: default-openai
+    provider_type: openai
+    enabled: true
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+    default_model: gpt-4.1-mini
+    allowed_models:
+      - gpt-4.1-mini
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("APP_NAME", "attack-flow-api")
+    monkeypatch.setenv("API_PREFIX", "/api/v1")
+    monkeypatch.setenv("DATA_DIR", str(data_dir))
+    monkeypatch.setenv("SQLITE_PATH", str(data_dir / "attack-flow.db"))
+    monkeypatch.setenv("UPLOAD_DIR", str(data_dir / "uploads"))
+    monkeypatch.setenv("ARTIFACT_DIR", str(data_dir / "artifacts"))
+    monkeypatch.setenv("PROVIDERS_CONFIG_PATH", str(providers_path))
+    monkeypatch.setenv("CORS_ENABLED", "true")
+    monkeypatch.setenv("CORS_ALLOW_ORIGINS", "https://example.com, https://admin.example.com")
+    monkeypatch.setenv("CORS_ALLOW_CREDENTIALS", "true")
+    monkeypatch.setenv("CORS_ALLOW_METHODS", "GET,POST")
+    monkeypatch.setenv("CORS_ALLOW_HEADERS", "Authorization,Content-Type")
+
+    with TestClient(create_app()) as client:
+        response = client.get(
+            "/api/v1/health",
+            headers={"Origin": "https://example.com"},
+        )
+
+        assert any(m.cls is CORSMiddleware for m in client.app.user_middleware)
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://example.com"
+    assert response.headers["access-control-allow-credentials"] == "true"
