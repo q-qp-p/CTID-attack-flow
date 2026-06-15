@@ -10,6 +10,7 @@ from attack_flow_api.storage.database import initialize_database
 from attack_flow_api.storage.filesystem import LocalFileStorage
 from attack_flow_api.storage.repositories import (
     ArtifactCreate,
+    ArtifactUpdate,
     AuditEventCreate,
     InputSourceCreate,
     InputSourceFileUpdate,
@@ -40,6 +41,8 @@ def test_database_initializes_and_creates_required_tables(tmp_path: Path):
     assert "artifacts" in table_names
     assert "audit_events" in table_names
     assert any(column[1] == "metadata_json" for column in artifact_columns)
+    assert any(column[1] == "validation_state" for column in artifact_columns)
+    assert any(column[1] == "export_status" for column in artifact_columns)
 
 
 def test_audit_events_can_be_created_and_listed_in_order(tmp_path: Path):
@@ -134,18 +137,83 @@ def test_artifact_metadata_can_be_created_and_retrieved(tmp_path: Path):
             type="stix",
             path="artifacts/2026/01/01/abc123.json",
             size_bytes=128,
+            validation_state="valid",
+            validation_errors_json="[]",
+            export_status="completed",
+            error_code=None,
+            error_message=None,
         )
     )
     assert created_artifact.id == "artifact-1"
     assert created_artifact.type == "stix"
+    assert created_artifact.validation_state == "valid"
+    assert created_artifact.export_status == "completed"
 
     fetched_by_id = repository.get_artifact_by_id("artifact-1")
     assert fetched_by_id is not None
     assert fetched_by_id.path == "artifacts/2026/01/01/abc123.json"
+    assert fetched_by_id.validation_errors_json == "[]"
 
     fetched_list = repository.list_artifacts(job_id="job-1", artifact_type="stix")
     assert len(fetched_list) == 1
     assert fetched_list[0].id == "artifact-1"
+
+
+def test_artifact_state_can_be_updated(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    repository = PersistenceRepository(db_path)
+
+    repository.create_job(JobCreate(id="job-1", status="queued", stage="created"))
+    repository.create_artifact(
+        ArtifactCreate(
+            id="artifact-1",
+            job_id="job-1",
+            type="afb",
+            path="artifacts/2026/01/01/abc123.afb",
+        )
+    )
+
+    updated = repository.update_artifact(
+        "artifact-1",
+        ArtifactUpdate(
+            validation_state="invalid",
+            validation_errors_json='[{"code":"x"}]',
+            export_status="failed",
+            error_code="artifact_invalid",
+            error_message="artifact validation failed",
+        ),
+    )
+
+    assert updated is not None
+    assert updated.validation_state == "invalid"
+    assert updated.validation_errors_json == '[{"code":"x"}]'
+    assert updated.export_status == "failed"
+
+
+def test_export_artifact_metadata_round_trips_artifact_state(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    service = PersistenceService(db_path)
+
+    service.create_job(JobCreate(id="job-3", status="queued", stage="created"))
+    artifact = service.create_stix_export_artifact(
+        job_id="job-3",
+        path="artifacts/2026/01/01/export.json",
+        size_bytes=256,
+        metadata=StixExportArtifactMetadata(
+            validation_state="valid",
+            bundle_id="bundle--export-3",
+            object_count=5,
+            exported_at="2026-01-01T00:00:00Z",
+            export_status="completed",
+            validation_errors=[],
+        ),
+    )
+
+    assert artifact.validation_state == "valid"
+    assert artifact.export_status == "completed"
+    assert artifact.validation_errors_json == "[]"
 
 
 def test_artifact_creation_records_an_audit_event(tmp_path: Path):

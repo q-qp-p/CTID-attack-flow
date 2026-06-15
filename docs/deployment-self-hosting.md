@@ -126,6 +126,14 @@ Practical limitation:
 
 - The export target is intentionally pinned to the local Attack Flow v2 schema and extension definition.
 
+## Shared Export Finalization (AFA-42)
+
+- Exporters validate output before success is finalized.
+- Artifact metadata is persisted consistently for valid STIX/AFB exports.
+- Invalid or incomplete artifacts are suppressed from download endpoints.
+- Export validation failures are visible through existing job status/result/audit surfaces where practical.
+- The partial failure policy is all-or-nothing at the job level: all requested exports are attempted, but the job fails if any export is invalid.
+
 ## Audit Trail (AFA-14)
 
 Jobs emit structured audit events across the lifecycle, and the API exposes a debug-oriented retrieval endpoint:

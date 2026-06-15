@@ -245,3 +245,11 @@ AFA-41 exports the same canonical constrained flow model as a pinned Attack Flow
 Practical limitation:
 
 - AFB export is intentionally pinned to the local Attack Flow v2 schema/extension target.
+
+## Shared Export Finalization (AFA-42)
+
+- Exporters validate output before success is finalized.
+- Valid STIX and AFB artifacts are persisted with practical metadata (validation state, checksum, size, creation time).
+- Invalid or incomplete artifacts are not exposed as successful downloads.
+- Export validation failures are surfaced through existing job status/result/audit views where practical.
+- Partial export success is not treated as overall success: all requested exports are attempted, but the job fails if any export is invalid.

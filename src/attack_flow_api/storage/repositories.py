@@ -262,6 +262,24 @@ class ArtifactCreate:
     sha256: str | None = None
     size_bytes: int | None = None
     metadata_json: str | None = None
+    validation_state: str | None = None
+    validation_errors_json: str | None = None
+    export_status: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+
+
+@dataclass(slots=True)
+class ArtifactUpdate:
+    path: str | None = None
+    sha256: str | None = None
+    size_bytes: int | None = None
+    metadata_json: str | None = None
+    validation_state: str | None = None
+    validation_errors_json: str | None = None
+    export_status: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
 
 
 @dataclass(slots=True)
@@ -996,8 +1014,12 @@ class PersistenceRepository:
         with create_connection(self.sqlite_path) as connection:
             connection.execute(
                 """
-                INSERT INTO artifacts (id, job_id, type, path, sha256, size_bytes, metadata_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO artifacts (
+                    id, job_id, type, path, sha256, size_bytes, metadata_json,
+                    validation_state, validation_errors_json, export_status,
+                    error_code, error_message, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
@@ -1007,6 +1029,11 @@ class PersistenceRepository:
                     payload.sha256,
                     payload.size_bytes,
                     payload.metadata_json,
+                    payload.validation_state,
+                    payload.validation_errors_json,
+                    payload.export_status,
+                    payload.error_code,
+                    payload.error_message,
                     now,
                 ),
             )
@@ -1014,6 +1041,39 @@ class PersistenceRepository:
         if created is None:
             raise RuntimeError("Failed to create artifact")
         return created
+
+    def update_artifact(self, artifact_id: str, payload: ArtifactUpdate) -> Artifact | None:
+        updates: dict[str, object] = {}
+        for field_name in (
+            "path",
+            "sha256",
+            "size_bytes",
+            "metadata_json",
+            "validation_state",
+            "validation_errors_json",
+            "export_status",
+            "error_code",
+            "error_message",
+        ):
+            value = getattr(payload, field_name)
+            if value is not None:
+                updates[field_name] = value
+
+        if not updates:
+            return self.get_artifact_by_id(artifact_id)
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates])
+        params = list(updates.values()) + [artifact_id]
+
+        with create_connection(self.sqlite_path) as connection:
+            result = connection.execute(
+                f"UPDATE artifacts SET {set_clause} WHERE id = ?",  # noqa: S608
+                params,
+            )
+            if result.rowcount == 0:
+                return None
+
+        return self.get_artifact_by_id(artifact_id)
 
     def get_artifact_by_id(self, artifact_id: str) -> Artifact | None:
         with create_connection(self.sqlite_path) as connection:
@@ -1030,6 +1090,11 @@ class PersistenceRepository:
             sha256=row["sha256"],
             size_bytes=row["size_bytes"],
             metadata_json=row["metadata_json"],
+            validation_state=row["validation_state"],
+            validation_errors_json=row["validation_errors_json"],
+            export_status=row["export_status"],
+            error_code=row["error_code"],
+            error_message=row["error_message"],
             created_at=_require_datetime(row["created_at"], "created_at"),
         )
 
@@ -1060,6 +1125,11 @@ class PersistenceRepository:
                 sha256=row["sha256"],
                 size_bytes=row["size_bytes"],
                 metadata_json=row["metadata_json"],
+                validation_state=row["validation_state"],
+                validation_errors_json=row["validation_errors_json"],
+                export_status=row["export_status"],
+                error_code=row["error_code"],
+                error_message=row["error_message"],
                 created_at=_require_datetime(row["created_at"], "created_at"),
             )
             for row in rows

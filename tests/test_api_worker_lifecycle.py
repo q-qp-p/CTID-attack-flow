@@ -726,6 +726,21 @@ def test_worker_persists_stix_export_artifact_and_downloads_it(monkeypatch, tmp_
         assert response.json()["type"] == "bundle"
         assert response.json()["objects"][0]["type"] == "attack-flow"
 
+        status_response = client.get("/api/v1/jobs/job-export-1")
+        status_payload = status_response.json()
+        assert status_payload["artifacts"]["has_stix"] is True
+        assert status_payload["artifacts"]["stix_outcome"]["valid"] is True
+        assert status_payload["artifacts"]["stix_outcome"]["export_status"] == "completed"
+
+        audit_response = client.get("/api/v1/jobs/job-export-1/audit")
+        audit_payload = audit_response.json()
+        stix_completed_event = next(
+            event for event in audit_payload["events"] if event["event_type"] == "stix_export_completed"
+        )
+        assert stix_completed_event["details"]["artifact_valid"] is True
+        assert stix_completed_event["details"]["export_status"] == "completed"
+        assert stix_completed_event["details"]["validation_state"] == "valid"
+
         afb_response = client.get("/api/v1/jobs/job-export-1/artifacts/afb")
         assert afb_response.status_code == 200
         assert afb_response.json()["objects"][0]["type"] == "extension-definition"
@@ -778,13 +793,27 @@ def test_worker_marks_failed_export_without_publishing_artifact(monkeypatch, tmp
         updated = persistence.get_job("job-export-2")
         assert updated is not None
         assert updated.status == "failed"
-        assert updated.error_code == "stix_export_validation_failed"
+        assert updated.error_code == "export_validation_failed"
 
         artifacts = persistence.list_artifacts(job_id="job-export-2", artifact_type="stix")
         assert artifacts == []
 
+        afb_artifacts = persistence.list_artifacts(job_id="job-export-2", artifact_type="afb")
+        assert len(afb_artifacts) == 1
+
         response = client.get("/api/v1/jobs/job-export-2/artifacts/stix")
         assert response.status_code == 404
+
+        audit_response = client.get("/api/v1/jobs/job-export-2/audit")
+        audit_payload = audit_response.json()
+        failed_event = next(
+            event for event in audit_payload["events"] if event["event_type"] == "stix_export_failed"
+        )
+        assert failed_event["details"]["artifact_valid"] is False
+        assert failed_event["details"]["export_status"] == "failed"
+        assert failed_event["details"]["validation_errors"]
+        assert failed_event["details"]["error_code"] == "export_validation_failed"
+        assert failed_event["details"]["error_message"] == "export validation failed"
 
 
 def test_worker_marks_failed_afb_export_without_publishing_artifact(monkeypatch, tmp_path: Path):
@@ -848,13 +877,27 @@ def test_worker_marks_failed_afb_export_without_publishing_artifact(monkeypatch,
         updated = persistence.get_job("job-afb-export-1")
         assert updated is not None
         assert updated.status == "failed"
-        assert updated.error_code == "afb_export_validation_failed"
+        assert updated.error_code == "export_validation_failed"
 
         artifacts = persistence.list_artifacts(job_id="job-afb-export-1", artifact_type="afb")
         assert artifacts == []
 
+        stix_artifacts = persistence.list_artifacts(job_id="job-afb-export-1", artifact_type="stix")
+        assert len(stix_artifacts) == 1
+
         response = client.get("/api/v1/jobs/job-afb-export-1/artifacts/afb")
         assert response.status_code == 404
+
+        audit_response = client.get("/api/v1/jobs/job-afb-export-1/audit")
+        audit_payload = audit_response.json()
+        failed_event = next(
+            event for event in audit_payload["events"] if event["event_type"] == "afb_export_failed"
+        )
+        assert failed_event["details"]["artifact_valid"] is False
+        assert failed_event["details"]["export_status"] == "failed"
+        assert failed_event["details"]["validation_errors"]
+        assert failed_event["details"]["error_code"] == "export_validation_failed"
+        assert failed_event["details"]["error_message"] == "export validation failed"
 
 
 def test_worker_falls_back_to_afb_output_when_fused_output_missing(monkeypatch, tmp_path: Path):

@@ -110,6 +110,11 @@ class Artifact:
     sha256: str | None
     size_bytes: int | None
     metadata_json: str | None
+    validation_state: str | None
+    validation_errors_json: str | None
+    export_status: str | None
+    error_code: str | None
+    error_message: str | None
     created_at: datetime
 
 

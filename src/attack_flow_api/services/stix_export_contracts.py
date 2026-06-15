@@ -310,6 +310,7 @@ class StixExportArtifactMetadata(BaseModel):
     bundle_id: str | None = None
     object_count: int | None = None
     exported_at: str | None = None
+    export_status: str = Field(default="pending")
     error_code: str | None = None
     error_message: str | None = None
     validation_errors: list[dict[str, Any]] = Field(default_factory=list)

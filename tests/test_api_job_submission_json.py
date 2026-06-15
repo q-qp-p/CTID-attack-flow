@@ -12,6 +12,8 @@ from fastapi.testclient import TestClient
 from attack_flow_api.main import create_app
 from attack_flow_api.config import ProviderConfig
 from attack_flow_api.providers.registry import ProviderRegistry
+from attack_flow_api.services.afb_export_contracts import AfbExportArtifactMetadata
+from attack_flow_api.services.stix_export_contracts import StixExportArtifactMetadata
 from attack_flow_api.storage.repositories import ArtifactCreate, JobUpdate
 
 
@@ -570,6 +572,49 @@ def test_get_job_status_returns_200_with_job_state(monkeypatch, tmp_path: Path):
     assert payload["request_id"]
 
 
+def test_get_job_status_includes_export_outcome_when_artifact_exists(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        create_response = client.post(
+            "/api/v1/jobs",
+            json={"input_type": "text", "text": "investigation content"},
+        )
+        job_id = create_response.json()["job_id"]
+
+        artifact_file = client.app.state.file_storage.write_artifact(
+            b'{"type":"bundle","id":"bundle--status"}',
+            extension="json",
+        )
+        client.app.state.persistence_service.create_artifact(
+            payload=ArtifactCreate(
+                id=str(uuid4()),
+                job_id=job_id,
+                type="stix",
+                path=artifact_file.relative_path,
+                size_bytes=artifact_file.size_bytes,
+                metadata_json=StixExportArtifactMetadata(
+                    validation_state="valid",
+                    bundle_id="bundle--status",
+                    object_count=1,
+                    exported_at="2026-01-01T00:00:00Z",
+                    export_status="completed",
+                    validation_errors=[],
+                ).model_dump_json(),
+                validation_state="valid",
+                export_status="completed",
+                sha256="abc123",
+            )
+        )
+
+        response = client.get(f"/api/v1/jobs/{job_id}")
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["artifacts"]["has_stix"] is True
+    assert payload["artifacts"]["stix_outcome"]["valid"] is True
+    assert payload["artifacts"]["stix_outcome"]["export_status"] == "completed"
+    assert payload["artifacts"]["stix_outcome"]["checksum"] == "abc123"
+
+
 def test_get_job_status_returns_structured_404_when_missing(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
         response = client.get("/api/v1/jobs/missing-job")
@@ -607,6 +652,16 @@ def test_delete_job_returns_200_and_removes_related_records_and_files(monkeypatc
                 type="stix",
                 path=artifact_file.relative_path,
                 size_bytes=artifact_file.size_bytes,
+                metadata_json=StixExportArtifactMetadata(
+                    validation_state="valid",
+                    bundle_id="bundle--stix",
+                    object_count=1,
+                    exported_at="2026-01-01T00:00:00Z",
+                    export_status="completed",
+                    validation_errors=[],
+                ).model_dump_json(),
+                validation_state="valid",
+                export_status="completed",
             )
         )
 
@@ -696,6 +751,16 @@ def test_download_job_afb_artifact_returns_json_file(monkeypatch, tmp_path: Path
                 type="afb",
                 path=artifact_file.relative_path,
                 size_bytes=artifact_file.size_bytes,
+                metadata_json=AfbExportArtifactMetadata(
+                    validation_state="valid",
+                    bundle_id="bundle--afb",
+                    object_count=1,
+                    exported_at="2026-01-01T00:00:00Z",
+                    export_status="completed",
+                    validation_errors=[],
+                ).model_dump_json(),
+                validation_state="valid",
+                export_status="completed",
             )
         )
 
@@ -706,6 +771,50 @@ def test_download_job_afb_artifact_returns_json_file(monkeypatch, tmp_path: Path
     assert response.headers["content-disposition"].endswith(f'filename="{job_id}-afb.afb"')
     assert response.headers.get("x-request-id")
     assert response.json()["format"] == "afb"
+
+
+def test_download_job_artifact_returns_404_for_invalid_artifact(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        create_response = client.post(
+            "/api/v1/jobs",
+            json={"input_type": "text", "text": "investigation content"},
+        )
+        job_id = create_response.json()["job_id"]
+
+        artifact_file = client.app.state.file_storage.write_artifact(
+            b'{"type":"bundle","id":"bundle--invalid"}',
+            extension="json",
+        )
+        client.app.state.persistence_service.create_artifact(
+            payload=ArtifactCreate(
+                id=str(uuid4()),
+                job_id=job_id,
+                type="stix",
+                path=artifact_file.relative_path,
+                size_bytes=artifact_file.size_bytes,
+                metadata_json=StixExportArtifactMetadata(
+                    validation_state="invalid",
+                    bundle_id="bundle--invalid",
+                    object_count=1,
+                    exported_at="2026-01-01T00:00:00Z",
+                    export_status="failed",
+                    error_code="validation_failed",
+                    error_message="export validation failed",
+                    validation_errors=[{"code": "invalid"}],
+                ).model_dump_json(),
+                validation_state="invalid",
+                export_status="failed",
+                error_code="validation_failed",
+                error_message="export validation failed",
+            )
+        )
+
+        response = client.get(f"/api/v1/jobs/{job_id}/artifacts/stix")
+
+    payload = response.json()
+    assert response.status_code == 404
+    assert payload["error"]["code"] == "artifact_not_found"
+    assert payload["error"]["message"] == "stix artifact not found"
 
 
 def test_download_job_artifact_returns_structured_404_for_missing_job(monkeypatch, tmp_path: Path):
@@ -786,6 +895,30 @@ def test_get_job_result_returns_200_when_structured_result_exists(monkeypatch, t
             ),
         )
 
+        artifact_file = client.app.state.file_storage.write_artifact(
+            b'{"type":"bundle","id":"bundle--result"}',
+            extension="json",
+        )
+        client.app.state.persistence_service.create_artifact(
+            payload=ArtifactCreate(
+                id=str(uuid4()),
+                job_id=job_id,
+                type="stix",
+                path=artifact_file.relative_path,
+                size_bytes=artifact_file.size_bytes,
+                metadata_json=StixExportArtifactMetadata(
+                    validation_state="valid",
+                    bundle_id="bundle--result",
+                    object_count=1,
+                    exported_at="2026-01-01T00:00:00Z",
+                    export_status="completed",
+                    validation_errors=[],
+                ).model_dump_json(),
+                validation_state="valid",
+                export_status="completed",
+            )
+        )
+
         response = client.get(f"/api/v1/jobs/{job_id}/result")
 
     payload = response.json()
@@ -795,6 +928,8 @@ def test_get_job_result_returns_200_when_structured_result_exists(monkeypatch, t
     assert payload["result"]["summary"] == "ready"
     assert payload["result"]["techniques"] == ["T1059"]
     assert payload["result"]["artifacts"] == {"stix": True, "afb": False}
+    assert payload["artifacts"]["has_stix"] is True
+    assert payload["artifacts"]["stix_outcome"]["export_status"] == "completed"
     assert payload["request_id"]
 
 
