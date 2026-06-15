@@ -1181,6 +1181,44 @@ def test_worker_persists_url_fetch_failure_and_continues_next_job(monkeypatch, t
             assert "timed out" in input_row["fetch_error_message"]
 
 
+def test_worker_marks_url_job_unsafe_when_fetch_blocks_private_destination(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        client.app.state.job_worker.poll_interval_seconds = 0.01
+
+        with patch("attack_flow_api.services.job_worker_service.fetch_url_bounded") as mocked_fetch:
+            mocked_fetch.side_effect = UrlFetchError("unsafe_destination", "destination resolves to private address")
+
+            response = client.post(
+                "/api/v1/jobs",
+                json={"input_type": "url", "url": "https://blocked.example/report"},
+            )
+            job_id = response.json()["job_id"]
+
+            failed_payload = _wait_for_status(client, job_id, "failed")
+            assert failed_payload is not None
+
+        with sqlite3.connect(client.app.state.sqlite_path) as connection:
+            connection.row_factory = sqlite3.Row
+            job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            assert job_row is not None
+            assert job_row["error_code"] == "url_destination_unsafe"
+            assert "private address" in job_row["error_message"]
+
+            input_row = connection.execute(
+                "SELECT fetch_error_code, fetch_error_message FROM input_sources WHERE id = ?",
+                (job_row["input_source_id"],),
+            ).fetchone()
+            assert input_row is not None
+            assert input_row["fetch_error_code"] == "unsafe_destination"
+            assert "private address" in input_row["fetch_error_message"]
+
+            audit_rows = connection.execute(
+                "SELECT event_type FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+                (job_id,),
+            ).fetchall()
+            assert "job_failed" in {row["event_type"] for row in audit_rows}
+
+
 def test_non_http_https_url_is_rejected_before_worker_processing(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
         response = client.post(

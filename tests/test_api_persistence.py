@@ -382,6 +382,24 @@ def test_storage_respects_max_file_size(tmp_path: Path):
         storage.write_upload(content=b"12345", extension="txt")
 
 
+def test_strict_mode_rejects_symlinked_storage_chain(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    storage = LocalFileStorage(
+        data_dir=data_dir,
+        upload_dir=data_dir / "uploads",
+        artifact_dir=data_dir / "artifacts",
+        strict_mode=True,
+    )
+
+    linked_dir = data_dir / "uploads" / "2026"
+    target_dir = tmp_path / "linked-target"
+    target_dir.mkdir(parents=True)
+    linked_dir.symlink_to(target_dir, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="storage directory"):
+        storage.write_upload(content=b"x", extension="txt")
+
+
 def test_resolve_canonical_text_for_job_prefers_normalized_text(tmp_path: Path):
     db_path = tmp_path / "attack-flow.db"
     initialize_database(db_path)

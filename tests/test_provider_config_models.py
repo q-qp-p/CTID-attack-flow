@@ -1,7 +1,9 @@
 import pytest
 from pydantic import ValidationError
 
-from attack_flow_api.config import ProviderConfig, ProvidersConfig
+from pathlib import Path
+
+from attack_flow_api.config import ProviderConfig, ProvidersConfig, load_providers_config
 
 
 def test_provider_config_model_validates_canonical_fields() -> None:
@@ -148,3 +150,18 @@ def test_validate_openai_provider_config_reports_usable_and_error_states() -> No
         "model_configuration_missing",
         "base_url_invalid",
     ]
+
+
+def test_load_providers_config_raises_for_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        load_providers_config(tmp_path / "missing-providers.yml")
+
+
+def test_load_providers_config_rejects_non_mapping_root(tmp_path: Path) -> None:
+    config_path = tmp_path / "providers.yml"
+    config_path.write_text("- not-a-mapping\n", encoding="utf-8")
+
+    with pytest.raises(ValueError) as exc:
+        load_providers_config(config_path)
+
+    assert str(exc.value) == "Provider config YAML root must be a mapping"
