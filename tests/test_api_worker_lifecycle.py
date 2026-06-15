@@ -13,6 +13,8 @@ from attack_flow_api.config import ProviderConfig
 from attack_flow_api.providers.registry import ProviderRegistry
 from attack_flow_api.services.ai_orchestration_service import AIOrchestrationExecutionResult
 from attack_flow_api.services.job_worker_service import _AIExtractionJobProcessingError
+from attack_flow_api.services.job_worker_service import assemble_afb_export_bundle as _assemble_afb_export_bundle
+import attack_flow_api.services.job_worker_service as job_worker_service
 from attack_flow_api.services.afb_extraction_contracts import (
     AfbExtractionResult,
     AttackFlowMetadata,
@@ -20,6 +22,7 @@ from attack_flow_api.services.afb_extraction_contracts import (
     OrchestrationMode,
     SourceClassification,
 )
+from attack_flow_api.services.afb_export_contracts import AfbExportCompatibilityError
 from attack_flow_api.services.afb_fusion_assembler import build_fused_output_candidate
 from attack_flow_api.services.afb_fusion_dedup import (
     MergedAttackAction,
@@ -27,6 +30,12 @@ from attack_flow_api.services.afb_fusion_dedup import (
     MergedAttachmentBundle,
     MergedEntity,
     MergedRelationship,
+)
+from attack_flow_api.services.canonical_flow_contracts import (
+    CanonicalFlowActionNode,
+    CanonicalFlowAssetNode,
+    CanonicalFlowMetadata,
+    CanonicalFlowOutput,
 )
 from attack_flow_api.storage.repositories import InputSourceCreate, JobCreate
 from attack_flow_api.services.plaintext_extraction import PlaintextExtractionError
@@ -627,6 +636,225 @@ def test_worker_builds_and_persists_canonical_flow_from_fused_output(monkeypatch
         assert updated.canonical_flow_validation_state == "valid"
         assert json.loads(updated.canonical_flow_json)["schema_version"] == "attack-flow-canonical-v1"
         assert json.loads(updated.canonical_flow_provenance_json or "{}")
+
+
+def test_worker_persists_stix_export_artifact_and_downloads_it(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        worker = client.app.state.job_worker
+        persistence = client.app.state.persistence_service
+
+        input_source = persistence.create_input_source(
+            InputSourceCreate(
+                id="input-export-1",
+                type="file",
+            )
+        )
+        canonical_flow = CanonicalFlowOutput(
+            metadata=CanonicalFlowMetadata(
+                flow_id="attack-flow--export-1",
+                name="Example flow",
+                scope="incident",
+                start_refs=["attack-action--1"],
+            ),
+            nodes=[
+                CanonicalFlowActionNode(
+                    id="attack-action--1",
+                    name="Example step",
+                    description="Observed command exactly as reported.",
+                    provenance=[
+                        {
+                            "source_label": "fused",
+                            "source_object_id": "attack-action--1",
+                        }
+                    ],
+                    evidence=[
+                        {
+                            "source": "narrative",
+                            "excerpt": "Observed command exactly as reported.",
+                        }
+                    ],
+                    asset_refs=["attack-asset--1"],
+                ),
+                CanonicalFlowAssetNode(
+                    id="attack-asset--1",
+                    name="Host asset",
+                    object_ref="malware--1",
+                    provenance=[
+                        {
+                            "source_label": "fused",
+                            "source_object_id": "attack-asset--1",
+                        }
+                    ],
+                ),
+            ],
+            edges=[],
+            provenance={"source": "fused"},
+            conflicts=[],
+            validation_errors=[],
+        )
+        persistence.create_job(
+            JobCreate(
+                id="job-export-1",
+                status="exporting",
+                stage="exporting",
+                input_source_id=input_source.id,
+                canonical_flow_json=canonical_flow.model_dump_json(),
+            )
+        )
+
+        worker._processing_stages = ("flow_building",)
+        asyncio.run(worker._process_claimed_job("job-export-1"))
+
+        updated = persistence.get_job("job-export-1")
+        assert updated is not None
+        assert updated.status == "completed"
+
+        artifacts = persistence.list_artifacts(job_id="job-export-1", artifact_type="stix")
+        assert len(artifacts) == 1
+        artifact = artifacts[0]
+        assert artifact.metadata_json is not None
+        assert json.loads(artifact.metadata_json)["validation_state"] == "valid"
+
+        afb_artifacts = persistence.list_artifacts(job_id="job-export-1", artifact_type="afb")
+        assert len(afb_artifacts) == 1
+        afb_artifact = afb_artifacts[0]
+        assert afb_artifact.metadata_json is not None
+        assert json.loads(afb_artifact.metadata_json)["validation_state"] == "valid"
+
+        response = client.get("/api/v1/jobs/job-export-1/artifacts/stix")
+        assert response.status_code == 200
+        assert response.json()["type"] == "bundle"
+        assert response.json()["objects"][0]["type"] == "attack-flow"
+
+        afb_response = client.get("/api/v1/jobs/job-export-1/artifacts/afb")
+        assert afb_response.status_code == 200
+        assert afb_response.json()["objects"][0]["type"] == "extension-definition"
+
+
+def test_worker_marks_failed_export_without_publishing_artifact(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        worker = client.app.state.job_worker
+        persistence = client.app.state.persistence_service
+
+        input_source = persistence.create_input_source(
+            InputSourceCreate(
+                id="input-export-2",
+                type="file",
+            )
+        )
+        canonical_flow = CanonicalFlowOutput(
+            metadata=CanonicalFlowMetadata(
+                flow_id="attack-flow--export-2",
+                name="Example flow",
+                scope="incident",
+                start_refs=["attack-action--1"],
+            ),
+            nodes=[
+                CanonicalFlowActionNode(
+                    id="attack-action--1",
+                    name="Example step",
+                    description="Observed command exactly as reported.",
+                    asset_refs=["attack-asset--missing"],
+                )
+            ],
+            edges=[],
+            provenance={"source": "fused"},
+            conflicts=[],
+            validation_errors=[],
+        )
+        persistence.create_job(
+            JobCreate(
+                id="job-export-2",
+                status="exporting",
+                stage="exporting",
+                input_source_id=input_source.id,
+                canonical_flow_json=canonical_flow.model_dump_json(),
+            )
+        )
+
+        worker._processing_stages = ("flow_building",)
+        asyncio.run(worker._process_claimed_job("job-export-2"))
+
+        updated = persistence.get_job("job-export-2")
+        assert updated is not None
+        assert updated.status == "failed"
+        assert updated.error_code == "stix_export_validation_failed"
+
+        artifacts = persistence.list_artifacts(job_id="job-export-2", artifact_type="stix")
+        assert artifacts == []
+
+        response = client.get("/api/v1/jobs/job-export-2/artifacts/stix")
+        assert response.status_code == 404
+
+
+def test_worker_marks_failed_afb_export_without_publishing_artifact(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        worker = client.app.state.job_worker
+        persistence = client.app.state.persistence_service
+
+        input_source = persistence.create_input_source(
+            InputSourceCreate(
+                id="input-afb-export-1",
+                type="file",
+            )
+        )
+        canonical_flow = CanonicalFlowOutput(
+            metadata=CanonicalFlowMetadata(
+                flow_id="attack-flow--afb-export-1",
+                name="Example flow",
+                scope="incident",
+                start_refs=["attack-action--1"],
+            ),
+            nodes=[
+                CanonicalFlowActionNode(
+                    id="attack-action--1",
+                    name="Example step",
+                    description="Observed command exactly as reported.",
+                    asset_refs=["attack-asset--1"],
+                ),
+                CanonicalFlowAssetNode(
+                    id="attack-asset--1",
+                    name="Host asset",
+                    object_ref="malware--1",
+                ),
+            ],
+            edges=[],
+            provenance={"source": "fused"},
+            conflicts=[],
+            validation_errors=[],
+        )
+        persistence.create_job(
+            JobCreate(
+                id="job-afb-export-1",
+                status="exporting",
+                stage="exporting",
+                input_source_id=input_source.id,
+                canonical_flow_json=canonical_flow.model_dump_json(),
+            )
+        )
+
+        def failing_assemble(canonical_flow):
+            bundle = _assemble_afb_export_bundle(canonical_flow)
+            bundle.validation_errors = [
+                AfbExportCompatibilityError(code="forced_invalid", message="forced invalid export")
+            ]
+            return bundle
+
+        monkeypatch.setattr(job_worker_service, "assemble_afb_export_bundle", failing_assemble)
+
+        worker._processing_stages = ("flow_building",)
+        asyncio.run(worker._process_claimed_job("job-afb-export-1"))
+
+        updated = persistence.get_job("job-afb-export-1")
+        assert updated is not None
+        assert updated.status == "failed"
+        assert updated.error_code == "afb_export_validation_failed"
+
+        artifacts = persistence.list_artifacts(job_id="job-afb-export-1", artifact_type="afb")
+        assert artifacts == []
+
+        response = client.get("/api/v1/jobs/job-afb-export-1/artifacts/afb")
+        assert response.status_code == 404
 
 
 def test_worker_falls_back_to_afb_output_when_fused_output_missing(monkeypatch, tmp_path: Path):

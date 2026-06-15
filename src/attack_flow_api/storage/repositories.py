@@ -261,6 +261,7 @@ class ArtifactCreate:
     path: str
     sha256: str | None = None
     size_bytes: int | None = None
+    metadata_json: str | None = None
 
 
 @dataclass(slots=True)
@@ -995,8 +996,8 @@ class PersistenceRepository:
         with create_connection(self.sqlite_path) as connection:
             connection.execute(
                 """
-                INSERT INTO artifacts (id, job_id, type, path, sha256, size_bytes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO artifacts (id, job_id, type, path, sha256, size_bytes, metadata_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.id,
@@ -1005,6 +1006,7 @@ class PersistenceRepository:
                     payload.path,
                     payload.sha256,
                     payload.size_bytes,
+                    payload.metadata_json,
                     now,
                 ),
             )
@@ -1027,6 +1029,7 @@ class PersistenceRepository:
             path=row["path"],
             sha256=row["sha256"],
             size_bytes=row["size_bytes"],
+            metadata_json=row["metadata_json"],
             created_at=_require_datetime(row["created_at"], "created_at"),
         )
 
@@ -1056,6 +1059,7 @@ class PersistenceRepository:
                 path=row["path"],
                 sha256=row["sha256"],
                 size_bytes=row["size_bytes"],
+                metadata_json=row["metadata_json"],
                 created_at=_require_datetime(row["created_at"], "created_at"),
             )
             for row in rows

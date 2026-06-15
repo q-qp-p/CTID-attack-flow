@@ -1,7 +1,9 @@
 import asyncio
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from attack_flow_api.config import AppSettings
@@ -29,6 +31,15 @@ from attack_flow_api.services.plaintext_extraction import (
     extract_plaintext_content,
 )
 from attack_flow_api.services.persistence_service import PersistenceService
+from attack_flow_api.services.canonical_flow_contracts import CanonicalFlowOutput
+from attack_flow_api.services.afb_export_contracts import (
+    AfbExportArtifactMetadata,
+    assemble_afb_export_bundle,
+)
+from attack_flow_api.services.stix_export_contracts import (
+    StixExportArtifactMetadata,
+    assemble_stix_export_bundle,
+)
 from attack_flow_api.services.stix_json_validation import (
     parse_stix_json_object,
     StixJsonValidationError,
@@ -86,7 +97,6 @@ class JobWorkerService:
             "normalizing",
             "ai_extraction",
             "flow_building",
-            "exporting",
         )
         self._stix_extraction_failed_code = "stix_extraction_failed"
         self._stix_extraction_failed_message = "failed to extract structured stix content"
@@ -187,6 +197,34 @@ class JobWorkerService:
                     "error_code": exc.job_error_code,
                 },
             )
+        except _STIXExportJobProcessingError as exc:
+            self.persistence_service.mark_job_failed(
+                job_id,
+                error_code=exc.job_error_code,
+                error_message=exc.job_error_message,
+            )
+            self._logger.warning(
+                "job lifecycle failed",
+                extra={
+                    "worker_id": self.worker_id,
+                    "job_id": job_id,
+                    "error_code": exc.job_error_code,
+                },
+            )
+        except _AFBExportJobProcessingError as exc:
+            self.persistence_service.mark_job_failed(
+                job_id,
+                error_code=exc.job_error_code,
+                error_message=exc.job_error_message,
+            )
+            self._logger.warning(
+                "job lifecycle failed",
+                extra={
+                    "worker_id": self.worker_id,
+                    "job_id": job_id,
+                    "error_code": exc.job_error_code,
+                },
+            )
         except Exception as exc:  # pragma: no cover
             self.persistence_service.mark_job_failed(
                 job_id,
@@ -257,6 +295,23 @@ class JobWorkerService:
         if job is None:
             return
 
+        if job.canonical_flow_json:
+            canonical_flow = CanonicalFlowOutput.model_validate_json(job.canonical_flow_json)
+            validation = validate_canonical_flow_output(canonical_flow)
+            if not validation.valid:
+                self._logger.warning(
+                    "canonical flow validation failed",
+                    extra={
+                        "worker_id": self.worker_id,
+                        "job_id": job_id,
+                        "error_count": len(validation.errors),
+                    },
+            )
+            self._advance_stage(job_id, "exporting")
+            self._run_stix_export(job_id, canonical_flow=canonical_flow)
+            self._run_afb_export(job_id, canonical_flow=canonical_flow)
+            return
+
         fused_output: FusedOutputCandidate | None = None
         extraction_output: AfbExtractionResult | None = None
 
@@ -288,6 +343,140 @@ class JobWorkerService:
                     "error_count": len(validation.errors),
                 },
             )
+
+        self._advance_stage(job_id, "exporting")
+        self._run_stix_export(job_id, canonical_flow=persisted_canonical_flow)
+        self._run_afb_export(job_id, canonical_flow=persisted_canonical_flow)
+
+    def _run_stix_export(self, job_id: str, *, canonical_flow: CanonicalFlowOutput | None = None) -> None:
+        job = self.persistence_service.get_job(job_id)
+        if job is None:
+            return
+
+        if canonical_flow is None:
+            if not job.canonical_flow_json:
+                raise _STIXExportJobProcessingError(
+                    job_error_code="stix_export_missing_canonical_flow",
+                    job_error_message="canonical flow is required for stix export",
+                )
+            canonical_flow = CanonicalFlowOutput.model_validate_json(job.canonical_flow_json)
+
+        if canonical_flow is None:
+            raise _STIXExportJobProcessingError(
+                job_error_code="stix_export_missing_canonical_flow",
+                job_error_message="canonical flow is required for stix export",
+            )
+
+        canonical_validation = validate_canonical_flow_output(canonical_flow)
+        if not canonical_validation.valid:
+            self.persistence_service.record_stix_export_failed(
+                job=job,
+                bundle_id=None,
+                object_count=None,
+                validation_errors=[item.model_dump(mode="json") for item in canonical_validation.errors],
+            )
+            raise _STIXExportJobProcessingError(
+                job_error_code="stix_export_validation_failed",
+                job_error_message="stix export validation failed",
+            )
+
+        bundle = assemble_stix_export_bundle(canonical_flow)
+
+        if bundle.validation_errors:
+            validation_errors = [item.model_dump(mode="json") for item in bundle.validation_errors]
+            self.persistence_service.record_stix_export_failed(
+                job=job,
+                bundle_id=bundle.metadata.id,
+                object_count=bundle.metadata.object_count,
+                validation_errors=validation_errors,
+            )
+            raise _STIXExportJobProcessingError(
+                job_error_code="stix_export_validation_failed",
+                job_error_message="stix export validation failed",
+            )
+
+        bundle_bytes = bundle.to_json_bytes()
+        stored_file = self.file_storage.write_artifact(bundle_bytes, extension="json")
+        exported_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        artifact = self.persistence_service.create_stix_export_artifact(
+            job_id=job_id,
+            path=stored_file.relative_path,
+            sha256=hashlib.sha256(bundle_bytes).hexdigest(),
+            size_bytes=stored_file.size_bytes,
+            metadata=StixExportArtifactMetadata(
+                validation_state="valid",
+                bundle_id=bundle.metadata.id,
+                object_count=bundle.metadata.object_count,
+                exported_at=exported_at,
+                validation_errors=[],
+            ),
+        )
+        self.persistence_service.record_stix_export_completed(
+            job=job,
+            artifact=artifact,
+            bundle_id=bundle.metadata.id,
+            object_count=bundle.metadata.object_count,
+            exported_at=exported_at,
+        )
+
+    def _run_afb_export(self, job_id: str, *, canonical_flow: CanonicalFlowOutput | None = None) -> None:
+        job = self.persistence_service.get_job(job_id)
+        if job is None:
+            return
+
+        if canonical_flow is None:
+            if not job.canonical_flow_json:
+                raise _AFBExportJobProcessingError(
+                    job_error_code="afb_export_missing_canonical_flow",
+                    job_error_message="canonical flow is required for afb export",
+                )
+            canonical_flow = CanonicalFlowOutput.model_validate_json(job.canonical_flow_json)
+
+        if canonical_flow is None:
+            raise _AFBExportJobProcessingError(
+                job_error_code="afb_export_missing_canonical_flow",
+                job_error_message="canonical flow is required for afb export",
+            )
+
+        afb_bundle = assemble_afb_export_bundle(canonical_flow)
+        if afb_bundle.validation_errors:
+            validation_errors = [item.model_dump(mode="json") for item in afb_bundle.validation_errors]
+            self.persistence_service.record_afb_export_failed(
+                job=job,
+                bundle_id=afb_bundle.metadata.bundle_id,
+                object_count=afb_bundle.metadata.object_count,
+                validation_errors=validation_errors,
+                schema_version=afb_bundle.metadata.schema_version,
+            )
+            raise _AFBExportJobProcessingError(
+                job_error_code="afb_export_validation_failed",
+                job_error_message="afb export validation failed",
+            )
+
+        bundle_bytes = afb_bundle.to_export_json_bytes()
+        stored_file = self.file_storage.write_artifact(bundle_bytes, extension="afb")
+        exported_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        artifact = self.persistence_service.create_afb_export_artifact(
+            job_id=job_id,
+            path=stored_file.relative_path,
+            sha256=hashlib.sha256(bundle_bytes).hexdigest(),
+            size_bytes=stored_file.size_bytes,
+            metadata=AfbExportArtifactMetadata(
+                validation_state="valid",
+                bundle_id=afb_bundle.metadata.bundle_id,
+                object_count=afb_bundle.metadata.object_count,
+                exported_at=exported_at,
+                validation_errors=[],
+            ),
+        )
+        self.persistence_service.record_afb_export_completed(
+            job=job,
+            artifact=artifact,
+            bundle_id=afb_bundle.metadata.bundle_id,
+            object_count=afb_bundle.metadata.object_count,
+            exported_at=exported_at,
+            schema_version=afb_bundle.metadata.schema_version,
+        )
 
     async def _run_url_stage(self, job_id: str, stage: str, input_source: InputSource) -> None:
         if input_source.source_url is None:
@@ -887,6 +1076,20 @@ class _FileJobProcessingError(RuntimeError):
 
 
 class _AIExtractionJobProcessingError(RuntimeError):
+    def __init__(self, *, job_error_code: str, job_error_message: str):
+        super().__init__(job_error_message)
+        self.job_error_code = job_error_code
+        self.job_error_message = job_error_message
+
+
+class _STIXExportJobProcessingError(RuntimeError):
+    def __init__(self, *, job_error_code: str, job_error_message: str):
+        super().__init__(job_error_message)
+        self.job_error_code = job_error_code
+        self.job_error_message = job_error_message
+
+
+class _AFBExportJobProcessingError(RuntimeError):
     def __init__(self, *, job_error_code: str, job_error_message: str):
         super().__init__(job_error_message)
         self.job_error_code = job_error_code

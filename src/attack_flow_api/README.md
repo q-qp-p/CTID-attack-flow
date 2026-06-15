@@ -214,3 +214,34 @@ AFA-33 converts AFA-34 fused output into one canonical internal flow model.
 - Source-grounded attachment semantics are enforced.
 
 This canonical model is internal to the worker pipeline and is what the backend persists before export-specific handling.
+
+## STIX Export (AFA-40)
+
+AFA-40 exports the canonical constrained flow model as a STIX 2.1 bundle.
+
+- The export uses Attack Flow extension objects where appropriate.
+- The root `attack-flow` object preserves the canonical flow name, scope, description when present, start refs, and external references.
+- `attack-action` objects preserve only explicit ATT&CK mappings from source and allow unmapped steps.
+- Action descriptions remain verbatim source excerpts.
+- `attack-condition` objects preserve only `true`/`false` branching semantics.
+- `attack-operator` objects preserve only `AND`/`OR` values.
+- `attack-asset` objects preserve source-grounded attachment semantics where `object_ref` is available.
+- Valid STIX export artifacts are persisted and retrievable through the existing STIX artifact endpoint.
+- Invalid exports fail clearly and are not exposed as successful artifacts.
+
+## AFB Export (AFA-41)
+
+AFA-41 exports the same canonical constrained flow model as a pinned Attack Flow v2-compatible AFB artifact.
+
+- Canonical flow metadata is mapped into the pinned `attack-flow` root object.
+- Only explicit source-grounded ATT&CK techniques are exported as technique mappings.
+- Steps without ATT&CK mappings are allowed.
+- Descriptions remain verbatim source excerpts.
+- Only `AND`/`OR` operators and `true`/`false` conditions are exported.
+- Source-grounded attachment semantics are preserved.
+- Valid AFB export artifacts are persisted and retrievable through `GET /api/v1/jobs/{job_id}/artifacts/afb`.
+- Invalid exports fail clearly and are not exposed as successful artifacts.
+
+Practical limitation:
+
+- AFB export is intentionally pinned to the local Attack Flow v2 schema/extension target.

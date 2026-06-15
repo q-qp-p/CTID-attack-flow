@@ -96,6 +96,36 @@ AFA-33 adds the internal canonical flow model used after orchestration/extractio
 
 This is an internal worker-stage model and does not change the public API surface.
 
+## STIX Export Behavior (AFA-40)
+
+AFA-40 exports the canonical constrained flow model as a STIX 2.1 bundle after canonical flow persistence.
+
+- Attack Flow extension objects are used where appropriate.
+- Only explicit ATT&CK techniques from source are exported as technique mappings.
+- Steps without ATT&CK mappings are allowed.
+- Descriptions remain verbatim source excerpts.
+- Only `AND`/`OR` operators and `true`/`false` conditions are exported.
+- Source-grounded attachment semantics are preserved.
+- Valid STIX artifacts are persisted and retrievable through `GET /api/v1/jobs/{job_id}/artifacts/stix`.
+- Invalid exports fail clearly and are not exposed as successful artifacts.
+
+## AFB Export Behavior (AFA-41)
+
+AFA-41 exports the canonical constrained flow model to a pinned Attack Flow v2-compatible AFB artifact.
+
+- Canonical flow metadata is mapped into the pinned `attack-flow` root object.
+- Only explicit ATT&CK techniques from source are exported as technique mappings.
+- Steps without ATT&CK mappings are allowed.
+- Descriptions remain verbatim source excerpts.
+- Only `AND`/`OR` operators and `true`/`false` conditions are exported.
+- Source-grounded attachment semantics are preserved.
+- Valid AFB artifacts are persisted and retrievable through `GET /api/v1/jobs/{job_id}/artifacts/afb`.
+- Invalid exports fail clearly and are not exposed as successful artifacts.
+
+Practical limitation:
+
+- The export target is intentionally pinned to the local Attack Flow v2 schema and extension definition.
+
 ## Audit Trail (AFA-14)
 
 Jobs emit structured audit events across the lifecycle, and the API exposes a debug-oriented retrieval endpoint:

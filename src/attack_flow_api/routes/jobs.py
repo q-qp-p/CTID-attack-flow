@@ -139,6 +139,17 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
       canonical normalized package.
     - Content budgeting/truncation is applied explicitly to canonical normalized text where needed.
 
+    STIX export behavior:
+    - Canonical constrained flow models are exported downstream as STIX 2.1 bundles.
+    - Attack Flow extension objects are used where appropriate.
+    - Only explicit ATT&CK techniques from source are exported as technique mappings.
+    - Steps without ATT&CK mappings are allowed.
+    - Descriptions remain verbatim source excerpts.
+    - Only `AND`/`OR` operators and `true`/`false` conditions are exported.
+    - Source-grounded attachment semantics are preserved.
+    - Valid STIX artifacts are persisted and retrievable through the existing STIX artifact endpoint.
+    - Invalid exports fail clearly and are not exposed as successful artifacts.
+
     Text submission behavior:
     - Raw text is normalized deterministically (line endings/whitespace) before processing.
     - Maximum text size is enforced via configured character limit.
@@ -693,9 +704,10 @@ def get_job_status(request: Request, job_id: str) -> JobStatusResponse:
     During `ai_extraction`, orchestration consumes canonical normalized package input
     and may run in `full_extraction` or `enrichment` mode. Deterministic STIX/OpenCTI
     findings remain authoritative and can reduce or bypass provider invocation when
-    sufficient. Intermediate extraction output is constrained to an AFB-compatible
-    shape with grounded-only ATT&CK mappings, verbatim action excerpts, AND/OR
-    operators, and true/false condition values.
+    sufficient. Intermediate extraction output is constrained to the pinned Attack
+    Flow v2-compatible export shape with grounded-only ATT&CK mappings, verbatim
+    action excerpts, AND/OR operators, and true/false condition values. Downstream
+    export may persist both STIX and AFB artifacts when available.
 
     Downstream processing should read canonical normalized package content when available
     instead of re-reading source-specific raw fields ad hoc.

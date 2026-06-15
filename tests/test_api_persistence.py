@@ -17,7 +17,9 @@ from attack_flow_api.storage.repositories import (
     JobUpdate,
     PersistenceRepository,
 )
+from attack_flow_api.services.afb_export_contracts import AfbExportArtifactMetadata
 from attack_flow_api.services.persistence_service import PersistenceService
+from attack_flow_api.services.stix_export_contracts import StixExportArtifactMetadata
 
 
 def test_database_initializes_and_creates_required_tables(tmp_path: Path):
@@ -30,12 +32,14 @@ def test_database_initializes_and_creates_required_tables(tmp_path: Path):
         rows = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table'"
         ).fetchall()
+        artifact_columns = connection.execute("PRAGMA table_info(artifacts)").fetchall()
     table_names = {row[0] for row in rows}
     assert "schema_migrations" in table_names
     assert "jobs" in table_names
     assert "input_sources" in table_names
     assert "artifacts" in table_names
     assert "audit_events" in table_names
+    assert any(column[1] == "metadata_json" for column in artifact_columns)
 
 
 def test_audit_events_can_be_created_and_listed_in_order(tmp_path: Path):
@@ -171,6 +175,52 @@ def test_artifact_creation_records_an_audit_event(tmp_path: Path):
 
     assert [row["event_type"] for row in rows] == ["artifact_created"]
     assert rows[0]["message"] == "artifact created"
+
+
+def test_stix_export_artifact_metadata_round_trips(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    service = PersistenceService(db_path)
+
+    service.create_job(JobCreate(id="job-1", status="queued", stage="created"))
+    artifact = service.create_stix_export_artifact(
+        job_id="job-1",
+        path="artifacts/2026/01/01/export.json",
+        size_bytes=256,
+        metadata=StixExportArtifactMetadata(
+            validation_state="valid",
+            bundle_id="bundle--export-1",
+            object_count=5,
+            exported_at="2026-01-01T00:00:00Z",
+        ),
+    )
+
+    assert artifact.type == "stix"
+    assert artifact.metadata_json is not None
+    assert '"bundle_id":"bundle--export-1"' in artifact.metadata_json
+
+
+def test_afb_export_artifact_metadata_round_trips(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    service = PersistenceService(db_path)
+
+    service.create_job(JobCreate(id="job-2", status="queued", stage="created"))
+    artifact = service.create_afb_export_artifact(
+        job_id="job-2",
+        path="artifacts/2026/01/01/export.afb",
+        size_bytes=256,
+        metadata=AfbExportArtifactMetadata(
+            validation_state="valid",
+            bundle_id="bundle--export-2",
+            object_count=5,
+            exported_at="2026-01-01T00:00:00Z",
+        ),
+    )
+
+    assert artifact.type == "afb"
+    assert artifact.metadata_json is not None
+    assert '"bundle_id":"bundle--export-2"' in artifact.metadata_json
 
 
 def test_configured_directories_are_created(tmp_path: Path):

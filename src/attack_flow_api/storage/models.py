@@ -109,6 +109,7 @@ class Artifact:
     path: str
     sha256: str | None
     size_bytes: int | None
+    metadata_json: str | None
     created_at: datetime
 
 

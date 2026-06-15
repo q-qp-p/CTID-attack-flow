@@ -1,6 +1,7 @@
 import hashlib
 import json
 from pathlib import Path
+from uuid import uuid4
 
 from pydantic import BaseModel
 
@@ -23,7 +24,9 @@ from attack_flow_api.storage.repositories import (
     PersistenceRepository,
 )
 from attack_flow_api.services.afb_fusion_assembler import FusedOutputCandidate
+from attack_flow_api.services.afb_export_contracts import AfbExportArtifactMetadata
 from attack_flow_api.services.canonical_flow_contracts import CanonicalFlowOutput
+from attack_flow_api.services.stix_export_contracts import StixExportArtifactMetadata
 
 
 class PersistenceService:
@@ -140,6 +143,179 @@ class PersistenceService:
                 },
             )
         return artifact
+
+    def create_stix_export_artifact(
+        self,
+        *,
+        job_id: str,
+        path: str,
+        size_bytes: int | None = None,
+        sha256: str | None = None,
+        metadata: StixExportArtifactMetadata | None = None,
+    ) -> Artifact:
+        return self._create_export_artifact(
+            job_id=job_id,
+            artifact_type="stix",
+            path=path,
+            sha256=sha256,
+            size_bytes=size_bytes,
+            metadata_json=(metadata.model_dump_json() if metadata is not None else None),
+        )
+
+    def create_afb_export_artifact(
+        self,
+        *,
+        job_id: str,
+        path: str,
+        size_bytes: int | None = None,
+        sha256: str | None = None,
+        metadata: AfbExportArtifactMetadata | None = None,
+    ) -> Artifact:
+        return self._create_export_artifact(
+            job_id=job_id,
+            artifact_type="afb",
+            path=path,
+            sha256=sha256,
+            size_bytes=size_bytes,
+            metadata_json=(metadata.model_dump_json() if metadata is not None else None),
+        )
+
+    def record_stix_export_completed(
+        self,
+        *,
+        job: Job,
+        artifact: Artifact,
+        bundle_id: str,
+        object_count: int,
+        exported_at: str,
+    ) -> AuditEvent | None:
+        return self._record_export_event(
+            job=job,
+            event_type="stix_export_completed",
+            message="stix export completed",
+            artifact=artifact,
+            bundle_id=bundle_id,
+            object_count=object_count,
+            exported_at=exported_at,
+        )
+
+    def record_stix_export_failed(
+        self,
+        *,
+        job: Job,
+        bundle_id: str | None,
+        object_count: int | None,
+        validation_errors: list[dict[str, object]],
+    ) -> AuditEvent | None:
+        return self._record_export_event(
+            job=job,
+            event_type="stix_export_failed",
+            message="stix export validation failed",
+            bundle_id=bundle_id,
+            object_count=object_count,
+            validation_errors=validation_errors,
+        )
+
+    def record_afb_export_completed(
+        self,
+        *,
+        job: Job,
+        artifact: Artifact,
+        bundle_id: str,
+        object_count: int,
+        exported_at: str,
+        schema_version: str | None = None,
+    ) -> AuditEvent | None:
+        return self._record_export_event(
+            job=job,
+            event_type="afb_export_completed",
+            message="afb export completed",
+            artifact=artifact,
+            bundle_id=bundle_id,
+            object_count=object_count,
+            exported_at=exported_at,
+            schema_version=schema_version,
+        )
+
+    def record_afb_export_failed(
+        self,
+        *,
+        job: Job,
+        bundle_id: str | None,
+        object_count: int | None,
+        validation_errors: list[dict[str, object]],
+        schema_version: str | None = None,
+    ) -> AuditEvent | None:
+        return self._record_export_event(
+            job=job,
+            event_type="afb_export_failed",
+            message="afb export validation failed",
+            bundle_id=bundle_id,
+            object_count=object_count,
+            validation_errors=validation_errors,
+            schema_version=schema_version,
+        )
+
+    def _create_export_artifact(
+        self,
+        *,
+        job_id: str,
+        artifact_type: str,
+        path: str,
+        sha256: str | None,
+        size_bytes: int | None,
+        metadata_json: str | None,
+    ) -> Artifact:
+        return self.create_artifact(
+            ArtifactCreate(
+                id=str(uuid4()),
+                job_id=job_id,
+                type=artifact_type,
+                path=path,
+                sha256=sha256,
+                size_bytes=size_bytes,
+                metadata_json=metadata_json,
+            )
+        )
+
+    def _record_export_event(
+        self,
+        *,
+        job: Job,
+        event_type: str,
+        message: str,
+        bundle_id: str | None,
+        object_count: int | None,
+        validation_errors: list[dict[str, object]] | None = None,
+        artifact: Artifact | None = None,
+        exported_at: str | None = None,
+        schema_version: str | None = None,
+    ) -> AuditEvent | None:
+        details: dict[str, object] = {
+            "bundle_id": bundle_id,
+            "object_count": object_count,
+        }
+        if validation_errors is not None:
+            details["validation_errors"] = validation_errors
+        if artifact is not None:
+            details.update(
+                {
+                    "artifact_id": artifact.id,
+                    "artifact_type": artifact.type,
+                    "path": artifact.path,
+                    "size_bytes": artifact.size_bytes,
+                }
+            )
+        if exported_at is not None:
+            details["exported_at"] = exported_at
+        if schema_version is not None:
+            details["schema_version"] = schema_version
+        return self.record_job_event(
+            job=job,
+            event_type=event_type,
+            message=message,
+            details=details,
+        )
 
     def get_artifact_by_id(self, artifact_id: str) -> Artifact | None:
         return self.repository.get_artifact_by_id(artifact_id)
