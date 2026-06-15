@@ -693,6 +693,25 @@ def _validate_attack_condition_object(item: dict[str, Any], errors: list[AfbExpo
             errors.append(_compatibility_error("attack_condition_refs_invalid", f"{field_name} must be a list when present", object_ref=_coerce_non_empty_string(item.get("id"))))
 
 
+def _validate_attack_action_object(item: dict[str, Any], errors: list[AfbExportCompatibilityError]) -> None:
+    if not isinstance(item.get("name"), str) or not item.get("name", "").strip():
+        errors.append(_compatibility_error("attack_action_name_invalid", "attack-action name must be a non-empty string", object_ref=_coerce_non_empty_string(item.get("id"))))
+
+    description = item.get("description")
+    if description is not None and (not isinstance(description, str) or not description.strip()):
+        errors.append(_compatibility_error("attack_action_description_invalid", "attack-action description must be a non-empty string when present", object_ref=_coerce_non_empty_string(item.get("id"))))
+
+    for field_name in ("technique_id", "technique_ref", "tactic_id", "tactic_ref", "execution_start", "execution_end"):
+        value = item.get(field_name)
+        if value is not None and not isinstance(value, str):
+            errors.append(_compatibility_error("attack_action_field_invalid", f"{field_name} must be a string when present", object_ref=_coerce_non_empty_string(item.get("id")), details={"field": field_name}))
+
+    for field_name in ("asset_refs", "effect_refs"):
+        refs = item.get(field_name)
+        if refs is not None and not isinstance(refs, list):
+            errors.append(_compatibility_error("attack_action_refs_invalid", f"{field_name} must be a list when present", object_ref=_coerce_non_empty_string(item.get("id")), details={"field": field_name}))
+
+
 def _validate_attack_operator_object(item: dict[str, Any], errors: list[AfbExportCompatibilityError]) -> None:
     if item.get("operator") not in {"AND", "OR"}:
         errors.append(_compatibility_error("attack_operator_invalid", "attack-operator must use AND or OR", object_ref=_coerce_non_empty_string(item.get("id"))))

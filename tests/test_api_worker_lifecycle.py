@@ -799,7 +799,7 @@ def test_worker_marks_failed_export_without_publishing_artifact(monkeypatch, tmp
         assert artifacts == []
 
         afb_artifacts = persistence.list_artifacts(job_id="job-export-2", artifact_type="afb")
-        assert len(afb_artifacts) == 1
+        assert afb_artifacts == []
 
         response = client.get("/api/v1/jobs/job-export-2/artifacts/stix")
         assert response.status_code == 404

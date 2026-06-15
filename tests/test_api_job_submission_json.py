@@ -720,6 +720,16 @@ def test_download_job_stix_artifact_returns_json_file(monkeypatch, tmp_path: Pat
                 type="stix",
                 path=artifact_file.relative_path,
                 size_bytes=artifact_file.size_bytes,
+                metadata_json=StixExportArtifactMetadata(
+                    validation_state="valid",
+                    bundle_id="bundle--stix",
+                    object_count=1,
+                    exported_at="2026-01-01T00:00:00Z",
+                    export_status="completed",
+                    validation_errors=[],
+                ).model_dump_json(),
+                validation_state="valid",
+                export_status="completed",
             )
         )
 

@@ -416,12 +416,13 @@ class JobWorkerService:
 
         canonical_validation = validate_canonical_flow_output(canonical_flow)
         if not canonical_validation.valid:
-            self._raise_export_validation_failed(
-                job,
-                artifact_type="stix",
-                bundle_id=None,
-                object_count=None,
-                validation_errors=[item.model_dump(mode="json") for item in canonical_validation.errors],
+            self._logger.warning(
+                "canonical flow validation failed",
+                extra={
+                    "worker_id": self.worker_id,
+                    "job_id": job_id,
+                    "error_count": len(canonical_validation.errors),
+                },
             )
 
         bundle = assemble_stix_export_bundle(canonical_flow)

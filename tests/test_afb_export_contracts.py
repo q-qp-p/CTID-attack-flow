@@ -108,6 +108,7 @@ def test_build_afb_attack_flow_root_object_maps_canonical_metadata() -> None:
             name="Example flow",
             scope="incident",
             description="  Example flow description.  ",
+            external_references=["https://example.com/report"],
             start_refs=["attack-action--1", "", "attack-action--1"],
         ),
         nodes=[],

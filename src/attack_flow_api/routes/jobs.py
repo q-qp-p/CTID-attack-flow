@@ -77,6 +77,8 @@ class JobStatusResponse(BaseModel):
     created_at: str
     updated_at: str
     completed_at: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
     input: JobInputSummary
     artifacts: JobArtifactsSummary
     request_id: str
@@ -92,6 +94,8 @@ class JobResultResponse(BaseModel):
     job_id: str
     status: str
     result: dict[str, Any]
+    error_code: str | None = None
+    error_message: str | None = None
     artifacts: JobArtifactsSummary | None = None
     request_id: str
 
@@ -760,6 +764,8 @@ def get_job_status(request: Request, job_id: str) -> JobStatusResponse:
         created_at=_to_utc_z(job.created_at),
         updated_at=_to_utc_z(job.updated_at),
         completed_at=_to_utc_z(job.completed_at),
+        error_code=job.error_code,
+        error_message=job.error_message,
         input=input_summary,
         artifacts=artifacts_summary,
         request_id=request.state.request_id,
@@ -1007,6 +1013,8 @@ def get_job_result(request: Request, job_id: str) -> JobResultResponse:
         job_id=job.id,
         status=job.status,
         result=parsed_result,
+        error_code=job.error_code,
+        error_message=job.error_message,
         artifacts=artifacts_summary,
         request_id=request.state.request_id,
     )

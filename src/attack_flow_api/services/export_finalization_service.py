@@ -4,6 +4,8 @@ import hashlib
 from datetime import UTC, datetime
 from typing import Callable, Sequence
 
+from pydantic import BaseModel
+
 from attack_flow_api.services.afb_export_contracts import (
     AfbExportArtifactMetadata,
     AfbExportBundle,
@@ -188,6 +190,8 @@ class ExportFinalizationService:
     ) -> ExportValidationError:
         if isinstance(value, ExportValidationError):
             return value
+        if isinstance(value, BaseModel):
+            return ExportValidationError.model_validate(value.model_dump(mode="json"))
         return ExportValidationError.model_validate(value)
 
     def _now_iso(self) -> str:
