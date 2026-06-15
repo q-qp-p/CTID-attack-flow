@@ -41,7 +41,7 @@ def _get_schema_version(connection: sqlite3.Connection) -> int:
 
 
 def _set_schema_version(connection: sqlite3.Connection, version: int) -> None:
-    connection.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
+    connection.execute("INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)", (version,))
 
 
 def _apply_schema(connection: sqlite3.Connection) -> None:

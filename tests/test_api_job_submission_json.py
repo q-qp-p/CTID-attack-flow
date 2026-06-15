@@ -1004,6 +1004,29 @@ def test_get_job_result_returns_structured_409_for_malformed_result_json(monkeyp
     assert payload["request_id"]
 
 
+def test_get_job_result_returns_structured_409_for_non_object_result_json(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        create_response = client.post(
+            "/api/v1/jobs",
+            json={"input_type": "text", "text": "investigation content"},
+        )
+        job_id = create_response.json()["job_id"]
+
+        client.app.state.persistence_service.update_job(
+            job_id,
+            JobUpdate(result_json='["not", "an", "object"]'),
+        )
+
+        response = client.get(f"/api/v1/jobs/{job_id}/result")
+
+    payload = response.json()
+    assert response.status_code == 409
+    assert payload["error"]["code"] == "result_not_ready"
+    assert payload["error"]["message"] == "Result is not ready"
+    assert isinstance(payload["error"]["details"], list)
+    assert payload["request_id"]
+
+
 def test_get_job_status_prefers_latest_downloadable_stix_artifact(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
         create_response = client.post(

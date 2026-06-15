@@ -282,3 +282,15 @@ def test_worker_task_is_cancelled_on_app_shutdown(monkeypatch, tmp_path: Path):
 
     assert worker_task.done()
     assert worker_task.cancelled()
+
+
+def test_app_lifespan_initializes_runtime_state(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        assert client.app.state.settings.app_name == "attack-flow-api"
+        assert client.app.state.providers_config.providers
+        assert client.app.state.provider_registry is not None
+        assert client.app.state.persistence_service is not None
+        assert client.app.state.file_storage is not None
+        assert client.app.state.job_worker is not None
+        assert client.app.state.job_worker_task is not None
+        assert not client.app.state.job_worker_task.done()

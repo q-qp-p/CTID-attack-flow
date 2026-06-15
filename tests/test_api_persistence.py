@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from attack_flow_api.config import ensure_runtime_directories
-from attack_flow_api.storage.database import initialize_database
+from attack_flow_api.storage.database import SCHEMA_VERSION, initialize_database
 from attack_flow_api.storage.filesystem import LocalFileStorage
 from attack_flow_api.storage.repositories import (
     ArtifactCreate,
@@ -43,6 +43,19 @@ def test_database_initializes_and_creates_required_tables(tmp_path: Path):
     assert any(column[1] == "metadata_json" for column in artifact_columns)
     assert any(column[1] == "validation_state" for column in artifact_columns)
     assert any(column[1] == "export_status" for column in artifact_columns)
+
+
+def test_initialize_database_can_be_called_twice(tmp_path: Path):
+    db_path = tmp_path / "db" / "attack-flow.db"
+
+    initialize_database(db_path)
+    initialize_database(db_path)
+
+    with sqlite3.connect(db_path) as connection:
+        row = connection.execute("SELECT MAX(version) AS version FROM schema_migrations").fetchone()
+
+    assert row is not None
+    assert row[0] == SCHEMA_VERSION
 
 
 def test_audit_events_can_be_created_and_listed_in_order(tmp_path: Path):
@@ -121,6 +134,15 @@ def test_job_record_can_be_created_updated_and_fetched(tmp_path: Path):
     assert fetched.id == "job-1"
     assert fetched.status == "running"
     assert fetched.stage == "processing"
+
+
+def test_create_job_enforces_foreign_keys(tmp_path: Path):
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    repository = PersistenceRepository(db_path)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        repository.create_job(JobCreate(id="job-bad", status="queued", stage="created", input_source_id="missing-input"))
 
 
 def test_artifact_metadata_can_be_created_and_retrieved(tmp_path: Path):
@@ -341,6 +363,32 @@ def test_resolve_stored_path_rejects_path_traversal(tmp_path: Path):
 
     with pytest.raises(ValueError):
         storage.resolve_stored_path("../../etc/passwd")
+
+
+def test_delete_stored_file_returns_false_for_missing_file(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    storage = LocalFileStorage(
+        data_dir=data_dir,
+        upload_dir=data_dir / "uploads",
+        artifact_dir=data_dir / "artifacts",
+    )
+
+    assert storage.delete_stored_file("uploads/2026/01/01/missing.txt") is False
+
+
+def test_delete_stored_file_rejects_directory_path(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    storage = LocalFileStorage(
+        data_dir=data_dir,
+        upload_dir=data_dir / "uploads",
+        artifact_dir=data_dir / "artifacts",
+    )
+
+    directory = data_dir / "uploads" / "2026" / "01" / "01"
+    directory.mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="Refusing to delete directory path"):
+        storage.delete_stored_file("uploads/2026/01/01")
 
 
 def test_strict_mode_rejects_disallowed_extension(tmp_path: Path):
