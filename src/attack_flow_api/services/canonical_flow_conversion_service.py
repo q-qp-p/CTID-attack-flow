@@ -59,11 +59,6 @@ class CanonicalFlowConversionService:
             "source_form": fused_output.schema_version,
             "source_validation_state": fused_output.fusion_validation_state,
         }
-        metadata = _build_metadata_from_attack_flow(
-            fused_output.attack_flow,
-            provenance=provenance,
-        )
-
         attack_refs = [
             _convert_attack_ref(ref, source_classification=fused_output.attack_flow.source_classification)
             for ref in fused_output.attack_refs
@@ -74,6 +69,11 @@ class CanonicalFlowConversionService:
             *_convert_conditions(fused_output.attack_conditions),
             *_convert_operators(fused_output.attack_operators),
         ]
+        metadata = _build_metadata_from_attack_flow(
+            fused_output.attack_flow,
+            provenance=provenance,
+            start_refs=_filter_start_refs(fused_output.attack_flow, nodes),
+        )
         edges = _build_edges_from_fused_output(nodes, fused_output.attack_actions, fused_output.attack_conditions, fused_output.attack_operators, fused_output.attack_assets, fused_output.relationships)
 
         return _build_canonical_flow_output(
@@ -100,11 +100,6 @@ class CanonicalFlowConversionService:
             "repair_attempted": extraction_output.repair_attempted,
             "provider_invoked": extraction_output.provider_invoked,
         }
-        metadata = _build_metadata_from_attack_flow(
-            extraction_output.attack_flow,
-            provenance=provenance,
-        )
-
         attack_refs = [
             _convert_attack_ref_from_dict(ref, source_classification=extraction_output.attack_flow.source_classification)
             for ref in extraction_output.deterministic_attack_refs
@@ -115,6 +110,11 @@ class CanonicalFlowConversionService:
             *_convert_afb_conditions(extraction_output.attack_conditions),
             *_convert_afb_operators(extraction_output.attack_operators),
         ]
+        metadata = _build_metadata_from_attack_flow(
+            extraction_output.attack_flow,
+            provenance=provenance,
+            start_refs=_filter_start_refs(extraction_output.attack_flow, nodes),
+        )
         edges = _build_edges_from_afb_output(
             nodes,
             extraction_output.attack_actions,
@@ -183,6 +183,7 @@ def _build_metadata_from_attack_flow(
     attack_flow: Any,
     *,
     provenance: dict[str, Any],
+    start_refs: list[str] | None = None,
 ) -> CanonicalFlowMetadata:
     source_classification = _coerce_source_classification(getattr(attack_flow, "source_classification", None))
     return CanonicalFlowMetadata(
@@ -190,7 +191,7 @@ def _build_metadata_from_attack_flow(
         name=_as_str(getattr(attack_flow, "name", None)) or "",
         scope=_as_str(getattr(attack_flow, "scope", None)) or "other",
         description=_as_str(getattr(attack_flow, "description", None)),
-        start_refs=_as_str_list(getattr(attack_flow, "start_refs", None)),
+        start_refs=start_refs if start_refs is not None else _as_str_list(getattr(attack_flow, "start_refs", None)),
         authors=_as_str_list(getattr(attack_flow, "authors", None)),
         external_references=_as_str_list(getattr(attack_flow, "external_references", None)),
         provenance={
@@ -304,6 +305,16 @@ def _build_attachment_bundle_from_afb_output(
     )
 
 
+def _filter_start_refs(attack_flow: Any, nodes: list[CanonicalFlowNode]) -> list[str]:
+    allowed_refs = {
+        node.id
+        for node in nodes
+        if getattr(node, "node_kind", None)
+        in {CanonicalFlowNodeKind.ATTACK_ACTION, CanonicalFlowNodeKind.ATTACK_CONDITION}
+    }
+    return [ref for ref in _as_str_list(getattr(attack_flow, "start_refs", None)) if ref in allowed_refs]
+
+
 def _convert_attack_ref(
     ref: MergedAttackRef,
     *,
@@ -314,6 +325,7 @@ def _convert_attack_ref(
     return CanonicalFlowTechniqueReference(
         technique_id=ref.technique_id,
         technique_ref=ref.technique_ref,
+        technique_name=_as_str(getattr(ref, "technique_name", None)),
         source_object_id=ref.source_object_id,
         source_field=ref.source_field,
         source_classification=_coerce_source_classification(source_classification),
@@ -333,6 +345,7 @@ def _convert_attack_ref_from_dict(
     return CanonicalFlowTechniqueReference(
         technique_id=_as_str(ref.get("technique_id")),
         technique_ref=_as_str(ref.get("technique_ref")),
+        technique_name=_as_str(ref.get("technique_name")),
         source_object_id=_as_str(ref.get("source_object_id")),
         source_field=_as_str(ref.get("source_field")),
         source_classification=_coerce_source_classification(source_classification),
@@ -360,6 +373,7 @@ def _convert_actions(actions: list[MergedAttackAction]) -> list[CanonicalFlowAct
             confidence=action.confidence,
             technique=_convert_technique_mapping(action.technique, action.provenance, action.confidence),
             tactic_ref=_as_str(_mapping_get(action.tactic, "tactic_ref")),
+            tactic_name=_as_str(_mapping_get(action.tactic, "tactic_name")),
             asset_refs=list(action.asset_refs),
             object_refs=list(action.object_refs),
             effect_refs=list(action.effect_refs),
@@ -381,6 +395,7 @@ def _convert_afb_actions(actions: list[AttackActionNode]) -> list[CanonicalFlowA
             confidence=action.confidence,
             technique=_convert_technique_from_afb(action.technique, action.confidence),
             tactic_ref=_as_str(getattr(action.tactic, "tactic_ref", None)),
+            tactic_name=_as_str(getattr(action.tactic, "tactic_name", None)),
             asset_refs=list(action.asset_refs),
             object_refs=list(action.object_refs),
             effect_refs=list(action.effect_refs),
@@ -587,6 +602,7 @@ def _convert_technique_mapping(
     return CanonicalFlowTechniqueReference(
         technique_id=_as_str(mapping.get("technique_id")),
         technique_ref=_as_str(mapping.get("technique_ref")),
+        technique_name=_as_str(mapping.get("technique_name")),
         source_object_id=_as_str(mapping.get("source_object_id")),
         source_field=_as_str(mapping.get("source_field")),
         confidence=confidence,
@@ -618,6 +634,7 @@ def _convert_technique_from_afb(
     return CanonicalFlowTechniqueReference(
         technique_id=_as_str(mapping.get("technique_id")),
         technique_ref=_as_str(mapping.get("technique_ref")),
+        technique_name=_as_str(mapping.get("technique_name")),
         confidence=confidence,
         provenance=[
             CanonicalFlowProvenanceRecord(
@@ -629,7 +646,10 @@ def _convert_technique_from_afb(
         evidence=[
             CanonicalFlowEvidenceRecord(
                 source=_as_str(mapping.get("grounded_by")) or "attack-technique",
-                excerpt=_as_str(mapping.get("technique_id")) or _as_str(mapping.get("technique_ref")) or "attack-technique",
+                excerpt=_as_str(mapping.get("technique_id"))
+                or _as_str(mapping.get("technique_ref"))
+                or _as_str(mapping.get("technique_name"))
+                or "attack-technique",
                 confidence=confidence,
             )
         ],

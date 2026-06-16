@@ -66,18 +66,36 @@ class ExportFinalizationService:
         job_id: str,
         bundle: AfbExportBundle,
     ) -> ExportFinalizationResult:
+        validation_errors = [self._coerce_validation_error(error) for error in bundle.validation_errors]
+        if validation_errors:
+            return ExportFinalizationResult(
+                artifact_type="afb",
+                valid=False,
+                validation_errors=validation_errors,
+                checksum=None,
+                size_bytes=None,
+                created_at=self.clock(),
+                export_status="failed",
+                error_code="export_validation_failed",
+                error_message="export validation failed",
+            )
+
+        diagram_export = bundle.to_diagram_export_ready()
+        import json
+
+        content_bytes = json.dumps(diagram_export, sort_keys=True, separators=(",", ":")).encode("utf-8")
         return self._finalize_successful_export(
             job_id=job_id,
             artifact_type="afb",
-            content_bytes=bundle.to_export_json_bytes(),
+            content_bytes=content_bytes,
             extension="afb",
             bundle_id=bundle.metadata.bundle_id,
-            object_count=bundle.metadata.object_count,
-            validation_errors=[self._coerce_validation_error(error) for error in bundle.validation_errors],
+            object_count=len(diagram_export.get("objects", [])),
+            validation_errors=[],
             metadata=AfbExportArtifactMetadata(
                 validation_state="valid",
                 bundle_id=bundle.metadata.bundle_id,
-                object_count=bundle.metadata.object_count,
+                object_count=len(diagram_export.get("objects", [])),
                 exported_at=self._now_iso(),
                 export_status="completed",
                 validation_errors=[],

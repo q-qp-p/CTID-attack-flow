@@ -921,6 +921,54 @@ def download_job_afb_artifact(request: Request, job_id: str) -> FileResponse:
     )
 
 
+@router.get(
+    "/jobs/{job_id}/artifacts/ai-trace",
+    responses={
+        200: {
+            "description": "Download AI trace artifact as JSON file",
+            "content": {"application/json": {}},
+        },
+        404: {
+            "description": "Job or AI trace artifact not found",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "job_not_found": {
+                            "value": {
+                                "error": {
+                                    "code": "job_not_found",
+                                    "message": "Job not found",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        },
+                        "artifact_not_found": {
+                            "value": {
+                                "error": {
+                                    "code": "artifact_not_found",
+                                    "message": "ai trace artifact not found",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+def download_job_ai_trace_artifact(request: Request, job_id: str) -> FileResponse:
+    label = request.query_params.get("label")
+    return _download_job_trace_artifact(
+        request,
+        job_id=job_id,
+        label=label,
+        download_extension="json",
+    )
+
+
 def _download_job_artifact(
     request: Request,
     job_id: str,
@@ -939,6 +987,28 @@ def _download_job_artifact(
         path=absolute_path,
         media_type="application/json",
         filename=f"{job.id}-{artifact_type}.{download_extension}",
+    )
+
+
+def _download_job_trace_artifact(
+    request: Request,
+    job_id: str,
+    label: str | None,
+    download_extension: str,
+) -> FileResponse:
+    persistence_service = request.app.state.persistence_service
+    file_storage = request.app.state.file_storage
+
+    job = _get_job_or_404(persistence_service, job_id)
+
+    artifact = _get_ai_trace_artifact_or_404(persistence_service, job.id, label)
+    absolute_path = _resolve_artifact_path_or_404(file_storage, artifact.path, "ai trace")
+    suffix = f"-ai-trace-{label}" if label else "-ai-trace"
+
+    return FileResponse(
+        path=absolute_path,
+        media_type="application/json",
+        filename=f"{job.id}{suffix}.{download_extension}",
     )
 
 
@@ -1079,6 +1149,23 @@ def _get_artifact_or_404(persistence_service: Any, job_id: str, artifact_type: s
     )
 
 
+def _get_ai_trace_artifact_or_404(persistence_service: Any, job_id: str, label: str | None = None) -> Any:
+    artifacts = persistence_service.list_artifacts(job_id=job_id, artifact_type="ai_trace")
+    if label is not None:
+        matching = [artifact for artifact in artifacts if _artifact_trace_label(artifact) == label]
+    else:
+        matching = artifacts
+
+    if matching:
+        return matching[-1]
+
+    raise NotFoundError(
+        code="artifact_not_found",
+        message="ai trace artifact not found",
+        details=[],
+    )
+
+
 def _latest_artifact(artifacts: list[Any], artifact_type: str) -> Any | None:
     matching = [artifact for artifact in artifacts if getattr(artifact, "type", None) == artifact_type]
     if not matching:
@@ -1176,6 +1263,14 @@ def _artifact_value(artifact: Any, field_name: str, metadata: dict[str, Any]) ->
     if value is not None:
         return value
     return metadata.get(field_name)
+
+
+def _artifact_trace_label(artifact: Any) -> str | None:
+    metadata = _artifact_metadata(artifact)
+    label = metadata.get("label")
+    if isinstance(label, str) and label.strip():
+        return label.strip()
+    return None
 
 
 def _artifact_is_downloadable(artifact: Any) -> bool:

@@ -105,6 +105,7 @@ class JobWorkerService:
         self._ai_orchestration_service = AIOrchestrationService(
             persistence_service=persistence_service,
             provider_invocation_service=self._provider_invocation_service,
+            file_storage=file_storage,
         )
         self._export_finalization_service = ExportFinalizationService(
             file_storage=file_storage,

@@ -196,7 +196,7 @@ def test_azure_generate_structured_parses_chat_completion_response(monkeypatch) 
     assert result.usage.total_tokens == 20
 
 
-def test_azure_base_url_with_openai_suffix_is_normalized(monkeypatch) -> None:
+def test_azure_base_url_with_openai_suffix_preserves_openai_path(monkeypatch) -> None:
     monkeypatch.setenv("AZURE_AD_TOKEN", "azure-token")
     seen = {"request": None}
 
@@ -212,7 +212,7 @@ def test_azure_base_url_with_openai_suffix_is_normalized(monkeypatch) -> None:
     request = seen["request"]
     assert request is not None
     assert request.url == (
-        "https://example.openai.azure.com/deployments/gpt-4.1-mini/chat/completions"
+        "https://example.openai.azure.com/openai/deployments/gpt-4.1-mini/chat/completions"
         "?api-version=2024-10-21"
     )
 
@@ -243,6 +243,24 @@ def test_azure_list_model_ids_queries_azure_models_endpoint(monkeypatch) -> None
     assert request.method == "GET"
     assert request.url == "https://example.openai.azure.com/openai/models?api-version=2024-10-21"
     assert model_ids == ["gpt-5.5", "gpt-5.5-pro"]
+
+
+def test_azure_list_model_ids_preserves_openai_suffix(monkeypatch) -> None:
+    monkeypatch.setenv("AZURE_AD_TOKEN", "azure-token")
+    seen = {"request": None}
+
+    def executor(request):
+        seen["request"] = request
+        return OpenAIHttpResponse(status_code=200, json_body={"data": []})
+
+    config = _azure_provider_config()
+    config.base_url = "https://example.openai.azure.com/openai"
+    adapter = OpenAIProviderAdapter(config, request_executor=executor)
+
+    assert adapter.list_model_ids() == []
+    request = seen["request"]
+    assert request is not None
+    assert request.url == "https://example.openai.azure.com/openai/models?api-version=2024-10-21"
 
 
 def test_generate_structured_maps_timeout(monkeypatch) -> None:

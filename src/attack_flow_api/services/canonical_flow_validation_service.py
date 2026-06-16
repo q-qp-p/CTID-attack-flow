@@ -158,8 +158,8 @@ class CanonicalFlowValidator:
                 errors.append(_error("attack_ref_missing_provenance", "attack ref provenance is required", CanonicalFlowValidationCategory.INVALID_REFERENCE))
             if any(item.source_kind == CanonicalFlowProvenanceKind.DETERMINISTIC_SOURCE_FACT for item in ref.provenance) and ref.confidence != 1.0:
                 errors.append(_error("attack_ref_confidence_not_default", "deterministic attack refs must preserve default confidence 1.0", CanonicalFlowValidationCategory.INVALID_REFERENCE))
-            if ref.technique_id is None and ref.technique_ref is None:
-                errors.append(_error("attack_ref_missing_identifier", "attack ref must include technique_id or technique_ref", CanonicalFlowValidationCategory.INVALID_REFERENCE))
+            if ref.technique_id is None and ref.technique_ref is None and ref.technique_name is None:
+                errors.append(_error("attack_ref_missing_identifier", "attack ref must include technique_id, technique_ref, or technique_name", CanonicalFlowValidationCategory.INVALID_REFERENCE))
 
     def _validate_attachments(
         self,

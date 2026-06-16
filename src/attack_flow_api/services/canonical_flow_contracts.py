@@ -81,6 +81,7 @@ class CanonicalFlowTechniqueReference(BaseModel):
 
     technique_id: str | None = None
     technique_ref: str | None = None
+    technique_name: str | None = None
     source_object_id: str | None = None
     source_field: str | None = None
     source_classification: CanonicalFlowSourceClassification | None = None
@@ -149,6 +150,7 @@ class CanonicalFlowActionNode(CanonicalFlowNodeBase):
     node_kind: Literal[CanonicalFlowNodeKind.ATTACK_ACTION] = CanonicalFlowNodeKind.ATTACK_ACTION
     technique: CanonicalFlowTechniqueReference | None = None
     tactic_ref: str | None = None
+    tactic_name: str | None = None
 
 
 class CanonicalFlowConditionNode(CanonicalFlowNodeBase):

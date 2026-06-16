@@ -269,6 +269,7 @@ def test_conversion_falls_back_to_afb_output_when_no_fused_output_exists() -> No
                     confidence=0.75,
                     technique=TechniqueGrounding(
                         technique_id="T1059",
+                        technique_name="Command and Scripting Interpreter",
                         confidence=0.75,
                         grounded_by="explicit_attack_id_in_source",
                     ),
@@ -357,6 +358,8 @@ def test_conversion_falls_back_to_afb_output_when_no_fused_output_exists() -> No
     assert canonical.source_grounded_attachments.attack_flow_external_references == ["https://example.com/afb"]
     assert canonical.source_grounded_attachments.preserved_object_refs == ["malware--afb", "threat-actor--afb"]
     assert canonical.attack_refs[0].confidence == 1.0
+    assert canonical.nodes[1].technique is not None
+    assert canonical.nodes[1].technique.technique_name == "Command and Scripting Interpreter"
     assert canonical.attack_refs[0].source_object_id == "attack-pattern--afb"
     assert canonical.nodes[0].node_kind == CanonicalFlowNodeKind.ATTACK_ASSET
     assert canonical.nodes[1].node_kind == CanonicalFlowNodeKind.ATTACK_ACTION

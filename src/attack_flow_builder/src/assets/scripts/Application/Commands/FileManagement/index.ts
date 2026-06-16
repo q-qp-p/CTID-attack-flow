@@ -73,6 +73,10 @@ function isValidCamera(cameraObject: unknown): boolean {
 export async function loadExistingFile(
     context: ApplicationStore, file: string, name?: string
 ): Promise<LoadFile> {
+    if (isStixBundleText(file)) {
+        return loadExistingStixFile(context, file, name);
+    }
+
     let jsonFile = JSON.parse(file) as DiagramViewExport;
     // Preprocess file
     if (context.activeFilePreprocessor) {
@@ -132,7 +136,10 @@ export async function loadFileFromUrl(
     } else {
         filename = "Untitled File";
     }
-    return loadExistingFile(context, await (await fetch(url)).text(), filename);
+    const file = await (await fetch(url)).text();
+    return isStixBundleText(file)
+        ? loadExistingStixFile(context, file, filename)
+        : loadExistingFile(context, file, filename);
 }
 
 /**
@@ -224,6 +231,10 @@ async function getObjectFactory(
 export async function importExistingFile(
     context: ApplicationStore, editor: DiagramViewEditor, file: string
 ): Promise<AppCommand> {
+    if (isStixBundleText(file)) {
+        return importExistingStixFile(context, editor, file);
+    }
+
     // Parse file
     let jsonFile = JSON.parse(file) as DiagramViewExport;
     // Preprocess file
@@ -306,6 +317,16 @@ export async function importStixFileFromFilesystem(
         return importExistingStixFile(context, editor, file.contents as string);
     } else {
         return new DoNothing();
+    }
+}
+
+
+function isStixBundleText(file: string): boolean {
+    try {
+        const parsed = JSON.parse(file) as { type?: unknown };
+        return parsed.type === "bundle";
+    } catch {
+        return false;
     }
 }
 

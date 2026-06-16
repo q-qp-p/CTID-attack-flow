@@ -346,6 +346,44 @@ def test_assemble_afb_export_bundle_builds_pinned_target_artifact() -> None:
     assert json.loads(bundle.to_export_json_bytes().decode("utf-8")) == export_json
 
 
+def test_assemble_afb_export_bundle_builds_builder_diagram_export() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--diagram-1",
+            name="Example flow",
+            scope="incident",
+            start_refs=["attack-action--1"],
+        ),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Observed step",
+                description="Observed command exactly as reported.",
+                asset_refs=["attack-asset--1"],
+            ),
+            CanonicalFlowAssetNode(
+                id="attack-asset--1",
+                name="Host asset",
+                object_ref="malware--1",
+            ),
+        ],
+        edges=[],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    bundle = assemble_afb_export_bundle(canonical)
+    diagram_export = bundle.to_diagram_export_ready()
+
+    assert diagram_export["schema"] == "attack_flow_v2"
+    assert [item["id"] for item in diagram_export["objects"][:3]] == ["flow", "action", "asset"]
+    assert diagram_export["objects"][0]["objects"] == ["attack-action--1", "attack-asset--1"]
+    assert diagram_export["objects"][1]["anchors"] == {}
+    assert diagram_export["objects"][1]["properties"][0] == ["name", "Observed step"]
+    assert json.loads(bundle.to_diagram_export_bytes().decode("utf-8")) == diagram_export
+
+
 def test_assemble_afb_export_bundle_prunes_invalid_internal_refs_and_reports_errors() -> None:
     canonical = CanonicalFlowOutput(
         metadata=CanonicalFlowMetadata(

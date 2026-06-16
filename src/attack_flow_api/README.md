@@ -7,6 +7,12 @@ poetry install --with api
 poetry run uvicorn attack_flow_api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+For docs work, install the docs extras too:
+
+```bash
+poetry install --with api,docs
+```
+
 Run in Docker (API only):
 
 ```bash

@@ -212,6 +212,14 @@ class AfbExportBundle(BaseModel):
 
         return json.dumps(self.to_export_json_ready(), sort_keys=True, separators=(",", ":")).encode("utf-8")
 
+    def to_diagram_export_ready(self) -> dict[str, Any]:
+        return _build_diagram_export_json_ready(self)
+
+    def to_diagram_export_bytes(self) -> bytes:
+        import json
+
+        return json.dumps(self.to_diagram_export_ready(), sort_keys=True, separators=(",", ":")).encode("utf-8")
+
     def _build_bundle_json_ready(self, *, include_schema_version: bool) -> dict[str, Any]:
         payload = {
             "type": "bundle",
@@ -803,3 +811,129 @@ def _build_supporting_object_refs(canonical_flow: CanonicalFlowOutput) -> list[s
             if object_ref is not None:
                 refs.append(object_ref)
     return _dedupe_preserve_order(refs)
+
+
+def _build_diagram_export_json_ready(bundle: AfbExportBundle) -> dict[str, Any]:
+    canvas = next((item for item in bundle.objects.objects if item.get("type") == "attack-flow"), None)
+    if canvas is None:
+        canvas = {
+            "type": "attack-flow",
+            "id": "flow",
+            "name": "Untitled Document",
+            "scope": "incident",
+            "start_refs": [],
+        }
+
+    diagram_objects: list[dict[str, Any]] = []
+    canvas_export: dict[str, Any] = {
+        "id": "flow",
+        "instance": bundle.metadata.bundle_id,
+        "objects": [],
+    }
+
+    canvas_properties = _build_canvas_properties(canvas, bundle.metadata.authors)
+    if canvas_properties:
+        canvas_export["properties"] = canvas_properties
+
+    for item in bundle.objects.objects:
+        object_type = item.get("type")
+        if object_type == "attack-flow":
+            continue
+        diagram_object = _build_diagram_object_export(item)
+        if diagram_object is None:
+            continue
+        canvas_export["objects"].append(diagram_object["instance"])
+        diagram_objects.append(diagram_object)
+
+    diagram_objects.insert(0, canvas_export)
+    return {
+        "schema": "attack_flow_v2",
+        "objects": diagram_objects,
+    }
+
+
+def _build_canvas_properties(canvas: dict[str, Any], authors: list[str]) -> list[list[Any]]:
+    properties: list[list[Any]] = [["name", canvas.get("name")]]
+
+    description = _coerce_non_empty_description(canvas.get("description"))
+    if description is not None:
+        properties.append(["description", description])
+
+    scope = _coerce_non_empty_string(canvas.get("scope"))
+    if scope is not None:
+        properties.append(["scope", scope])
+
+    if authors:
+        properties.append(["author", {"name": authors[0]}])
+
+    external_references = canvas.get("external_references")
+    if isinstance(external_references, list) and external_references:
+        properties.append(["external_references", external_references])
+
+    return properties
+
+
+def _build_diagram_object_export(item: dict[str, Any]) -> dict[str, Any] | None:
+    object_type = item.get("type")
+    object_id = _coerce_non_empty_string(item.get("id"))
+    if object_type is None or object_id is None:
+        return None
+
+    if object_type == "attack-action":
+        properties: list[list[Any]] = [["name", item.get("name")]]
+        description = _coerce_non_empty_description(item.get("description"))
+        if description is not None:
+            properties.append(["description", description])
+        ttp = _build_ttp_property(item)
+        if ttp is not None:
+            properties.append(["ttp", ttp])
+        for field_name in ("execution_start", "execution_end"):
+            value = _coerce_non_empty_string(item.get(field_name))
+            if value is not None:
+                properties.append([field_name, value])
+        return _build_block_export("action", object_id, properties)
+
+    if object_type == "attack-condition":
+        properties = []
+        description = _coerce_non_empty_description(item.get("description"))
+        if description is not None:
+            properties.append(["description", description])
+        return _build_block_export("condition", object_id, properties)
+
+    if object_type == "attack-asset":
+        properties = [["name", item.get("name")]]
+        description = _coerce_non_empty_description(item.get("description"))
+        if description is not None:
+            properties.append(["description", description])
+        return _build_block_export("asset", object_id, properties)
+
+    if object_type == "attack-operator":
+        operator = _coerce_non_empty_string(item.get("operator"))
+        if operator is None:
+            return None
+        template_id = "AND_operator" if operator == "AND" else "OR_operator"
+        return _build_block_export(template_id, object_id, [["operator", operator]])
+
+    return None
+
+
+def _build_block_export(template_id: str, instance: str, properties: list[list[Any]]) -> dict[str, Any]:
+    export: dict[str, Any] = {
+        "id": template_id,
+        "instance": instance,
+        "anchors": {},
+    }
+    if properties:
+        export["properties"] = properties
+    return export
+
+
+def _build_ttp_property(item: dict[str, Any]) -> dict[str, Any] | None:
+    ttp: dict[str, Any] = {}
+    tactic_ref = _coerce_non_empty_string(item.get("tactic_ref")) or _coerce_non_empty_string(item.get("tactic_id"))
+    technique_ref = _coerce_non_empty_string(item.get("technique_ref")) or _coerce_non_empty_string(item.get("technique_id"))
+    if tactic_ref is not None:
+        ttp["tactic"] = tactic_ref
+    if technique_ref is not None:
+        ttp["technique"] = technique_ref
+    return ttp or None

@@ -66,6 +66,9 @@ def parse_validate_and_repair_extraction_output(
             error_message="provider output is not valid JSON object",
         )
 
+    candidate = _unwrap_nested_output_json(candidate)
+    candidate = _coerce_legacy_afb_extraction_output(candidate, packaged_input)
+
     merged = _merge_deterministic_findings(candidate, packaged_input)
     if repair_attempted:
         merged["repair_attempted"] = True
@@ -112,8 +115,378 @@ def _merge_deterministic_findings(
     merged["deterministic_relationships"] = list(packaged_input.deterministic_relationships)
     merged = _preserve_authors_and_external_references(merged, packaged_input)
     merged = _tag_ai_generated_additions(merged)
+    merged = _drop_invalid_groundings(merged)
     merged = _filter_explicit_object_relationship_attachments(merged)
     return merged
+
+
+def _coerce_legacy_afb_extraction_output(
+    candidate: dict[str, Any],
+    packaged_input: ProviderOrchestrationInput,
+) -> dict[str, Any]:
+    if not _looks_like_legacy_afb_extraction(candidate):
+        return candidate
+
+    legacy_flow = candidate.get("attack_flow") if isinstance(candidate.get("attack_flow"), dict) else {}
+    metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+    source = candidate.get("source") if isinstance(candidate.get("source"), dict) else {}
+    source_name = _as_str(candidate.get("source_name")) or _as_str(source.get("original_name"))
+    source_type = _as_str(candidate.get("source_type")) or _as_str(source.get("source_type"))
+    attack_version = _as_str(candidate.get("attack_version"))
+    top_level_authors = _as_str_list(candidate.get("authors"))
+    top_level_external_references = _as_str_list(candidate.get("external_references"))
+    deterministic_findings = (
+        candidate.get("deterministic_findings")
+        if isinstance(candidate.get("deterministic_findings"), dict)
+        else {}
+    )
+
+    attack_actions_input = candidate.get("attack_actions") if isinstance(candidate.get("attack_actions"), list) else []
+    steps = legacy_flow.get("steps") if isinstance(legacy_flow.get("steps"), list) else []
+    objects = legacy_flow.get("objects") if isinstance(legacy_flow.get("objects"), list) else []
+    attack_actions: list[dict[str, Any]] = []
+    attack_conditions: list[dict[str, Any]] = []
+    attack_operators: list[dict[str, Any]] = []
+    attack_assets: list[dict[str, Any]] = []
+    action_ids: list[str] = []
+    for index, step in enumerate(attack_actions_input, start=1):
+        if not isinstance(step, dict):
+            continue
+        action = _coerce_legacy_step_to_action(step, index)
+        attack_actions.append(action)
+        action_ids.append(action["id"])
+
+    offset = len(attack_actions)
+    for index, step in enumerate(steps, start=1):
+        if not isinstance(step, dict):
+            continue
+        action = _coerce_legacy_step_to_action(step, offset + index)
+        attack_actions.append(action)
+        action_ids.append(action["id"])
+
+    offset = len(attack_actions)
+    for index, item in enumerate(objects, start=1):
+        if not isinstance(item, dict):
+            continue
+        legacy_type = _as_str(item.get("type"))
+        if legacy_type == "attack-action":
+            action = _coerce_legacy_object_to_action(item, offset + index)
+            attack_actions.append(action)
+            action_ids.append(action["id"])
+        elif legacy_type == "attack-condition":
+            attack_conditions.append(_coerce_legacy_object_to_condition(item, len(attack_conditions) + 1))
+        elif legacy_type == "attack-operator":
+            attack_operators.append(_coerce_legacy_object_to_operator(item, len(attack_operators) + 1))
+        elif legacy_type == "attack-asset":
+            attack_assets.append(_coerce_legacy_object_to_asset(item, len(attack_assets) + 1))
+
+    operator_value = legacy_flow.get("attack_operator")
+    if isinstance(operator_value, str) and operator_value.strip():
+        attack_operators.append(
+            {
+                "id": str(legacy_flow.get("attack_operator_id") or "attack-operator--1"),
+                "operator": operator_value.strip(),
+                "confidence": _coerce_float(legacy_flow.get("attack_operator_confidence"), default=1.0),
+                "effect_refs": action_ids,
+            }
+        )
+
+    condition_value = legacy_flow.get("attack_condition")
+    if isinstance(condition_value, str) and condition_value.strip():
+        attack_conditions.append(
+            {
+                "id": str(legacy_flow.get("attack_condition_id") or "attack-condition--1"),
+                "description": str(
+                    legacy_flow.get("attack_condition_description")
+                    or metadata.get("attack_condition_description")
+                    or "Legacy attack condition"
+                ),
+                "value": condition_value.strip(),
+                "confidence": _coerce_float(legacy_flow.get("attack_condition_confidence"), default=1.0),
+                "on_true_refs": [],
+                "on_false_refs": [],
+            }
+        )
+
+    source_classification = _coerce_source_classification(
+        _as_str(source.get("source_type"))
+        or _as_str(legacy_flow.get("source_classification"))
+        or packaged_input.source_type
+    )
+    orchestration_mode = _coerce_orchestration_mode(
+        _as_str(metadata.get("mode"))
+        or _as_str(legacy_flow.get("orchestration_mode"))
+        or packaged_input.mode.value
+    )
+
+    attack_flow = {
+        "id": _as_str(legacy_flow.get("id")) or "attack-flow--intermediate",
+        "name": _first_non_empty_string(
+            _as_str(metadata.get("title")),
+            _as_str(legacy_flow.get("name")),
+            source_name,
+            "AFB Intermediate Extraction",
+        ),
+        "description": _as_str(legacy_flow.get("description")) or None,
+        "scope": _as_str(legacy_flow.get("scope")) or "incident",
+        "start_refs": _coerce_legacy_start_refs(legacy_flow, attack_actions, attack_conditions),
+        "orchestration_mode": orchestration_mode,
+        "source_classification": source_classification,
+        "authors": _dedupe_preserve_order(
+            _as_str_list(metadata.get("authors"))
+            or _as_str_list(legacy_flow.get("authors"))
+            or top_level_authors
+        ),
+        "external_references": _as_str_list(metadata.get("external_references"))
+        or top_level_external_references
+        or _as_str_list(legacy_flow.get("external_references")),
+        "provenance": {
+            **packaged_input.provenance,
+            "source_name": source_name or None,
+            "source_type": source_type or None,
+            "attack_version": attack_version or None,
+        },
+    }
+
+    return {
+        "validation_state": candidate.get("validation_state") or "valid",
+        "repair_attempted": bool(candidate.get("repair_attempted", False)),
+        "provider_invoked": bool(candidate.get("provider_invoked", True)),
+        "provider_id": candidate.get("provider_id"),
+        "model": candidate.get("model"),
+        "attack_flow": attack_flow,
+        "attack_actions": attack_actions,
+        "attack_conditions": attack_conditions,
+        "attack_operators": attack_operators,
+        "attack_assets": attack_assets,
+        "deterministic_attack_refs": list(deterministic_findings.get("attack_refs", [])),
+        "deterministic_entities": list(deterministic_findings.get("entities", [])),
+        "deterministic_relationships": list(deterministic_findings.get("relationships", [])),
+    }
+
+
+def _looks_like_legacy_afb_extraction(candidate: dict[str, Any]) -> bool:
+    if candidate.get("type") == "afb-extraction":
+        return True
+    attack_flow = candidate.get("attack_flow")
+    if isinstance(attack_flow, dict) and ("steps" in attack_flow or "objects" in attack_flow):
+        return True
+    attack_actions = candidate.get("attack_actions")
+    if isinstance(attack_actions, list):
+        for item in attack_actions:
+            if isinstance(item, dict) and ("techniques" in item or "attack_object" in item):
+                return True
+    return any(key in candidate for key in ("source", "metadata", "deterministic_findings", "source_name", "source_type", "attack_version", "authors", "external_references"))
+
+
+def _unwrap_nested_output_json(candidate: dict[str, Any]) -> dict[str, Any]:
+    nested = candidate.get("output_json")
+    if isinstance(nested, dict) and not any(key in candidate for key in ("attack_flow", "attack_actions", "attack_conditions", "attack_operators", "attack_assets")):
+        return nested
+    return candidate
+
+
+def _coerce_legacy_step_to_action(step: dict[str, Any], index: int) -> dict[str, Any]:
+    description = _first_non_empty_string(
+        step.get("description"),
+        step.get("description_excerpt"),
+        step.get("text"),
+        step.get("summary"),
+        step.get("name"),
+        step.get("step_id"),
+        f"Legacy attack step {index}",
+    )
+    evidence = step.get("evidence") if isinstance(step.get("evidence"), list) else []
+    normalized_evidence = [item for item in evidence if isinstance(item, dict)]
+    if not normalized_evidence:
+        normalized_evidence = [{"source": "legacy_output", "excerpt": description}]
+    else:
+        first_excerpt = _first_non_empty_string(
+            *(str(item.get("excerpt")).strip() for item in normalized_evidence if isinstance(item, dict)),
+            description,
+        )
+        normalized_evidence[0] = {
+            **normalized_evidence[0],
+            "excerpt": first_excerpt,
+            "source": str(normalized_evidence[0].get("source") or "legacy_output"),
+        }
+        description = first_excerpt
+
+    action = {
+        "id": _first_non_empty_string(_as_str(step.get("id")), _as_str(step.get("step_id")), f"attack-action--{index}"),
+        "name": _first_non_empty_string(_as_str(step.get("name")), description, f"Attack action {index}"),
+        "description": description,
+        "confidence": _coerce_float(step.get("confidence"), default=0.5),
+        "evidence": normalized_evidence,
+        "citations": _as_str_list(step.get("citations")),
+        "asset_refs": _as_str_list(step.get("asset_refs")),
+        "object_refs": _as_str_list(step.get("object_refs")),
+        "effect_refs": _as_str_list(step.get("effect_refs")),
+        "fact_origin": _as_str(step.get("fact_origin")) or "ai_generated",
+    }
+
+    technique = _coerce_legacy_technique(step.get("technique"))
+    techniques = step.get("techniques") if isinstance(step.get("techniques"), list) else []
+    best_technique = technique
+    for item in techniques:
+        candidate = _coerce_legacy_technique(item)
+        if candidate is None:
+            continue
+        if best_technique is None or candidate["confidence"] > best_technique["confidence"]:
+            best_technique = candidate
+
+    if best_technique is not None:
+        action["technique"] = best_technique
+
+    tactic = step.get("tactic")
+    if isinstance(tactic, dict):
+        action["tactic"] = {
+            "tactic_id": _as_str(tactic.get("tactic_id")) or None,
+            "tactic_ref": _as_str(tactic.get("tactic_ref")) or None,
+            "tactic_name": _as_str(tactic.get("tactic_name")) or None,
+            "confidence": _coerce_float(tactic.get("confidence"), default=0.5),
+            "grounded_by": _first_non_empty_string(_as_str(tactic.get("grounded_by")), "legacy_output"),
+        }
+
+    return action
+
+
+def _coerce_legacy_object_to_action(item: dict[str, Any], index: int) -> dict[str, Any]:
+    action = _coerce_legacy_step_to_action(item, index)
+    action["asset_refs"] = _as_str_list(item.get("asset_refs"))
+    action["object_refs"] = _as_str_list(item.get("object_refs"))
+    action["effect_refs"] = _as_str_list(item.get("effect_refs"))
+    return action
+
+
+def _coerce_legacy_technique(value: object) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+
+    attack_object = value.get("attack_object") if isinstance(value.get("attack_object"), dict) else {}
+    technique_id = _first_non_empty_string(
+        _as_str(value.get("technique_id")),
+        _as_str(value.get("technique_ref")),
+        _as_str(attack_object.get("id")),
+    )
+    technique_name = _first_non_empty_string(
+        _as_str(value.get("technique_name")),
+        _as_str(attack_object.get("name")),
+    )
+    technique_ref = _first_non_empty_string(_as_str(value.get("technique_ref")))
+    grounded_by_value = value.get("grounded_by")
+    if isinstance(grounded_by_value, list):
+        grounded_by = _first_non_empty_string(*(str(item).strip() for item in grounded_by_value))
+    else:
+        grounded_by = _first_non_empty_string(_as_str(grounded_by_value), "legacy_output")
+
+    if not (technique_id or technique_ref or technique_name):
+        return None
+
+    return {
+        "technique_id": technique_id or None,
+        "technique_ref": technique_ref or None,
+        "technique_name": technique_name or None,
+        "confidence": _coerce_float(value.get("confidence"), default=0.5),
+        "grounded_by": grounded_by,
+    }
+
+
+def _coerce_legacy_object_to_condition(item: dict[str, Any], index: int) -> dict[str, Any]:
+    value = _first_non_empty_string(_as_str(item.get("value")), _as_str(item.get("condition_value")), "true")
+    return {
+        "id": _first_non_empty_string(_as_str(item.get("id")), _as_str(item.get("condition_id")), f"attack-condition--{index}"),
+        "description": _first_non_empty_string(_as_str(item.get("description")), _as_str(item.get("name")), f"Legacy attack condition {index}"),
+        "value": value,
+        "confidence": _coerce_float(item.get("confidence"), default=0.5),
+        "on_true_refs": _as_str_list(item.get("on_true_refs")),
+        "on_false_refs": _as_str_list(item.get("on_false_refs")),
+        "evidence": [entry for entry in item.get("evidence", []) if isinstance(entry, dict)] if isinstance(item.get("evidence"), list) else [],
+        "citations": _as_str_list(item.get("citations")),
+        "fact_origin": _as_str(item.get("fact_origin")) or "ai_generated",
+    }
+
+
+def _coerce_legacy_object_to_operator(item: dict[str, Any], index: int) -> dict[str, Any]:
+    return {
+        "id": _first_non_empty_string(_as_str(item.get("id")), _as_str(item.get("operator_id")), f"attack-operator--{index}"),
+        "operator": _first_non_empty_string(_as_str(item.get("operator")), "OR"),
+        "confidence": _coerce_float(item.get("confidence"), default=0.5),
+        "effect_refs": _as_str_list(item.get("effect_refs")),
+        "evidence": [entry for entry in item.get("evidence", []) if isinstance(entry, dict)] if isinstance(item.get("evidence"), list) else [],
+        "citations": _as_str_list(item.get("citations")),
+        "fact_origin": _as_str(item.get("fact_origin")) or "ai_generated",
+    }
+
+
+def _coerce_legacy_object_to_asset(item: dict[str, Any], index: int) -> dict[str, Any]:
+    return {
+        "id": _first_non_empty_string(_as_str(item.get("id")), _as_str(item.get("asset_id")), f"attack-asset--{index}"),
+        "name": _first_non_empty_string(_as_str(item.get("name")), _as_str(item.get("display_name")), f"Legacy attack asset {index}"),
+        "description": _as_str(item.get("description")) or None,
+        "object_ref": _as_str(item.get("object_ref")) or None,
+        "evidence": [entry for entry in item.get("evidence", []) if isinstance(entry, dict)] if isinstance(item.get("evidence"), list) else [],
+        "confidence": _coerce_float(item.get("confidence"), default=0.5),
+        "fact_origin": _as_str(item.get("fact_origin")) or "ai_generated",
+    }
+
+
+def _coerce_legacy_start_refs(
+    legacy_flow: dict[str, Any],
+    attack_actions: list[dict[str, Any]],
+    attack_conditions: list[dict[str, Any]],
+) -> list[str]:
+    start_refs = legacy_flow.get("start_refs")
+    if isinstance(start_refs, list):
+        return _as_str_list(start_refs)
+
+    candidate_ids = [
+        item["id"]
+        for item in [*attack_actions, *attack_conditions]
+        if isinstance(item, dict) and _as_str(item.get("id"))
+    ]
+    inbound_refs: set[str] = set()
+    for item in [*attack_actions, *attack_conditions]:
+        if not isinstance(item, dict):
+            continue
+        for field_name in ("effect_refs", "on_true_refs", "on_false_refs"):
+            for ref in _as_str_list(item.get(field_name)):
+                inbound_refs.add(ref)
+
+    derived = [ref for ref in candidate_ids if ref not in inbound_refs]
+    if derived:
+        return derived
+    return candidate_ids[:1]
+def _coerce_source_classification(value: str) -> str:
+    normalized = value.strip()
+    allowed = {"narrative_text", "url_extracted_text", "document_extracted_text", "stix_structured", "mixed"}
+    return normalized if normalized in allowed else "mixed"
+
+
+def _coerce_orchestration_mode(value: str) -> str:
+    normalized = value.strip()
+    if normalized in {"enrichment", "ai_enrichment"}:
+        return "ai_enrichment"
+    return "full_extraction"
+
+
+def _coerce_float(value: Any, *, default: float) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return default
+
+
+def _first_non_empty_string(*values: object) -> str:
+    for value in values:
+        if isinstance(value, str):
+            candidate = value.strip()
+            if candidate:
+                return candidate
+    return ""
+
+
+def _as_str(value: object) -> str:
+    return value.strip() if isinstance(value, str) else ""
 
 
 def _normalize_deterministic_attack_ref(item: dict[str, Any]) -> dict[str, Any]:
@@ -156,6 +529,33 @@ def _tag_ai_generated_additions(merged: dict[str, Any]) -> dict[str, Any]:
             out.setdefault("fact_origin", "ai_generated")
             tagged.append(out)
         merged[key] = tagged
+    return merged
+
+
+def _drop_invalid_groundings(merged: dict[str, Any]) -> dict[str, Any]:
+    actions = merged.get("attack_actions")
+    if not isinstance(actions, list):
+        return merged
+
+    sanitized_actions: list[dict[str, Any]] = []
+    for item in actions:
+        if not isinstance(item, dict):
+            continue
+        out = dict(item)
+
+        technique = out.get("technique")
+        if isinstance(technique, dict):
+            if not (_as_str(technique.get("technique_id")) or _as_str(technique.get("technique_ref")) or _as_str(technique.get("technique_name"))):
+                out.pop("technique", None)
+
+        tactic = out.get("tactic")
+        if isinstance(tactic, dict):
+            if not (_as_str(tactic.get("tactic_id")) or _as_str(tactic.get("tactic_ref")) or _as_str(tactic.get("tactic_name"))):
+                out.pop("tactic", None)
+
+        sanitized_actions.append(out)
+
+    merged["attack_actions"] = sanitized_actions
     return merged
 
 

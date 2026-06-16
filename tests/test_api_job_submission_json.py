@@ -821,6 +821,58 @@ def test_download_job_afb_artifact_returns_json_file(monkeypatch, tmp_path: Path
     assert response.json()["format"] == "afb"
 
 
+def test_download_job_ai_trace_artifact_returns_json_file(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        create_response = client.post(
+            "/api/v1/jobs",
+            json={"input_type": "text", "text": "investigation content"},
+        )
+        job_id = create_response.json()["job_id"]
+
+        initial_file = client.app.state.file_storage.write_artifact(
+            b'{"label":"initial","prompt":"SYSTEM_INSTRUCTION...","output_text":"{}"}',
+            extension="json",
+        )
+        client.app.state.persistence_service.create_artifact(
+            payload=ArtifactCreate(
+                id=str(uuid4()),
+                job_id=job_id,
+                type="ai_trace",
+                path=initial_file.relative_path,
+                size_bytes=initial_file.size_bytes,
+                metadata_json=json.dumps({"kind": "ai_trace", "label": "initial"}),
+            )
+        )
+
+        retry_file = client.app.state.file_storage.write_artifact(
+            json.dumps({"label": "retry", "prompt": "SYSTEM_INSTRUCTION...", "output_text": {"attack_actions": []}}).encode("utf-8"),
+            extension="json",
+        )
+        client.app.state.persistence_service.create_artifact(
+            payload=ArtifactCreate(
+                id=str(uuid4()),
+                job_id=job_id,
+                type="ai_trace",
+                path=retry_file.relative_path,
+                size_bytes=retry_file.size_bytes,
+                metadata_json=json.dumps({"kind": "ai_trace", "label": "retry"}),
+            )
+        )
+
+        response = client.get(f"/api/v1/jobs/{job_id}/artifacts/ai-trace")
+        label_response = client.get(f"/api/v1/jobs/{job_id}/artifacts/ai-trace?label=initial")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.headers["content-disposition"].endswith(f'filename="{job_id}-ai-trace.json"')
+    assert response.headers.get("x-request-id")
+    assert response.json()["label"] == "retry"
+
+    assert label_response.status_code == 200
+    assert label_response.headers["content-disposition"].endswith(f'filename="{job_id}-ai-trace-initial.json"')
+    assert label_response.json()["label"] == "initial"
+
+
 def test_download_job_artifact_returns_404_for_invalid_artifact(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
         create_response = client.post(

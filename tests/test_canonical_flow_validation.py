@@ -177,6 +177,7 @@ def _build_afb_extraction_canonical() -> AfbExtractionResult:
                     confidence=0.75,
                     technique=TechniqueGrounding(
                         technique_id="T1059",
+                        technique_name="Command and Scripting Interpreter",
                         confidence=0.75,
                         grounded_by="explicit_attack_id_in_source",
                     ),

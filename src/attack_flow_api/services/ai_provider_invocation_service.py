@@ -16,6 +16,7 @@ class ProviderInvocationResult:
     provider_id: str | None
     model_used: str | None
     deterministic_input_sufficient: bool
+    prompt_text: str | None = None
     output_json: dict[str, object] | None = None
     output_text: str | None = None
     error_code: str | None = None
@@ -60,6 +61,7 @@ class AIProviderInvocationService:
                 provider_id=plan.provider_id,
                 model_used=None,
                 deterministic_input_sufficient=packaged_input.deterministic_input_sufficient,
+                prompt_text=None,
             )
 
         provider_config = self.provider_registry.get_provider_config(plan.provider_id or "")
@@ -80,6 +82,7 @@ class AIProviderInvocationService:
             model=selected_model or "",
             prompt=self._compose_provider_prompt(prompt_bundle),
             response_format=StructuredResponseFormat.JSON_OBJECT,
+            timeout_seconds=provider_config.timeout_seconds or 30.0,
         )
 
         self._logger.debug(
@@ -97,6 +100,7 @@ class AIProviderInvocationService:
                     provider_id=response.provider_id,
                     model_used=response.model,
                     deterministic_input_sufficient=packaged_input.deterministic_input_sufficient,
+                    prompt_text=generation_request.prompt,
                     output_json=response.output_json,
                     output_text=response.output_text,
                 )
@@ -121,6 +125,7 @@ class AIProviderInvocationService:
                     provider_id=plan.provider_id,
                     model_used=selected_model,
                     deterministic_input_sufficient=packaged_input.deterministic_input_sufficient,
+                    prompt_text=generation_request.prompt,
                     error_code=normalized_error.code,
                     error_category=normalized_error.category.value,
                     error_message=normalized_error.message,

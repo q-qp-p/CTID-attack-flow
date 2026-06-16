@@ -229,7 +229,7 @@ def test_valid_afb_export_finalization_persists_artifact_metadata_correctly(tmp_
     assert len(artifacts) == 1
     artifact = artifacts[0]
 
-    expected_bytes = bundle.to_export_json_bytes()
+    expected_bytes = bundle.to_diagram_export_bytes()
     assert result.valid is True
     assert result.artifact_type == "afb"
     assert result.export_status == "completed"

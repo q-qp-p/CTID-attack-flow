@@ -87,6 +87,16 @@ class _FakeFlakyAdapter(_FakeSuccessAdapter):
         return super().generate_structured(request)
 
 
+class _CapturingAdapter(_FakeSuccessAdapter):
+    def __init__(self, provider_id: str, provider_type: str):
+        super().__init__(provider_id, provider_type)
+        self.last_request: StructuredGenerationRequest | None = None
+
+    def generate_structured(self, request: StructuredGenerationRequest) -> StructuredGenerationResult:
+        self.last_request = request
+        return super().generate_structured(request)
+
+
 def _registry_with_fake_adapter(adapter: ProviderAdapter) -> ProviderRegistry:
     registry = ProviderRegistry(
         ProvidersConfig(
@@ -227,6 +237,46 @@ def test_invocation_service_preserves_model_override() -> None:
 
     assert result.provider_invoked is True
     assert result.model_used == "gpt-4.1"
+
+
+def test_invocation_service_propagates_provider_timeout() -> None:
+    packaged = build_provider_orchestration_input(
+        {
+            "source_type": "narrative_text",
+            "normalized_text": "Observed activity details",
+        }
+    )
+    bundle = build_prompt_template_bundle(packaged)
+    adapter = _CapturingAdapter("default-openai", "openai")
+    registry = ProviderRegistry(
+        ProvidersConfig(
+            providers=[
+                ProviderConfig(
+                    provider_id="default-openai",
+                    provider_type="openai",
+                    enabled=True,
+                    default_model="gpt-4.1-mini",
+                    api_key_env="OPENAI_API_KEY",
+                    timeout_seconds=90.0,
+                )
+            ]
+        )
+    )
+    registry._registrations["default-openai"] = registry._registrations["default-openai"].__class__(
+        config=registry.get_provider_config("default-openai"),
+        adapter=adapter,
+    )
+    service = AIProviderInvocationService(registry)
+
+    result = service.invoke_if_needed(
+        packaged_input=packaged,
+        prompt_bundle=bundle,
+        requested_provider_id="default-openai",
+    )
+
+    assert result.provider_invoked is True
+    assert adapter.last_request is not None
+    assert adapter.last_request.timeout_seconds == 90.0
 
 
 def test_invocation_service_normalizes_provider_failure() -> None:
