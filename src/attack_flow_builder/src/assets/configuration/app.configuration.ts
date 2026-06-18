@@ -5,6 +5,7 @@ import AttackFlowCommandProcessor from "./AttackFlowCommandProcessor/AttackFlowC
 import { AttackFlowRecommender } from "./AttackFlowRecommender/AttackFlowRecommender.ts";
 import { TacticTableVisualization } from "./AttackFlowVisualizations/TacticTableVisualization.ts";
 import { TimelineVisualization } from "./AttackFlowVisualizations/TimelineVisualization.ts";
+import { TreemapVisualization } from "./AttackFlowVisualizations/TreemapVisualization.ts";
 import { DarkTheme } from "./AttackFlowThemes/DarkTheme.ts";
 import { BlogTheme } from "./AttackFlowThemes/BlogTheme.ts";
 import { LightTheme } from "./AttackFlowThemes/LightTheme.ts";
@@ -152,7 +153,8 @@ const configuration: AppConfiguration = {
 
     visualizations: [
         TacticTableVisualization,
-        TimelineVisualization
+        TimelineVisualization,
+        TreemapVisualization
     ]
 
 };
