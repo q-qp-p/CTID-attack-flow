@@ -123,7 +123,7 @@ def test_build_attack_flow_root_object_maps_metadata_conservatively() -> None:
     assert root.start_refs == []
     assert root.external_references == [
         {
-            "source_name": "https://example.com/report",
+            "source_name": "example.com",
             "url": "https://example.com/report",
         }
     ]

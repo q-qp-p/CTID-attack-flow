@@ -53,6 +53,10 @@ class TechniqueGrounding(BaseModel):
     technique_id: str | None = None
     technique_ref: str | None = None
     technique_name: str | None = None
+    description: str | None = None
+    aliases: list[str] = Field(default_factory=list)
+    kill_chain_phases: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     confidence: float = Field(ge=0.0, le=1.0)
     grounded_by: str
 
@@ -104,6 +108,7 @@ class AttackAssetNode(BaseModel):
     spec_version: str = Field(default="2.1")
     name: str
     description: str | None = None
+    tags: list[str] = Field(default_factory=list)
     object_ref: str | None = None
     evidence: list[EvidenceCitation] = Field(default_factory=list)
     confidence: float = Field(ge=0.0, le=1.0)

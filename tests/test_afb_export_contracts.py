@@ -29,6 +29,8 @@ from attack_flow_api.services.afb_export_contracts import (
 from attack_flow_api.services.canonical_flow_contracts import (
     CanonicalFlowActionNode,
     CanonicalFlowAssetNode,
+    CanonicalFlowEdge,
+    CanonicalFlowEdgeKind,
     CanonicalFlowConditionNode,
     CanonicalFlowMetadata,
     CanonicalFlowOutput,
@@ -64,6 +66,50 @@ def test_afb_export_bundle_defaults_to_empty_object_collection() -> None:
         "schema_version": "afb-v2-export-contracts",
         "objects": [],
     }
+
+
+def test_build_afb_export_bundle_canvas_always_has_author_name() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--author-fallback",
+            name="Example flow",
+            scope="incident",
+            start_refs=[],
+        ),
+        nodes=[],
+        edges=[],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    bundle = assemble_afb_export_bundle(canonical)
+    canvas = bundle.to_diagram_export_ready()["objects"][0]
+
+    assert [item for item in canvas["properties"] if item[0] == "author"][0][1]["name"] == "Unknown"
+
+
+def test_build_afb_export_bundle_canvas_external_references_include_source_name() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--author-fallback",
+            name="Example flow",
+            scope="incident",
+            external_references=["https://example.com/report"],
+            start_refs=[],
+        ),
+        nodes=[],
+        edges=[],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    bundle = assemble_afb_export_bundle(canonical)
+    canvas = bundle.to_diagram_export_ready()["objects"][0]
+
+    external_references = [item for item in canvas["properties"] if item[0] == "external_references"][0][1]
+    assert external_references == [{"source_name": "example.com", "url": "https://example.com/report"}]
 
 
 def test_build_afb_export_bundle_metadata_preserves_context_lists() -> None:
@@ -129,7 +175,7 @@ def test_build_afb_attack_flow_root_object_maps_canonical_metadata() -> None:
     assert root.scope == "incident"
     assert root.start_refs == ["attack-action--1"]
     assert root.external_references == [
-        {"source_name": "https://example.com/report", "url": "https://example.com/report"}
+        {"source_name": "example.com", "url": "https://example.com/report"}
     ]
     assert root.extensions == {
         AFB_PINNED_TARGET_EXTENSION_DEFINITION_ID: {"extension_type": "new-sdo"}
@@ -141,6 +187,7 @@ def test_build_afb_attack_action_object_preserves_explicit_mapping_fields() -> N
         id="attack-action--1",
         name="Observed step",
         description="  Observed command exactly as reported.  ",
+        confidence=0.73,
         technique=CanonicalFlowTechniqueReference(
             technique_id="T1059",
             technique_ref="attack-pattern--1",
@@ -159,6 +206,7 @@ def test_build_afb_attack_action_object_preserves_explicit_mapping_fields() -> N
     assert action.id == "attack-action--1"
     assert action.name == "Observed step"
     assert action.description == "  Observed command exactly as reported.  "
+    assert action.confidence == 0.73
     assert action.technique_id == "T1059"
     assert action.technique_ref == "attack-pattern--1"
     assert action.tactic_id is None
@@ -321,6 +369,7 @@ def test_assemble_afb_export_bundle_builds_pinned_target_artifact() -> None:
                 id="attack-action--1",
                 name="Observed step",
                 description="Observed command exactly as reported.",
+                confidence=0.62,
                 asset_refs=["attack-asset--1"],
             ),
             CanonicalFlowAssetNode(
@@ -352,6 +401,8 @@ def test_assemble_afb_export_bundle_builds_builder_diagram_export() -> None:
             flow_id="attack-flow--diagram-1",
             name="Example flow",
             scope="incident",
+            description="Example flow description.",
+            external_references=["https://example.com/report"],
             start_refs=["attack-action--1"],
         ),
         nodes=[
@@ -359,6 +410,7 @@ def test_assemble_afb_export_bundle_builds_builder_diagram_export() -> None:
                 id="attack-action--1",
                 name="Observed step",
                 description="Observed command exactly as reported.",
+                confidence=0.62,
                 asset_refs=["attack-asset--1"],
             ),
             CanonicalFlowAssetNode(
@@ -377,11 +429,146 @@ def test_assemble_afb_export_bundle_builds_builder_diagram_export() -> None:
     diagram_export = bundle.to_diagram_export_ready()
 
     assert diagram_export["schema"] == "attack_flow_v2"
-    assert [item["id"] for item in diagram_export["objects"][:3]] == ["flow", "action", "asset"]
-    assert diagram_export["objects"][0]["objects"] == ["attack-action--1", "attack-asset--1"]
-    assert diagram_export["objects"][1]["anchors"] == {}
-    assert diagram_export["objects"][1]["properties"][0] == ["name", "Observed step"]
+    canvas = diagram_export["objects"][0]
+    action = next(item for item in diagram_export["objects"] if item["id"] == "action")
+    assert canvas["id"] == "flow"
+    assert [item for item in canvas["properties"] if item[0] == "description"][0][1] == "Example flow description."
+    assert [item for item in canvas["properties"] if item[0] == "external_references"][0][1][0] == {
+        "source_name": "example.com",
+        "url": "https://example.com/report",
+    }
+    assert [item for item in action["properties"] if item[0] == "confidence"][0][1] == 0.62
+    assert "attack-action--1" in canvas["objects"]
+    assert "attack-asset--1" in canvas["objects"]
+    assert "malware--1" in canvas["objects"]
+    assert canvas["objects"].count("attack-action--1") == 1
+    assert canvas["objects"].count("attack-asset--1") == 1
+    assert canvas["objects"].count("malware--1") == 1
+    assert diagram_export["layout"]["attack-action--1"] == [0.0, 0.0]
+    assert diagram_export["layout"]["attack-asset--1"][0] > 400.0
+    assert diagram_export["layout"]["attack-asset--1"][1] == diagram_export["layout"]["attack-action--1"][1]
+    assert diagram_export["layout"]["malware--1"][1] == diagram_export["layout"]["attack-action--1"][1]
+    assert diagram_export["layout"]["malware--1"][0] > diagram_export["layout"]["attack-asset--1"][0]
+    assert any(item["id"] == "generic_handle" for item in diagram_export["objects"])
+    assert any(item["id"] == "dynamic_line" for item in diagram_export["objects"])
     assert json.loads(bundle.to_diagram_export_bytes().decode("utf-8")) == diagram_export
+
+
+def test_assemble_afb_export_bundle_renders_action_to_action_connector() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--diagram-2",
+            name="Example flow",
+            scope="incident",
+            start_refs=["attack-action--1"],
+        ),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Observed step one",
+                description="Observed command exactly as reported.",
+                effect_refs=["attack-action--2"],
+            ),
+            CanonicalFlowActionNode(
+                id="attack-action--2",
+                name="Observed step two",
+                description="Observed command exactly as reported.",
+            ),
+        ],
+        edges=[
+            CanonicalFlowEdge(source_ref="attack-action--1", target_ref="attack-action--2", edge_type=CanonicalFlowEdgeKind.EFFECT)
+        ],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    bundle = assemble_afb_export_bundle(canonical)
+    diagram_export = bundle.to_diagram_export_ready()
+
+    assert any(item["id"] == "dynamic_line" for item in diagram_export["objects"])
+    assert diagram_export["layout"]["attack-action--1"] == [0.0, 0.0]
+    assert diagram_export["layout"]["attack-action--2"][0] == 0.0
+    assert diagram_export["layout"]["attack-action--2"][1] > diagram_export["layout"]["attack-action--1"][1]
+
+
+def test_assemble_afb_export_bundle_falls_back_to_sequential_action_chain() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--diagram-3",
+            name="Example flow",
+            scope="incident",
+            start_refs=["attack-action--1"],
+        ),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Observed step one",
+                description="Observed command exactly as reported.",
+            ),
+            CanonicalFlowActionNode(
+                id="attack-action--2",
+                name="Observed step two",
+                description="Observed command exactly as reported.",
+            ),
+            CanonicalFlowActionNode(
+                id="attack-action--3",
+                name="Observed step three",
+                description="Observed command exactly as reported.",
+            ),
+        ],
+        edges=[],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    bundle = assemble_afb_export_bundle(canonical)
+    diagram_export = bundle.to_diagram_export_ready()
+    line_exports = [item for item in diagram_export["objects"] if item["id"] == "dynamic_line"]
+    handle_exports = [item for item in diagram_export["objects"] if item["id"] == "generic_handle"]
+
+    assert len(line_exports) == 2
+    assert len(handle_exports) == 2
+    assert diagram_export["layout"]["attack-action--2"][1] > diagram_export["layout"]["attack-action--1"][1]
+    assert diagram_export["layout"]["attack-action--3"][1] > diagram_export["layout"]["attack-action--2"][1]
+
+
+def test_assemble_afb_export_bundle_prefers_object_connector_over_sequential_connector() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--diagram-4",
+            name="Example flow",
+            scope="incident",
+            start_refs=["attack-action--1"],
+        ),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Observed step one",
+                description="Observed command exactly as reported.",
+                object_refs=["malware--1"],
+                effect_refs=["attack-action--2"],
+            ),
+            CanonicalFlowActionNode(
+                id="attack-action--2",
+                name="Observed step two",
+                description="Observed command exactly as reported.",
+            ),
+        ],
+        edges=[
+            CanonicalFlowEdge(source_ref="attack-action--1", target_ref="attack-action--2", edge_type=CanonicalFlowEdgeKind.EFFECT)
+        ],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    bundle = assemble_afb_export_bundle(canonical)
+    diagram_export = bundle.to_diagram_export_ready()
+    line_exports = [item for item in diagram_export["objects"] if item["id"] == "dynamic_line"]
+
+    assert len(line_exports) == 1
 
 
 def test_assemble_afb_export_bundle_prunes_invalid_internal_refs_and_reports_errors() -> None:

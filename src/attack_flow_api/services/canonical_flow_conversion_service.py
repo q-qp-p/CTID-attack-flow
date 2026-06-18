@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import re
 from typing import Any
 
 from attack_flow_api.services.afb_extraction_contracts import (
@@ -63,11 +64,16 @@ class CanonicalFlowConversionService:
             _convert_attack_ref(ref, source_classification=fused_output.attack_flow.source_classification)
             for ref in fused_output.attack_refs
         ]
+        action_assets = _convert_action_object_refs_to_assets(
+            fused_output.attack_actions,
+            existing_asset_ids=[asset.object_id for asset in fused_output.entities if asset.object_id is not None],
+        )
         nodes = [
             *_convert_entities_to_assets(fused_output.entities),
+            *action_assets,
             *_convert_actions(fused_output.attack_actions),
             *_convert_conditions(fused_output.attack_conditions),
-            *_convert_operators(fused_output.attack_operators),
+            *_convert_operators(fused_output.attack_operators, fused_output.attack_actions),
         ]
         metadata = _build_metadata_from_attack_flow(
             fused_output.attack_flow,
@@ -104,11 +110,16 @@ class CanonicalFlowConversionService:
             _convert_attack_ref_from_dict(ref, source_classification=extraction_output.attack_flow.source_classification)
             for ref in extraction_output.deterministic_attack_refs
         ]
+        action_assets = _convert_action_object_refs_to_assets(
+            extraction_output.attack_actions,
+            existing_asset_ids=[asset.id for asset in extraction_output.attack_assets],
+        )
         nodes = [
             *_convert_afb_assets(extraction_output.attack_assets),
+            *action_assets,
             *_convert_afb_actions(extraction_output.attack_actions),
             *_convert_afb_conditions(extraction_output.attack_conditions),
-            *_convert_afb_operators(extraction_output.attack_operators),
+            *_convert_afb_operators(extraction_output.attack_operators, extraction_output.attack_actions),
         ]
         metadata = _build_metadata_from_attack_flow(
             extraction_output.attack_flow,
@@ -312,7 +323,7 @@ def _filter_start_refs(attack_flow: Any, nodes: list[CanonicalFlowNode]) -> list
         if getattr(node, "node_kind", None)
         in {CanonicalFlowNodeKind.ATTACK_ACTION, CanonicalFlowNodeKind.ATTACK_CONDITION}
     }
-    return [ref for ref in _as_str_list(getattr(attack_flow, "start_refs", None)) if ref in allowed_refs]
+    return [normalized for normalized in _normalize_canonical_refs(_as_str_list(getattr(attack_flow, "start_refs", None))) if normalized in allowed_refs]
 
 
 def _convert_attack_ref(
@@ -376,7 +387,7 @@ def _convert_actions(actions: list[MergedAttackAction]) -> list[CanonicalFlowAct
             tactic_name=_as_str(_mapping_get(action.tactic, "tactic_name")),
             asset_refs=list(action.asset_refs),
             object_refs=list(action.object_refs),
-            effect_refs=list(action.effect_refs),
+            effect_refs=_normalize_canonical_refs(action.effect_refs),
             evidence=[_convert_evidence_record(item) for item in action.evidence],
             citations=list(action.citations),
             provenance=[_convert_fusion_provenance(item) for item in action.provenance],
@@ -392,13 +403,14 @@ def _convert_afb_actions(actions: list[AttackActionNode]) -> list[CanonicalFlowA
             id=action.id,
             name=action.name,
             description=action.description,
+            tags=list(getattr(action, "tags", []) or []),
             confidence=action.confidence,
             technique=_convert_technique_from_afb(action.technique, action.confidence),
             tactic_ref=_as_str(getattr(action.tactic, "tactic_ref", None)),
             tactic_name=_as_str(getattr(action.tactic, "tactic_name", None)),
             asset_refs=list(action.asset_refs),
             object_refs=list(action.object_refs),
-            effect_refs=list(action.effect_refs),
+            effect_refs=_normalize_canonical_refs(action.effect_refs),
             evidence=[_convert_evidence_record(item) for item in action.evidence],
             citations=list(action.citations),
             provenance=[_convert_fact_origin(action.fact_origin)],
@@ -414,13 +426,14 @@ def _convert_conditions(conditions: list[MergedCondition]) -> list[CanonicalFlow
             id=item.id,
             name=None,
             description=item.description,
+            tags=list(getattr(item, "tags", []) or []),
             confidence=item.confidence,
             condition_value=item.value,  # type: ignore[arg-type]
-            on_true_refs=list(item.on_true_refs),
-            on_false_refs=list(item.on_false_refs),
+            on_true_refs=_normalize_canonical_refs(item.on_true_refs),
+            on_false_refs=_normalize_canonical_refs(item.on_false_refs),
             evidence=[_convert_evidence_dict(entry) for entry in item.evidence],
             citations=list(item.citations),
-            provenance=[_convert_fusion_provenance(entry) for entry in item.provenance],
+            provenance=_ensure_condition_provenance([_convert_fusion_provenance(entry) for entry in item.provenance], item),
             conflicts=list(item.conflicts),
         )
         for item in conditions
@@ -435,27 +448,58 @@ def _convert_afb_conditions(conditions: list[AttackConditionNode]) -> list[Canon
             description=item.description,
             confidence=item.confidence,
             condition_value=item.value.value,
-            on_true_refs=list(item.on_true_refs),
-            on_false_refs=list(item.on_false_refs),
-            evidence=[_convert_evidence_record(entry) for entry in item.evidence],
+            on_true_refs=_normalize_canonical_refs(item.on_true_refs),
+            on_false_refs=_normalize_canonical_refs(item.on_false_refs),
+            evidence=_convert_condition_evidence(item),
             citations=list(item.citations),
-            provenance=[_convert_fact_origin(item.fact_origin)],
+            provenance=_ensure_condition_provenance([_convert_fact_origin(item.fact_origin)], item),
             conflicts=[],
         )
         for item in conditions
     ]
 
 
-def _convert_operators(operators: list[MergedOperator]) -> list[CanonicalFlowOperatorNode]:
+def _convert_condition_evidence(item: AttackConditionNode) -> list[CanonicalFlowEvidenceRecord]:
+    evidence = [_convert_evidence_record(entry) for entry in item.evidence]
+    if evidence:
+        return evidence
+    if item.description.strip():
+        return [
+            CanonicalFlowEvidenceRecord(
+                source="legacy_output",
+                excerpt=item.description,
+            )
+        ]
+    return evidence
+
+
+def _ensure_condition_provenance(
+    provenance: list[CanonicalFlowProvenanceRecord],
+    condition: Any,
+) -> list[CanonicalFlowProvenanceRecord]:
+    if provenance:
+        return provenance
+    source_label = _as_str(getattr(condition, "id", None)) or "canonicalized_condition"
+    return [
+        CanonicalFlowProvenanceRecord(
+            source_label=source_label,
+            source_kind=CanonicalFlowProvenanceKind.AI_ASSISTED_ADDITION,
+        )
+    ]
+
+
+def _convert_operators(operators: list[MergedOperator], actions: list[MergedAttackAction]) -> list[CanonicalFlowOperatorNode]:
+    action_lookup = {action.id: action for action in actions}
     return [
         CanonicalFlowOperatorNode(
             id=item.id,
             name=None,
             description=None,
+            tags=list(getattr(item, "tags", []) or []),
             confidence=item.confidence,
             operator=item.operator,  # type: ignore[arg-type]
-            effect_refs=list(item.effect_refs),
-            evidence=[_convert_evidence_dict(entry) for entry in item.evidence],
+            effect_refs=_normalize_canonical_refs(item.effect_refs),
+            evidence=_ensure_operator_evidence([_convert_evidence_dict(entry) for entry in item.evidence], _normalize_canonical_refs(item.effect_refs), action_lookup),
             citations=list(item.citations),
             provenance=[_convert_fusion_provenance(entry) for entry in item.provenance],
             conflicts=list(item.conflicts),
@@ -464,7 +508,8 @@ def _convert_operators(operators: list[MergedOperator]) -> list[CanonicalFlowOpe
     ]
 
 
-def _convert_afb_operators(operators: list[AttackOperatorNode]) -> list[CanonicalFlowOperatorNode]:
+def _convert_afb_operators(operators: list[AttackOperatorNode], actions: list[AttackActionNode]) -> list[CanonicalFlowOperatorNode]:
+    action_lookup = {action.id: action for action in actions}
     return [
         CanonicalFlowOperatorNode(
             id=item.id,
@@ -472,8 +517,8 @@ def _convert_afb_operators(operators: list[AttackOperatorNode]) -> list[Canonica
             description=None,
             confidence=item.confidence,
             operator=item.operator.value,
-            effect_refs=list(item.effect_refs),
-            evidence=[_convert_evidence_record(entry) for entry in item.evidence],
+            effect_refs=_normalize_canonical_refs(item.effect_refs),
+            evidence=_ensure_operator_evidence([_convert_evidence_record(entry) for entry in item.evidence], _normalize_canonical_refs(item.effect_refs), action_lookup),
             citations=list(item.citations),
             provenance=[_convert_fact_origin(item.fact_origin)],
             conflicts=[],
@@ -482,12 +527,105 @@ def _convert_afb_operators(operators: list[AttackOperatorNode]) -> list[Canonica
     ]
 
 
+def _convert_action_object_refs_to_assets(
+    actions: list[Any],
+    *,
+    existing_asset_ids: list[str],
+) -> list[CanonicalFlowAssetNode]:
+    existing = set(existing_asset_ids)
+    out: list[CanonicalFlowAssetNode] = []
+    seen: set[str] = set()
+    for ref_id in _dedupe_preserve_order([ref for action in actions for ref in getattr(action, "object_refs", []) if ref]):
+        if ref_id in existing or ref_id in seen:
+            continue
+        seen.add(ref_id)
+        out.append(
+            CanonicalFlowAssetNode(
+                id=ref_id,
+                name=ref_id,
+                object_ref=ref_id,
+                provenance=[
+                    CanonicalFlowProvenanceRecord(
+                        source_label="canonicalized_attachment",
+                        source_kind=CanonicalFlowProvenanceKind.FUSED_CANONICALIZED_OUTPUT,
+                        source_object_id=ref_id,
+                    )
+                ],
+                evidence=[],
+                conflicts=[],
+            )
+        )
+    return out
+
+
+def _ensure_operator_evidence(
+    evidence: list[CanonicalFlowEvidenceRecord],
+    effect_refs: list[str],
+    action_lookup: dict[str, Any],
+) -> list[CanonicalFlowEvidenceRecord]:
+    if evidence:
+        return evidence
+    for ref in effect_refs:
+        action = action_lookup.get(ref)
+        if action is None:
+            continue
+        action_evidence = getattr(action, "evidence", None)
+        if isinstance(action_evidence, list):
+            for item in action_evidence:
+                if isinstance(item, CanonicalFlowEvidenceRecord):
+                    return [item]
+                if isinstance(item, dict):
+                    converted = _convert_evidence_dict(item)
+                    if converted.excerpt:
+                        return [converted]
+    if effect_refs:
+        return [CanonicalFlowEvidenceRecord(source="canonicalized_operator", excerpt=effect_refs[0])]
+    return evidence
+
+
+def _normalize_canonical_refs(refs: list[str]) -> list[str]:
+    normalized: list[str] = []
+    for ref in refs:
+        normalized.append(_normalize_canonical_ref(ref))
+    return normalized
+
+
+def _normalize_canonical_ref(ref: str) -> str:
+    if not isinstance(ref, str) or not ref:
+        return ref
+    prefix, separator, suffix = ref.partition("--")
+    if not separator:
+        legacy_prefix, legacy_sep, legacy_suffix = ref.partition("-")
+        if not legacy_sep:
+            return ref
+        mapped_prefix = {
+            "action": "attack-action",
+            "condition": "attack-condition",
+            "operator": "attack-operator",
+            "asset": "attack-asset",
+        }.get(legacy_prefix)
+        if mapped_prefix is None:
+            return ref
+        return f"{mapped_prefix}--{legacy_suffix}"
+    mapped_prefix = {
+        "action": "attack-action",
+        "condition": "attack-condition",
+        "operator": "attack-operator",
+        "asset": "attack-asset",
+    }.get(prefix)
+    if mapped_prefix is None:
+        return ref
+    return f"{mapped_prefix}--{suffix}"
+
+
 def _convert_entities_to_assets(entities: list[MergedEntity]) -> list[CanonicalFlowAssetNode]:
     return [
         CanonicalFlowAssetNode(
-            id=item.object_id or item.display_name or item.object_type,
-            name=item.display_name or item.object_type,
+            id=item.object_id or _best_entity_name(item) or item.object_type,
+            name=_best_entity_name(item) or item.object_type,
             description=item.description,
+            tags=list(getattr(item, "tags", []) or []),
+            stix_properties=dict(getattr(item, "stix_properties", {}) or {}),
             confidence=item.confidence,
             object_ref=item.object_id,
             evidence=[],
@@ -499,12 +637,56 @@ def _convert_entities_to_assets(entities: list[MergedEntity]) -> list[CanonicalF
     ]
 
 
+def _best_entity_name(item: MergedEntity) -> str:
+    display_name = (item.display_name or "").strip()
+    if display_name and not _looks_generic_entity_name(display_name, item.object_id, item.object_type):
+        return display_name
+
+    props = dict(getattr(item, "stix_properties", {}) or {})
+    for field_name in (
+        "name",
+        "display_name",
+        "value",
+        "path",
+        "command_line",
+        "pattern",
+        "cpe",
+        "vendor",
+        "version",
+        "subject",
+        "number",
+        "rir",
+    ):
+        value = props.get(field_name)
+        if isinstance(value, str):
+            candidate = value.strip()
+            if candidate:
+                return candidate
+
+    return display_name
+
+
+def _looks_generic_entity_name(value: str, object_id: str | None, object_type: str | None) -> bool:
+    candidate = value.strip().lower()
+    if not candidate:
+        return True
+    if object_id and candidate == object_id.strip().lower():
+        return True
+    if object_type and candidate == object_type.strip().lower():
+        return True
+    if re.fullmatch(r"[a-z0-9_-]+-\d+", candidate):
+        return True
+    return False
+
+
 def _convert_afb_assets(assets: list[AttackAssetNode]) -> list[CanonicalFlowAssetNode]:
     return [
         CanonicalFlowAssetNode(
             id=item.id,
             name=item.name,
             description=item.description,
+            tags=list(getattr(item, "tags", []) or []),
+            stix_properties={},
             confidence=item.confidence,
             object_ref=item.object_ref,
             evidence=[_convert_evidence_record(entry) for entry in item.evidence],
@@ -603,6 +785,10 @@ def _convert_technique_mapping(
         technique_id=_as_str(mapping.get("technique_id")),
         technique_ref=_as_str(mapping.get("technique_ref")),
         technique_name=_as_str(mapping.get("technique_name")),
+        description=_as_str(mapping.get("description")),
+        aliases=_as_str_list(mapping.get("aliases")),
+        kill_chain_phases=_as_str_list(mapping.get("kill_chain_phases")),
+        tags=_as_str_list(mapping.get("tags")),
         source_object_id=_as_str(mapping.get("source_object_id")),
         source_field=_as_str(mapping.get("source_field")),
         confidence=confidence,
@@ -635,6 +821,10 @@ def _convert_technique_from_afb(
         technique_id=_as_str(mapping.get("technique_id")),
         technique_ref=_as_str(mapping.get("technique_ref")),
         technique_name=_as_str(mapping.get("technique_name")),
+        description=_as_str(mapping.get("description")),
+        aliases=_as_str_list(mapping.get("aliases")),
+        kill_chain_phases=_as_str_list(mapping.get("kill_chain_phases")),
+        tags=_as_str_list(mapping.get("tags")),
         confidence=confidence,
         provenance=[
             CanonicalFlowProvenanceRecord(

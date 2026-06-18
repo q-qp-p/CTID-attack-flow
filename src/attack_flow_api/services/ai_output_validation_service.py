@@ -108,15 +108,45 @@ def _merge_deterministic_findings(
     packaged_input: ProviderOrchestrationInput,
 ) -> dict[str, Any]:
     merged = dict(candidate)
+    merged = _promote_top_level_flow_metadata(merged)
     merged["deterministic_attack_refs"] = [
         _normalize_deterministic_attack_ref(item) for item in packaged_input.deterministic_attack_refs
     ]
-    merged["deterministic_entities"] = list(packaged_input.deterministic_entities)
-    merged["deterministic_relationships"] = list(packaged_input.deterministic_relationships)
+    merged["deterministic_entities"] = _merge_dict_lists(
+        [_normalize_deterministic_entity(item) for item in candidate.get("deterministic_entities") if isinstance(item, dict)]
+        if isinstance(candidate.get("deterministic_entities"), list)
+        else [],
+        [_normalize_deterministic_entity(item) for item in packaged_input.deterministic_entities if isinstance(item, dict)],
+    )
+    merged["deterministic_relationships"] = _merge_dict_lists(
+        list(candidate.get("deterministic_relationships") if isinstance(candidate.get("deterministic_relationships"), list) else []),
+        list(packaged_input.deterministic_relationships),
+    )
     merged = _preserve_authors_and_external_references(merged, packaged_input)
     merged = _tag_ai_generated_additions(merged)
     merged = _drop_invalid_groundings(merged)
     merged = _filter_explicit_object_relationship_attachments(merged)
+    return merged
+
+
+def _promote_top_level_flow_metadata(candidate: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(candidate)
+    flow = merged.get("attack_flow") if isinstance(merged.get("attack_flow"), dict) else {}
+    if not flow:
+        flow = {}
+
+    top_level_authors = _as_str_list(merged.get("authors"))
+    top_level_external_references = _as_str_list(merged.get("external_references"))
+    if top_level_authors or top_level_external_references:
+        flow_authors = _as_str_list(flow.get("authors"))
+        flow_refs = _as_str_list(flow.get("external_references"))
+        if top_level_authors:
+            flow["authors"] = _dedupe_preserve_order(flow_authors + top_level_authors)
+        if top_level_external_references:
+            flow["external_references"] = _dedupe_preserve_order(flow_refs + top_level_external_references)
+
+    if flow:
+        merged["attack_flow"] = flow
     return merged
 
 
@@ -140,10 +170,21 @@ def _coerce_legacy_afb_extraction_output(
         if isinstance(candidate.get("deterministic_findings"), dict)
         else {}
     )
+    top_level_entities = candidate.get("deterministic_entities") if isinstance(candidate.get("deterministic_entities"), list) else []
+    top_level_relationships = candidate.get("deterministic_relationships") if isinstance(candidate.get("deterministic_relationships"), list) else []
 
     attack_actions_input = candidate.get("attack_actions") if isinstance(candidate.get("attack_actions"), list) else []
+    attack_conditions_input = candidate.get("attack_conditions") if isinstance(candidate.get("attack_conditions"), list) else []
+    attack_operators_input = candidate.get("attack_operators") if isinstance(candidate.get("attack_operators"), list) else []
+    attack_assets_input = candidate.get("attack_assets") if isinstance(candidate.get("attack_assets"), list) else []
     steps = legacy_flow.get("steps") if isinstance(legacy_flow.get("steps"), list) else []
-    objects = legacy_flow.get("objects") if isinstance(legacy_flow.get("objects"), list) else []
+    objects = (
+        candidate.get("objects")
+        if isinstance(candidate.get("objects"), list)
+        else legacy_flow.get("objects")
+        if isinstance(legacy_flow.get("objects"), list)
+        else []
+    )
     attack_actions: list[dict[str, Any]] = []
     attack_conditions: list[dict[str, Any]] = []
     attack_operators: list[dict[str, Any]] = []
@@ -155,6 +196,21 @@ def _coerce_legacy_afb_extraction_output(
         action = _coerce_legacy_step_to_action(step, index)
         attack_actions.append(action)
         action_ids.append(action["id"])
+
+    for index, item in enumerate(attack_conditions_input, start=1):
+        if not isinstance(item, dict):
+            continue
+        attack_conditions.append(_coerce_legacy_object_to_condition(item, index))
+
+    for index, item in enumerate(attack_operators_input, start=1):
+        if not isinstance(item, dict):
+            continue
+        attack_operators.append(_coerce_legacy_object_to_operator(item, index))
+
+    for index, item in enumerate(attack_assets_input, start=1):
+        if not isinstance(item, dict):
+            continue
+        attack_assets.append(_coerce_legacy_object_to_asset(item, index))
 
     offset = len(attack_actions)
     for index, step in enumerate(steps, start=1):
@@ -260,21 +316,30 @@ def _coerce_legacy_afb_extraction_output(
         "attack_operators": attack_operators,
         "attack_assets": attack_assets,
         "deterministic_attack_refs": list(deterministic_findings.get("attack_refs", [])),
-        "deterministic_entities": list(deterministic_findings.get("entities", [])),
-        "deterministic_relationships": list(deterministic_findings.get("relationships", [])),
+        "deterministic_entities": list(deterministic_findings.get("entities", [])) or list(top_level_entities),
+        "deterministic_relationships": list(deterministic_findings.get("relationships", [])) or list(top_level_relationships),
     }
 
 
 def _looks_like_legacy_afb_extraction(candidate: dict[str, Any]) -> bool:
     if candidate.get("type") == "afb-extraction":
         return True
+    if candidate.get("type") == "bundle":
+        return True
     attack_flow = candidate.get("attack_flow")
     if isinstance(attack_flow, dict) and ("steps" in attack_flow or "objects" in attack_flow):
+        return True
+    if isinstance(attack_flow, dict) and isinstance(candidate.get("attack_actions"), list):
         return True
     attack_actions = candidate.get("attack_actions")
     if isinstance(attack_actions, list):
         for item in attack_actions:
-            if isinstance(item, dict) and ("techniques" in item or "attack_object" in item):
+            if isinstance(item, dict) and (
+                "techniques" in item
+                or "technique_refs" in item
+                or "deterministic_entity_refs" in item
+                or "attack_object" in item
+            ):
                 return True
     return any(key in candidate for key in ("source", "metadata", "deterministic_findings", "source_name", "source_type", "attack_version", "authors", "external_references"))
 
@@ -310,23 +375,36 @@ def _coerce_legacy_step_to_action(step: dict[str, Any], index: int) -> dict[str,
             "excerpt": first_excerpt,
             "source": str(normalized_evidence[0].get("source") or "legacy_output"),
         }
-        description = first_excerpt
 
     action = {
-        "id": _first_non_empty_string(_as_str(step.get("id")), _as_str(step.get("step_id")), f"attack-action--{index}"),
+        "id": _first_non_empty_string(
+            _as_str(step.get("id")),
+            _as_str(step.get("attack_id")),
+            _as_str(step.get("step_id")),
+            _as_str(step.get("action_ref")),
+            f"attack-action--{index}",
+        ),
         "name": _first_non_empty_string(_as_str(step.get("name")), description, f"Attack action {index}"),
         "description": description,
         "confidence": _coerce_float(step.get("confidence"), default=0.5),
         "evidence": normalized_evidence,
         "citations": _as_str_list(step.get("citations")),
         "asset_refs": _as_str_list(step.get("asset_refs")),
-        "object_refs": _as_str_list(step.get("object_refs")),
-        "effect_refs": _as_str_list(step.get("effect_refs")),
+        "object_refs": _dedupe_preserve_order(
+            _as_str_list(step.get("object_refs")) + _as_str_list(step.get("deterministic_entity_refs"))
+        ),
+        "effect_refs": _dedupe_preserve_order(_as_str_list(step.get("effect_refs")) + _as_str_list(step.get("next_refs"))),
         "fact_origin": _as_str(step.get("fact_origin")) or "ai_generated",
     }
 
     technique = _coerce_legacy_technique(step.get("technique"))
-    techniques = step.get("techniques") if isinstance(step.get("techniques"), list) else []
+    techniques = (
+        step.get("techniques")
+        if isinstance(step.get("techniques"), list)
+        else step.get("technique_refs")
+        if isinstance(step.get("technique_refs"), list)
+        else []
+    )
     best_technique = technique
     for item in techniques:
         candidate = _coerce_legacy_technique(item)
@@ -355,7 +433,7 @@ def _coerce_legacy_object_to_action(item: dict[str, Any], index: int) -> dict[st
     action = _coerce_legacy_step_to_action(item, index)
     action["asset_refs"] = _as_str_list(item.get("asset_refs"))
     action["object_refs"] = _as_str_list(item.get("object_refs"))
-    action["effect_refs"] = _as_str_list(item.get("effect_refs"))
+    action["effect_refs"] = _dedupe_preserve_order(_as_str_list(item.get("effect_refs")) + _as_str_list(item.get("next_refs")))
     return action
 
 
@@ -366,11 +444,13 @@ def _coerce_legacy_technique(value: object) -> dict[str, Any] | None:
     attack_object = value.get("attack_object") if isinstance(value.get("attack_object"), dict) else {}
     technique_id = _first_non_empty_string(
         _as_str(value.get("technique_id")),
+        _as_str(value.get("attack_id")),
         _as_str(value.get("technique_ref")),
         _as_str(attack_object.get("id")),
     )
     technique_name = _first_non_empty_string(
         _as_str(value.get("technique_name")),
+        _as_str(value.get("name")),
         _as_str(attack_object.get("name")),
     )
     technique_ref = _first_non_empty_string(_as_str(value.get("technique_ref")))
@@ -387,6 +467,10 @@ def _coerce_legacy_technique(value: object) -> dict[str, Any] | None:
         "technique_id": technique_id or None,
         "technique_ref": technique_ref or None,
         "technique_name": technique_name or None,
+        "description": _as_str(value.get("description")) or None,
+        "aliases": _as_str_list(value.get("aliases")),
+        "kill_chain_phases": _as_str_list(value.get("kill_chain_phases")),
+        "tags": _as_str_list(value.get("tags")),
         "confidence": _coerce_float(value.get("confidence"), default=0.5),
         "grounded_by": grounded_by,
     }
@@ -394,26 +478,38 @@ def _coerce_legacy_technique(value: object) -> dict[str, Any] | None:
 
 def _coerce_legacy_object_to_condition(item: dict[str, Any], index: int) -> dict[str, Any]:
     value = _first_non_empty_string(_as_str(item.get("value")), _as_str(item.get("condition_value")), "true")
+    description = _first_non_empty_string(_as_str(item.get("description")), _as_str(item.get("name")), f"Legacy attack condition {index}")
+    evidence = [entry for entry in item.get("evidence", []) if isinstance(entry, dict)] if isinstance(item.get("evidence"), list) else []
+    if not evidence and description:
+        evidence = [{"source": "legacy_output", "excerpt": description}]
     return {
         "id": _first_non_empty_string(_as_str(item.get("id")), _as_str(item.get("condition_id")), f"attack-condition--{index}"),
-        "description": _first_non_empty_string(_as_str(item.get("description")), _as_str(item.get("name")), f"Legacy attack condition {index}"),
+        "description": description,
         "value": value,
         "confidence": _coerce_float(item.get("confidence"), default=0.5),
         "on_true_refs": _as_str_list(item.get("on_true_refs")),
         "on_false_refs": _as_str_list(item.get("on_false_refs")),
-        "evidence": [entry for entry in item.get("evidence", []) if isinstance(entry, dict)] if isinstance(item.get("evidence"), list) else [],
+        "evidence": evidence,
         "citations": _as_str_list(item.get("citations")),
         "fact_origin": _as_str(item.get("fact_origin")) or "ai_generated",
     }
 
 
 def _coerce_legacy_object_to_operator(item: dict[str, Any], index: int) -> dict[str, Any]:
+    evidence = item.get("evidence")
+    if isinstance(evidence, list):
+        normalized_evidence = [entry for entry in evidence if isinstance(entry, dict)]
+    elif isinstance(evidence, str) and evidence.strip():
+        normalized_evidence = [{"source": "legacy_output", "excerpt": evidence.strip()}]
+    else:
+        description = _first_non_empty_string(_as_str(item.get("description")), _as_str(item.get("name")), f"Legacy attack operator {index}")
+        normalized_evidence = [{"source": "legacy_output", "excerpt": description}] if description else []
     return {
         "id": _first_non_empty_string(_as_str(item.get("id")), _as_str(item.get("operator_id")), f"attack-operator--{index}"),
         "operator": _first_non_empty_string(_as_str(item.get("operator")), "OR"),
         "confidence": _coerce_float(item.get("confidence"), default=0.5),
-        "effect_refs": _as_str_list(item.get("effect_refs")),
-        "evidence": [entry for entry in item.get("evidence", []) if isinstance(entry, dict)] if isinstance(item.get("evidence"), list) else [],
+        "effect_refs": _as_str_list(item.get("effect_refs")) or _as_str_list(item.get("action_refs")),
+        "evidence": normalized_evidence,
         "citations": _as_str_list(item.get("citations")),
         "fact_origin": _as_str(item.get("fact_origin")) or "ai_generated",
     }
@@ -496,6 +592,71 @@ def _normalize_deterministic_attack_ref(item: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _normalize_deterministic_entity(item: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(item)
+    object_id = _first_non_empty_string(
+        _as_str(normalized.get("object_id")),
+        _as_str(normalized.get("entity_id")),
+        _as_str(normalized.get("entity_ref")),
+        _as_str(normalized.get("id")),
+    )
+    object_type = _first_non_empty_string(
+        _as_str(normalized.get("object_type")),
+        _as_str(normalized.get("entity_type")),
+        _as_str(normalized.get("kind")),
+        _as_str(normalized.get("type")),
+    )
+    if object_id:
+        normalized["object_id"] = object_id
+    if object_type:
+        normalized["object_type"] = object_type
+    display_name = _preferred_entity_display_name(normalized, object_id=object_id, object_type=object_type)
+    if display_name:
+        normalized["display_name"] = display_name
+    if "tags" in normalized and not isinstance(normalized.get("tags"), list):
+        normalized.pop("tags", None)
+    return normalized
+
+
+def _preferred_entity_display_name(
+    normalized: dict[str, Any],
+    *,
+    object_id: str,
+    object_type: str,
+) -> str:
+    display_name = _as_str(normalized.get("display_name"))
+    if display_name and not _looks_like_placeholder_name(display_name, object_id=object_id, object_type=object_type):
+        return display_name
+
+    for field_name in (
+        "name",
+        "value",
+        "path",
+        "command_line",
+        "display_name",
+        "pattern",
+        "subject",
+        "number",
+        "rir",
+    ):
+        candidate = _as_str(normalized.get(field_name))
+        if candidate:
+            return candidate
+
+    return display_name
+
+
+def _looks_like_placeholder_name(value: str, *, object_id: str, object_type: str) -> bool:
+    candidate = value.strip().lower()
+    if not candidate:
+        return True
+    if object_id and candidate == object_id.strip().lower():
+        return True
+    if object_type and candidate == object_type.strip().lower():
+        return True
+    return bool(re.fullmatch(r"[a-z0-9_-]+-\d+", candidate))
+
+
 def _preserve_authors_and_external_references(
     merged: dict[str, Any],
     packaged_input: ProviderOrchestrationInput,
@@ -513,6 +674,21 @@ def _preserve_authors_and_external_references(
     flow["authors"] = _dedupe_preserve_order(flow_authors + authors)
     flow["external_references"] = _dedupe_preserve_order(flow_refs + external_references)
     merged["attack_flow"] = flow
+    return merged
+
+
+def _merge_dict_lists(*lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for items in lists:
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            key = json.dumps(item, sort_keys=True, default=str)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
     return merged
 
 
@@ -567,7 +743,7 @@ def _filter_explicit_object_relationship_attachments(merged: dict[str, Any]) -> 
     if isinstance(deterministic_entities, list):
         for item in deterministic_entities:
             if isinstance(item, dict):
-                object_id = item.get("object_id")
+                object_id = item.get("object_id") or item.get("entity_id") or item.get("entity_ref") or item.get("id")
                 if isinstance(object_id, str) and object_id:
                     allowed_refs.add(object_id)
     if isinstance(deterministic_relationships, list):
@@ -693,7 +869,11 @@ def _build_deterministic_only_result(packaged_input: ProviderOrchestrationInput)
                 _normalize_deterministic_attack_ref(item)
                 for item in packaged_input.deterministic_attack_refs
             ],
-            "deterministic_entities": list(packaged_input.deterministic_entities),
+            "deterministic_entities": [
+                _normalize_deterministic_entity(item)
+                for item in packaged_input.deterministic_entities
+                if isinstance(item, dict)
+            ],
             "deterministic_relationships": list(packaged_input.deterministic_relationships),
         }
     )

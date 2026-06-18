@@ -90,6 +90,75 @@ def test_parse_validate_success_with_structured_json() -> None:
     assert result.extraction_result.attack_assets[0].object_ref is None
 
 
+def test_normalizes_deterministic_entity_ids_for_attachments() -> None:
+    packaged = _packaged_input()
+    output_json = {
+        "validation_state": "valid",
+        "provider_invoked": True,
+        "attack_flow": {
+            "id": "attack-flow--1",
+            "name": "Example flow",
+            "scope": "incident",
+            "start_refs": ["attack-action--1"],
+            "orchestration_mode": "ai_enrichment",
+            "source_classification": "stix_structured",
+        },
+        "attack_actions": [
+            {
+                "id": "attack-action--1",
+                "name": "Use tool",
+                "description": "Observed command exactly as reported.",
+                "confidence": 0.8,
+                "technique": {
+                    "technique_id": "T1059",
+                    "confidence": 1.0,
+                    "grounded_by": "explicit_attack_id_in_source",
+                    "description": "Command and scripting interpreter",
+                    "aliases": ["PowerShell"],
+                    "kill_chain_phases": ["execution"],
+                    "tags": ["att&ck"],
+                },
+                "evidence": [
+                    {
+                        "source": "narrative",
+                        "excerpt": "Observed command exactly as reported.",
+                    }
+                ],
+                "object_refs": ["entity--1"],
+            }
+        ],
+        "deterministic_entities": [
+            {
+                "entity_id": "entity--1",
+                "entity_type": "tool",
+                "name": "Mimikatz",
+                "tags": ["credential-access"],
+            }
+        ],
+    }
+    invocation_result = ProviderInvocationResult(
+        provider_invoked=True,
+        provider_id="default-openai",
+        model_used="gpt-4.1-mini",
+        deterministic_input_sufficient=False,
+        output_json=output_json,
+    )
+
+    result = parse_validate_and_repair_extraction_output(
+        invocation_result=invocation_result,
+        packaged_input=packaged,
+    )
+
+    assert result.valid is True
+    assert result.extraction_result is not None
+    assert result.extraction_result.deterministic_entities[0]["object_id"] == "entity--1"
+    assert result.extraction_result.deterministic_entities[0]["object_type"] == "tool"
+    assert result.extraction_result.attack_actions[0].object_refs == ["entity--1"]
+    assert result.extraction_result.attack_actions[0].technique is not None
+    assert result.extraction_result.attack_actions[0].technique.description == "Command and scripting interpreter"
+    assert result.extraction_result.attack_actions[0].technique.aliases == ["PowerShell"]
+
+
 def test_parse_validate_accepts_technique_name_only() -> None:
     packaged = _packaged_input()
     output_json = {
@@ -295,6 +364,42 @@ def test_preserves_authors_and_external_references_lists() -> None:
         "https://example.com/a",
         "https://example.com/b",
     ]
+
+
+def test_promotes_top_level_external_references_into_attack_flow_metadata() -> None:
+    packaged = _packaged_input()
+    output_json = {
+        "validation_state": "valid",
+        "provider_invoked": True,
+        "authors": ["analyst-a"],
+        "external_references": ["https://example.com/report"],
+        "attack_flow": {
+            "id": "attack-flow--1",
+            "name": "Example flow",
+            "scope": "incident",
+            "start_refs": ["attack-action--1"],
+            "orchestration_mode": "ai_enrichment",
+            "source_classification": "stix_structured",
+        },
+        "attack_actions": [],
+    }
+    invocation_result = ProviderInvocationResult(
+        provider_invoked=True,
+        provider_id="default-openai",
+        model_used="gpt-4.1-mini",
+        deterministic_input_sufficient=False,
+        output_json=output_json,
+    )
+
+    result = parse_validate_and_repair_extraction_output(
+        invocation_result=invocation_result,
+        packaged_input=packaged,
+    )
+
+    assert result.valid is True
+    assert result.extraction_result is not None
+    assert result.extraction_result.attack_flow.authors == ["analyst-a"]
+    assert result.extraction_result.attack_flow.external_references == ["https://example.com/report"]
 
 
 def test_parse_validate_accepts_legacy_attack_flow_objects_envelope() -> None:
@@ -674,6 +779,7 @@ def test_legacy_attack_flow_objects_shape_is_coerced() -> None:
                     "operator": "OR",
                     "confidence": 0.9,
                     "effect_refs": ["action-1"],
+                    "evidence": "The source explicitly shows an OR branch.",
                 },
             ],
         },
@@ -697,3 +803,143 @@ def test_legacy_attack_flow_objects_shape_is_coerced() -> None:
     assert result.extraction_result.attack_flow.authors == ["Assaf Dahan"]
     assert result.extraction_result.attack_actions[0].id == "action-1"
     assert result.extraction_result.attack_operators[0].id == "operator-1"
+    assert result.extraction_result.attack_operators[0].evidence[0].excerpt == "The source explicitly shows an OR branch."
+
+
+def test_legacy_bundle_shape_is_coerced() -> None:
+    packaged = build_provider_orchestration_input(
+        {
+            "source_type": "narrative_text",
+            "normalized_text": "PowerShell download then regsvr32 execution",
+            "metadata": {"title": "Bundle example"},
+        }
+    )
+    output_json = {
+        "type": "bundle",
+        "id": "bundle--1",
+        "spec_version": "2.1",
+        "provider_invoked": "api",
+        "objects": [
+            {
+                "type": "attack-action",
+                "attack_id": "action-1",
+                "name": "Download payload with PowerShell",
+                "description": "used PowerShell to download a payload from a remote URL",
+                "confidence": 0.58,
+                "technique": {"attack_id": "T1059.001", "name": "PowerShell", "confidence": 0.58},
+                "object_refs": ["software-1"],
+                "next_refs": ["action-2"],
+            },
+            {
+                "type": "attack-action",
+                "attack_id": "action-2",
+                "name": "Execute scriptlet with regsvr32",
+                "description": "used regsvr32 to execute a scriptlet",
+                "confidence": 0.93,
+                "technique": {"attack_id": "T1218.010", "name": "Regsvr32", "confidence": 0.93},
+                "object_refs": ["software-2"],
+            },
+        ],
+        "deterministic_entities": [
+            {"entity_ref": "software-1", "type": "software", "name": "PowerShell"},
+            {"entity_ref": "software-2", "type": "software", "name": "regsvr32"},
+        ],
+        "attack_flow": {"start_refs": ["action-1", "action-2"]},
+    }
+    invocation_result = ProviderInvocationResult(
+        provider_invoked=True,
+        provider_id="default-openai",
+        model_used="gpt-5.4",
+        deterministic_input_sufficient=False,
+        output_json=output_json,
+    )
+
+    result = parse_validate_and_repair_extraction_output(
+        invocation_result=invocation_result,
+        packaged_input=packaged,
+    )
+
+    assert result.valid is True
+    assert result.extraction_result is not None
+    assert result.extraction_result.provider_invoked is True
+    assert result.extraction_result.attack_actions[0].id == "action-1"
+    assert result.extraction_result.attack_actions[0].technique is not None
+    assert result.extraction_result.attack_actions[0].object_refs == ["software-1"]
+    assert result.extraction_result.attack_actions[0].effect_refs == ["action-2"]
+    assert result.extraction_result.attack_actions[1].id == "action-2"
+    assert result.extraction_result.attack_actions[1].object_refs == ["software-2"]
+
+
+def test_legacy_attack_action_refs_shape_is_coerced() -> None:
+    packaged = build_provider_orchestration_input(
+        {
+            "source_type": "narrative_text",
+            "normalized_text": "Observed PowerShell download and regsvr32 execution",
+            "metadata": {"title": "Legacy refs example"},
+            "entities": [
+                {"object_id": "tool--powershell", "object_type": "tool"},
+                {"object_id": "url--remote-url", "object_type": "url"},
+                {"object_id": "tool--regsvr32", "object_type": "tool"},
+            ],
+        }
+    )
+    output_json = {
+        "validation_state": "valid",
+        "provider_invoked": True,
+        "attack_flow": {
+            "version": "2.0",
+            "scope": "incident",
+            "start_refs": ["action-1", "action-2"],
+        },
+        "attack_actions": [
+            {
+                "id": "action-1",
+                "name": "Download payload with PowerShell",
+                "description": "used PowerShell to download a payload from a remote URL",
+                "technique_refs": [
+                    {
+                        "attack_id": "T1059.001",
+                        "name": "PowerShell",
+                        "confidence": 0.63,
+                        "grounded_by": "The source explicitly states the PowerShell download.",
+                    }
+                ],
+                "deterministic_entity_refs": ["tool--powershell", "url--remote-url"],
+            },
+            {
+                "id": "action-2",
+                "name": "Execute scriptlet with regsvr32",
+                "description": "used regsvr32 to execute a scriptlet",
+                "technique_refs": [
+                    {
+                        "attack_id": "T1218.010",
+                        "name": "Regsvr32",
+                        "confidence": 0.95,
+                        "grounded_by": "The source explicitly states the regsvr32 scriptlet execution.",
+                    }
+                ],
+                "deterministic_entity_refs": ["tool--regsvr32"],
+            },
+        ],
+    }
+    invocation_result = ProviderInvocationResult(
+        provider_invoked=True,
+        provider_id="default-openai",
+        model_used="gpt-5.4",
+        deterministic_input_sufficient=False,
+        output_json=output_json,
+    )
+
+    result = parse_validate_and_repair_extraction_output(
+        invocation_result=invocation_result,
+        packaged_input=packaged,
+    )
+
+    assert result.valid is True
+    assert result.extraction_result is not None
+    assert result.extraction_result.attack_actions[0].technique is not None
+    assert result.extraction_result.attack_actions[0].technique.technique_id == "T1059.001"
+    assert result.extraction_result.attack_actions[0].object_refs == ["tool--powershell", "url--remote-url"]
+    assert result.extraction_result.attack_actions[1].technique is not None
+    assert result.extraction_result.attack_actions[1].technique.technique_id == "T1218.010"
+    assert result.extraction_result.attack_actions[1].object_refs == ["tool--regsvr32"]

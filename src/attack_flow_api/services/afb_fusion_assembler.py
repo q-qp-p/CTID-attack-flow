@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from attack_flow_api.services.afb_extraction_contracts import AfbExtractionResult, AttackFlowMetadata
+from attack_flow_api.services.afb_extraction_contracts import FactOrigin
 from attack_flow_api.services.afb_fusion_contracts import FusionConflictRecord
 from attack_flow_api.services.afb_fusion_dedup import (
     MergedAttackAction,
@@ -18,6 +19,7 @@ from attack_flow_api.services.afb_fusion_dedup import (
     merge_relationships_deterministic_first,
     fuse_attachment_metadata_deterministic_first,
 )
+from attack_flow_api.services.afb_fusion_contracts import FusionFindingProvenance, FusionProvenanceKind
 
 
 class FusedOutputCandidate(BaseModel):
@@ -202,7 +204,67 @@ def _filter_model_dump(item: Any, target_model: type[BaseModel]) -> dict[str, An
 
 
 def _merge_extraction_items(items: Sequence[Any], target_model: type[BaseModel]) -> list[Any]:
-    return [target_model.model_validate(_filter_model_dump(item, target_model)) for item in items]
+    merged: list[Any] = []
+    for item in items:
+        obj = target_model.model_validate(_filter_model_dump(item, target_model))
+        if target_model is MergedAttackAction:
+            obj = _ensure_attack_action_provenance(obj, item)
+        elif target_model is MergedOperator:
+            obj = _ensure_attack_operator_provenance(obj, item)
+        merged.append(obj)
+    return merged
+
+
+def _ensure_attack_action_provenance(action: MergedAttackAction, source_item: Any) -> MergedAttackAction:
+    if action.provenance:
+        return action
+
+    fact_origin = getattr(source_item, "fact_origin", None)
+    if fact_origin is None and isinstance(source_item, dict):
+        fact_origin = source_item.get("fact_origin")
+
+    if fact_origin == FactOrigin.DETERMINISTIC_SOURCE or fact_origin == FactOrigin.DETERMINISTIC_SOURCE.value:
+        provenance = FusionFindingProvenance(
+            kind=FusionProvenanceKind.DETERMINISTIC,
+            source_label="deterministic_source",
+            confidence=action.confidence,
+            source_object_id=action.id,
+        )
+        return action.model_copy(update={"provenance": [provenance]})
+
+    provenance = FusionFindingProvenance(
+        kind=FusionProvenanceKind.AI_DERIVED,
+        source_label="ai_generated",
+        confidence=action.confidence,
+        source_object_id=action.id,
+    )
+    return action.model_copy(update={"provenance": [provenance]})
+
+
+def _ensure_attack_operator_provenance(operator: MergedOperator, source_item: Any) -> MergedOperator:
+    if operator.provenance:
+        return operator
+
+    fact_origin = getattr(source_item, "fact_origin", None)
+    if fact_origin is None and isinstance(source_item, dict):
+        fact_origin = source_item.get("fact_origin")
+
+    if fact_origin == FactOrigin.DETERMINISTIC_SOURCE or fact_origin == FactOrigin.DETERMINISTIC_SOURCE.value:
+        provenance = FusionFindingProvenance(
+            kind=FusionProvenanceKind.DETERMINISTIC,
+            source_label="deterministic_source",
+            confidence=operator.confidence,
+            source_object_id=operator.id,
+        )
+        return operator.model_copy(update={"provenance": [provenance]})
+
+    provenance = FusionFindingProvenance(
+        kind=FusionProvenanceKind.AI_DERIVED,
+        source_label="ai_generated",
+        confidence=operator.confidence,
+        source_object_id=operator.id,
+    )
+    return operator.model_copy(update={"provenance": [provenance]})
 
 
 def _normalize_source_package(normalized_package: dict[str, Any]) -> dict[str, Any]:

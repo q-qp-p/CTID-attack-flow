@@ -744,7 +744,10 @@ def test_worker_persists_stix_export_artifact_and_downloads_it(monkeypatch, tmp_
 
         afb_response = client.get("/api/v1/jobs/job-export-1/artifacts/afb")
         assert afb_response.status_code == 200
-        assert afb_response.json()["objects"][0]["type"] == "extension-definition"
+        afb_payload = afb_response.json()
+        assert afb_payload["schema"] == "attack_flow_v2"
+        assert afb_payload["objects"][0]["id"] == "flow"
+        assert afb_payload["objects"][0]["objects"][0] == "attack-action--1"
 
 
 def test_worker_marks_failed_export_without_publishing_artifact(monkeypatch, tmp_path: Path):

@@ -2,6 +2,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 from typing import Literal
+from urllib.parse import urlparse
 from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -341,14 +342,16 @@ def build_stix_export_bundle(
 
 
 def _build_external_reference_objects(external_references: list[str]) -> list[dict[str, Any]]:
-    return [
-        {
-            "source_name": reference,
-            "url": reference,
-        }
-        for reference in external_references
-        if reference.strip()
-    ]
+    refs: list[dict[str, Any]] = []
+    for reference in external_references:
+        if not reference.strip():
+            continue
+        parsed = urlparse(reference)
+        if parsed.scheme and (parsed.netloc or parsed.path):
+            refs.append({"source_name": parsed.netloc or parsed.path or reference, "url": reference})
+            continue
+        refs.append({"source_name": reference, "description": reference})
+    return refs
 
 
 def _build_supporting_object_refs(canonical_flow: CanonicalFlowOutput) -> list[str]:

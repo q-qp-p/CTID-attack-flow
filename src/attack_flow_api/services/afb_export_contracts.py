@@ -1,4 +1,6 @@
 from typing import Any, Literal
+from urllib.parse import urlparse
+from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -77,8 +79,14 @@ class AfbExportAttackActionObject(BaseModel):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     description: str | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     technique_id: str | None = None
     technique_ref: str | None = None
+    technique_name: str | None = None
+    technique_description: str | None = None
+    technique_aliases: list[str] = Field(default_factory=list)
+    technique_kill_chain_phases: list[str] = Field(default_factory=list)
+    technique_tags: list[str] = Field(default_factory=list)
     tactic_id: str | None = None
     tactic_ref: str | None = None
     asset_refs: list[str] = Field(default_factory=list)
@@ -119,6 +127,7 @@ class AfbExportAttackAssetObject(BaseModel):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     description: str | None = None
+    tags: dict[str, bool] | None = None
     object_ref: str | None = None
     extensions: dict[str, dict[str, str]] = Field(default_factory=dict)
 
@@ -195,6 +204,7 @@ class AfbExportBundle(BaseModel):
     metadata: AfbExportBundleMetadata
     objects: AfbExportObjectCollection = Field(default_factory=AfbExportObjectCollection)
     validation_errors: list[AfbExportCompatibilityError] = Field(default_factory=list)
+    canonical_flow: CanonicalFlowOutput | None = Field(default=None, exclude=True)
 
     def to_json_ready(self) -> dict[str, Any]:
         return self._build_bundle_json_ready(include_schema_version=True)
@@ -272,7 +282,8 @@ def build_afb_export_bundle(
             object_count=object_count,
             canonical_flow=canonical_flow,
             target=target,
-        )
+        ),
+        canonical_flow=canonical_flow,
     )
 
 
@@ -310,8 +321,14 @@ def build_afb_attack_action_object(node: CanonicalFlowActionNode) -> AfbExportAt
         id=node.id,
         name=node.name or node.id,
         description=_coerce_verbatim_description(node.description),
+        confidence=node.confidence,
         technique_id=_coerce_non_empty_string(getattr(technique, "technique_id", None)),
         technique_ref=_coerce_non_empty_string(getattr(technique, "technique_ref", None)),
+        technique_name=_coerce_non_empty_string(getattr(technique, "technique_name", None)),
+        technique_description=_coerce_verbatim_description(getattr(technique, "description", None)),
+        technique_aliases=_coerce_string_list(getattr(technique, "aliases", None)),
+        technique_kill_chain_phases=_coerce_string_list(getattr(technique, "kill_chain_phases", None)),
+        technique_tags=_coerce_string_list(getattr(technique, "tags", None)),
         tactic_id=_coerce_non_empty_string(getattr(node, "tactic_id", None)),
         tactic_ref=_coerce_non_empty_string(getattr(node, "tactic_ref", None)),
         asset_refs=_coerce_string_list(getattr(node, "asset_refs", None)),
@@ -347,6 +364,7 @@ def build_afb_attack_asset_object(node: CanonicalFlowAssetNode) -> AfbExportAtta
         id=node.id,
         name=node.name or node.id,
         description=_coerce_verbatim_description(node.description),
+        tags=_build_tags_property(node.tags),
         object_ref=_coerce_non_empty_string(getattr(node, "object_ref", None)),
         extensions={AFB_PINNED_TARGET_EXTENSION_DEFINITION_ID: {"extension_type": "new-sdo"}},
     )
@@ -799,8 +817,45 @@ def _dedupe_preserve_order(values: list[str]) -> list[str]:
 def _build_external_reference_objects(external_references: list[str]) -> list[dict[str, Any]]:
     refs: list[dict[str, Any]] = []
     for reference in _dedupe_preserve_order(_coerce_string_list(external_references)):
-        refs.append({"source_name": reference, "url": reference})
+        parsed = urlparse(reference)
+        if parsed.scheme and (parsed.netloc or parsed.path):
+            source_name = parsed.netloc or parsed.path or reference
+            refs.append({"source_name": source_name, "url": reference})
+            continue
+        refs.append({"source_name": reference, "description": reference})
     return refs
+
+
+def _build_string_list_property(values: Any) -> list[str] | None:
+    items = _coerce_string_list(values)
+    if not items:
+        return None
+    return items
+
+
+def _build_ordered_list_property(values: Any) -> list[list[Any]] | None:
+    if not isinstance(values, list) or not values:
+        return None
+    entries: list[list[Any]] = []
+    for index, value in enumerate(values, start=1):
+        if value is None:
+            continue
+        entries.append([f"item-{index}", value])
+    return entries or None
+
+
+def _build_string_list_entries(values: Any) -> list[list[Any]] | None:
+    items = _dedupe_preserve_order(_coerce_string_list(values))
+    if not items:
+        return None
+    return [[f"item-{index}", item] for index, item in enumerate(items, start=1)]
+
+
+def _build_tags_property(values: Any) -> dict[str, bool] | None:
+    tags = _dedupe_preserve_order(_coerce_string_list(values))
+    if not tags:
+        return None
+    return {tag: True for tag in tags}
 
 
 def _build_supporting_object_refs(canonical_flow: CanonicalFlowOutput) -> list[str]:
@@ -824,6 +879,9 @@ def _build_diagram_export_json_ready(bundle: AfbExportBundle) -> dict[str, Any]:
             "start_refs": [],
         }
 
+    canvas_payload = dict(canvas)
+    canvas_payload["external_references"] = _build_external_reference_objects(_collect_canvas_external_references(bundle.metadata.external_references))
+
     diagram_objects: list[dict[str, Any]] = []
     canvas_export: dict[str, Any] = {
         "id": "flow",
@@ -831,7 +889,7 @@ def _build_diagram_export_json_ready(bundle: AfbExportBundle) -> dict[str, Any]:
         "objects": [],
     }
 
-    canvas_properties = _build_canvas_properties(canvas, bundle.metadata.authors)
+    canvas_properties = _build_canvas_properties(canvas_payload, bundle.metadata.authors)
     if canvas_properties:
         canvas_export["properties"] = canvas_properties
 
@@ -863,12 +921,15 @@ def _build_canvas_properties(canvas: dict[str, Any], authors: list[str]) -> list
     if scope is not None:
         properties.append(["scope", scope])
 
-    if authors:
-        properties.append(["author", {"name": authors[0]}])
+    author_name = authors[0] if authors else "Unknown"
+    properties.append(["author", {"name": author_name}])
 
     external_references = canvas.get("external_references")
     if isinstance(external_references, list) and external_references:
-        properties.append(["external_references", external_references])
+        if all(isinstance(item, dict) for item in external_references):
+            properties.append(["external_references", [dict(item) for item in external_references]])
+        else:
+            properties.append(["external_references", _build_external_reference_objects(_coerce_string_list(external_references))])
 
     return properties
 
@@ -937,3 +998,757 @@ def _build_ttp_property(item: dict[str, Any]) -> dict[str, Any] | None:
     if technique_ref is not None:
         ttp["technique"] = technique_ref
     return ttp or None
+
+
+_DIAGRAM_STANDARD_ANCHOR_KEYS = ["0", "30", "60", "90", "120", "150", "180", "210", "240", "270", "300", "330"]
+_DIAGRAM_HORIZONTAL_ANCHOR_KEYS = {"0", "30", "150", "180", "210", "330"}
+_DIAGRAM_BRANCH_ANCHOR_KEYS = ["branch:True", "branch:False"]
+_DIAGRAM_ROOT_VERTICAL_GAP = 520.0
+_DIAGRAM_VERTICAL_CHILD_GAP = 420.0
+_DIAGRAM_HORIZONTAL_CHILD_GAP = 620.0
+_DIAGRAM_SUPPORT_COLUMN_X = 1440.0
+_DIAGRAM_SUPPORT_ROW_GAP = 380.0
+
+
+def _build_diagram_export_json_ready(bundle: AfbExportBundle) -> dict[str, Any]:
+    canvas = next((item for item in bundle.objects.objects if item.get("type") == "attack-flow"), None)
+    if canvas is None:
+        canvas = {
+            "type": "attack-flow",
+            "id": "flow",
+            "name": "Untitled Document",
+            "scope": "incident",
+            "start_refs": [],
+        }
+
+    block_specs, relations = _collect_diagram_graph(bundle)
+    block_exports: list[dict[str, Any]] = []
+    anchor_exports: list[dict[str, Any]] = []
+    latch_exports: list[dict[str, Any]] = []
+    handle_exports: list[dict[str, Any]] = []
+    line_exports: list[dict[str, Any]] = []
+    anchor_index: dict[str, dict[str, Any]] = {}
+
+    for spec in block_specs:
+        block_export, anchors = _build_diagram_block_export(spec)
+        block_exports.append(block_export)
+        anchor_exports.extend(anchors)
+        for anchor in anchors:
+            anchor_index[anchor["instance"]] = anchor
+
+    for rel in relations:
+        line_export, source_latch, target_latch, handle_export = _build_diagram_line_export(rel)
+        line_exports.append(line_export)
+        latch_exports.extend([source_latch, target_latch])
+        handle_exports.append(handle_export)
+        source_anchor = anchor_index.get(rel["source_anchor_instance"])
+        target_anchor = anchor_index.get(rel["target_anchor_instance"])
+        if source_anchor is not None:
+            source_anchor.setdefault("latches", []).append(source_latch["instance"])
+        if target_anchor is not None:
+            target_anchor.setdefault("latches", []).append(target_latch["instance"])
+
+    layout = _build_diagram_layout(block_specs, relations)
+    for rel, line_export, handle_export in zip(relations, line_exports, handle_exports):
+        source_position = layout.get(rel["source_instance"])
+        target_position = layout.get(rel["target_instance"])
+        if source_position is not None and target_position is not None:
+            handle_position = [
+                round((source_position[0] + target_position[0]) / 2.0, 1),
+                round((source_position[1] + target_position[1]) / 2.0, 1),
+            ]
+            handle_export["position"] = handle_position
+            layout[handle_export["instance"]] = handle_position
+
+    canvas_export = _build_canvas_export(canvas, bundle.metadata.authors, bundle.metadata.external_references)
+    canvas_export["objects"] = [spec["instance"] for spec in block_specs] + [line["instance"] for line in line_exports]
+
+    objects: list[dict[str, Any]] = [canvas_export, *block_exports, *anchor_exports, *latch_exports, *handle_exports, *line_exports]
+    payload: dict[str, Any] = {
+        "schema": "attack_flow_v2",
+        "objects": objects,
+        "layout": layout,
+        "camera": {"x": 0, "y": 0, "k": 1},
+    }
+    return payload
+
+
+def _build_canvas_export(canvas: dict[str, Any], authors: list[str], external_references: list[str]) -> dict[str, Any]:
+    canvas_export: dict[str, Any] = {
+        "id": "flow",
+        "instance": _make_diagram_instance_id("canvas", _coerce_non_empty_string(canvas.get("id")) or "flow"),
+        "objects": [],
+    }
+    canvas_payload = dict(canvas)
+    canvas_payload["external_references"] = _build_external_reference_objects(_collect_canvas_external_references(external_references))
+    properties = _build_canvas_properties(canvas_payload, authors)
+    if properties:
+        canvas_export["properties"] = properties
+    return canvas_export
+
+
+def _collect_canvas_external_references(external_references: list[str]) -> list[str]:
+    return _dedupe_preserve_order([ref for ref in _coerce_string_list(external_references) if ref])
+
+
+def _collect_diagram_graph(bundle: AfbExportBundle) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    blocks: list[dict[str, Any]] = []
+    relations: list[dict[str, Any]] = []
+    block_index: dict[str, dict[str, Any]] = {}
+
+    canvas = next((item for item in bundle.objects.objects if item.get("type") == "attack-flow"), None)
+    if canvas is None:
+        canvas = {"type": "attack-flow", "id": "flow", "name": "Untitled Document", "scope": "incident", "start_refs": []}
+
+    for item in bundle.objects.objects:
+        object_type = item.get("type")
+        if object_type == "attack-flow":
+            continue
+        if object_type in {"attack-action", "attack-condition", "attack-operator", "attack-asset"}:
+            spec = _build_main_block_spec(item)
+            blocks.append(spec)
+            block_index[spec["instance"]] = spec
+
+    for item in bundle.objects.objects:
+        if item.get("type") != "attack-action":
+            continue
+        source = _coerce_non_empty_string(item.get("id"))
+        if source is None:
+            continue
+        relations.extend(_build_action_relations(item, block_index, blocks))
+
+    for item in bundle.objects.objects:
+        if item.get("type") != "attack-asset":
+            continue
+        source = _coerce_non_empty_string(item.get("id"))
+        if source is None:
+            continue
+        relations.extend(_build_asset_relations(item, block_index, blocks))
+
+    if bundle.canonical_flow is not None:
+        relations.extend(_build_relations_from_canonical_flow(bundle.canonical_flow, block_index))
+
+    # Add any support nodes referenced by the support relations.
+    support_block_index = {spec["instance"]: spec for spec in blocks}
+    for rel in relations:
+        for side in ("source", "target"):
+            support_item = rel.get(f"{side}_support_item")
+            if support_item is None:
+                continue
+            spec = _build_support_block_spec(support_item)
+            if spec is None or spec["instance"] in support_block_index:
+                continue
+            blocks.append(spec)
+            support_block_index[spec["instance"]] = spec
+
+    # Rebuild support relations now that support blocks exist.
+    relations = _dedupe_relations(relations)
+
+    return blocks, relations
+
+
+def _build_relations_from_canonical_flow(
+    canonical_flow: CanonicalFlowOutput,
+    block_index: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    relations: list[dict[str, Any]] = []
+    relation_keys: set[tuple[str, str, str]] = set()
+    node_index = {node.id: node for node in canonical_flow.nodes}
+
+    def add_relation(rel: dict[str, Any]) -> None:
+        key = (rel["source_instance"], rel["target_instance"], rel["kind"])
+        if key in relation_keys:
+            return
+        relation_keys.add(key)
+        relations.append(rel)
+
+    for edge in canonical_flow.edges:
+        source_node = next((node for node in canonical_flow.nodes if node.id == edge.source_ref), None)
+        target_node = next((node for node in canonical_flow.nodes if node.id == edge.target_ref), None)
+        if source_node is None or target_node is None:
+            continue
+
+        layout_mode = _edge_layout_mode(source_node.node_kind, edge.edge_type)
+        if layout_mode is None:
+            continue
+
+        target_kind = getattr(target_node, "node_kind", None)
+        if target_kind is None:
+            continue
+
+        source_anchor, target_anchor = _edge_anchor_pair(source_node.node_kind, target_kind, edge.edge_type)
+        if source_anchor is None or target_anchor is None:
+            continue
+
+        source_support_item = _support_item_for_node(source_node)
+        target_support_item = _support_item_for_node(target_node)
+        add_relation(
+            _make_relation(
+                source_node.id,
+                target_node.id,
+                layout_mode,
+                source_anchor=source_anchor,
+                target_anchor=target_anchor,
+                source_support_item=source_support_item,
+                target_support_item=target_support_item,
+            )
+        )
+
+    for action in canonical_flow.nodes:
+        if getattr(action, "node_kind", None) != "attack-action":
+            continue
+        for ref in list(getattr(action, "asset_refs", []) or []) + list(getattr(action, "object_refs", []) or []):
+            if not ref:
+                continue
+            target_node = node_index.get(ref)
+            if target_node is None:
+                continue
+            target_support_item = _support_item_for_node(target_node)
+            add_relation(
+                _make_relation(
+                    action.id,
+                    target_node.id,
+                    "horizontal",
+                    source_anchor="0",
+                    target_anchor="180",
+                    source_support_item=_support_item_for_node(action),
+                    target_support_item=target_support_item,
+                )
+            )
+
+    action_nodes = [node for node in canonical_flow.nodes if getattr(node, "node_kind", None) == "attack-action"]
+    for previous, current in zip(action_nodes, action_nodes[1:]):
+        # Keep the sequential chain explicit even if a direct edge already exists.
+        # Dedupe later collapses exact duplicates, so this guarantees adjacency.
+        add_relation(
+            _make_relation(
+                previous.id,
+                current.id,
+                "vertical",
+                source_anchor="270",
+                target_anchor="90",
+                source_support_item=_support_item_for_node(previous),
+                target_support_item=_support_item_for_node(current),
+            )
+        )
+    return relations
+
+
+def _edge_layout_mode(source_kind: Any, edge_type: Any) -> str | None:
+    if edge_type == "asset":
+        return "horizontal"
+    if edge_type in {"true", "false"}:
+        return "branch"
+    if edge_type == "relationship":
+        return "horizontal"
+    if source_kind == "attack-operator":
+        return "horizontal"
+    if source_kind in {"attack-action", "attack-condition"}:
+        return "vertical"
+    return None
+
+
+def _edge_anchor_pair(source_kind: Any, target_kind: Any, edge_type: Any) -> tuple[str | None, str | None]:
+    if edge_type == "asset":
+        return "0", "180"
+    if edge_type == "true":
+        return "branch:True", "90"
+    if edge_type == "false":
+        return "branch:False", "90"
+    if edge_type == "relationship":
+        return "0", "180"
+    if source_kind == "attack-operator":
+        return "0", "180"
+    if source_kind == "attack-condition":
+        return "branch:True" if target_kind == "attack-action" else "branch:False", "90"
+    return "270", "90"
+
+
+def _support_item_for_node(node: Any) -> dict[str, Any] | None:
+    if getattr(node, "node_kind", None) == "attack-action":
+        technique = getattr(node, "technique", None)
+        if technique is not None:
+            support_item = _build_technique_support_item(technique.model_dump(mode="json") if hasattr(technique, "model_dump") else dict(technique) if isinstance(technique, dict) else {})
+            if support_item is not None:
+                return support_item
+    if getattr(node, "node_kind", None) == "attack-asset":
+        stix_properties = getattr(node, "stix_properties", None)
+        if isinstance(stix_properties, dict) and stix_properties:
+            support = dict(stix_properties)
+            support.setdefault("type", _coerce_non_empty_string(getattr(node, "object_ref", None)) or _coerce_non_empty_string(getattr(node, "id", None)) or "attack-asset")
+            support.setdefault("kind", support["type"])
+            support.setdefault("id", _coerce_non_empty_string(getattr(node, "object_ref", None)) or getattr(node, "id", None))
+            return support
+        object_ref = _coerce_non_empty_string(getattr(node, "object_ref", None))
+        if object_ref is not None:
+            support = _build_stix_support_item(object_ref)
+            if support is not None:
+                return support
+    return None
+
+
+def _build_main_block_spec(item: dict[str, Any]) -> dict[str, Any]:
+    object_type = item.get("type")
+    object_id = _coerce_non_empty_string(item.get("id")) or ""
+    template_id = _main_template_id_for_type(object_type)
+    if object_type == "attack-operator":
+        template_id = "AND_operator" if _coerce_non_empty_string(item.get("operator")) == "AND" else "OR_operator"
+    spec: dict[str, Any] = {
+        "kind": object_type,
+        "template_id": template_id,
+        "instance": object_id,
+        "properties": _main_properties_for_item(item),
+        "anchor_keys": list(_DIAGRAM_STANDARD_ANCHOR_KEYS) + (_DIAGRAM_BRANCH_ANCHOR_KEYS if object_type == "attack-condition" else []),
+    }
+    return spec
+
+
+def _build_support_block_spec(item: dict[str, Any]) -> dict[str, Any] | None:
+    template_id, properties = _support_template_and_properties(item)
+    instance = _support_instance_for_item(item)
+    if template_id is None or instance is None:
+        return None
+    return {
+        "kind": item.get("type"),
+        "template_id": template_id,
+        "instance": instance,
+        "properties": properties,
+        "anchor_keys": list(_DIAGRAM_STANDARD_ANCHOR_KEYS),
+        "support_item": item,
+    }
+
+
+def _build_action_relations(
+    item: dict[str, Any],
+    block_index: dict[str, dict[str, Any]],
+    blocks: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    source = _coerce_non_empty_string(item.get("id"))
+    if source is None:
+        return []
+
+    relations: list[dict[str, Any]] = []
+    source_support_item = _build_technique_support_item(item)
+
+    for ref in _coerce_string_list(item.get("object_refs")):
+        target_spec = block_index.get(ref)
+        target_support = target_spec.get("support_item") if isinstance(target_spec, dict) else None
+        if not isinstance(target_support, dict):
+            target_support = _build_stix_support_item(ref)
+        if target_support is None:
+            continue
+        target_support = dict(target_support)
+        target_support["diagram_instance"] = _make_diagram_instance_id("support", source, ref, "object")
+        support_instance = _support_instance_for_item(target_support)
+        if support_instance is not None:
+            relations.append(_make_relation(source, support_instance, "horizontal", source_anchor="0", target_anchor="180", source_support_item=source_support_item, target_support_item=target_support))
+
+    for ref in _coerce_string_list(item.get("asset_refs")):
+        target_spec = block_index.get(ref)
+        target_support = target_spec.get("support_item") if isinstance(target_spec, dict) else None
+        if not isinstance(target_support, dict):
+            target_support = {"type": "attack-asset", "id": ref, "name": ref}
+        target_support = dict(target_support)
+        target_support["diagram_instance"] = _make_diagram_instance_id("support", source, ref, "asset")
+        support_instance = _support_instance_for_item(target_support)
+        if support_instance is not None:
+            relations.append(_make_relation(source, support_instance, "horizontal", source_anchor="0", target_anchor="180", source_support_item=source_support_item, target_support_item=target_support))
+
+    for ref in _coerce_string_list(item.get("effect_refs")):
+        target_spec = block_index.get(ref)
+        target_support = target_spec.get("support_item") if isinstance(target_spec, dict) else None
+        if isinstance(target_support, dict):
+            relations.append(_make_relation(source, ref, "vertical", source_anchor="270", target_anchor="90", source_support_item=source_support_item, target_support_item=target_support))
+        else:
+            relations.append(_make_relation(source, ref, "vertical", source_anchor="270", target_anchor="90", source_support_item=source_support_item))
+
+    return relations
+
+
+def _build_asset_relations(
+    item: dict[str, Any],
+    block_index: dict[str, dict[str, Any]],
+    blocks: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    source = _coerce_non_empty_string(item.get("id"))
+    object_ref = _coerce_non_empty_string(item.get("object_ref"))
+    if source is None or object_ref is None:
+        return []
+    target_spec = block_index.get(object_ref)
+    support_item = target_spec.get("support_item") if isinstance(target_spec, dict) else None
+    if not isinstance(support_item, dict):
+        support_item = _build_stix_support_item(object_ref)
+    if support_item is None:
+        return []
+    support_instance = _support_instance_for_item(support_item)
+    if support_instance is None:
+        return []
+    return [_make_relation(source, support_instance, "horizontal", source_anchor="0", target_anchor="180", target_support_item=support_item)]
+
+
+def _make_relation(
+    source_instance: str,
+    target_instance: str,
+    layout_mode: str,
+    *,
+    source_anchor: str,
+    target_anchor: str,
+    source_support_item: dict[str, Any] | None = None,
+    target_support_item: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    relation_key = f"{source_instance}:{source_anchor}->{target_instance}:{target_anchor}:{layout_mode}"
+    line_instance = _make_diagram_instance_id("line", relation_key)
+    return {
+        "kind": layout_mode,
+        "source_instance": source_instance,
+        "target_instance": target_instance,
+        "source_anchor_key": source_anchor,
+        "target_anchor_key": target_anchor,
+        "source_anchor_instance": _anchor_instance_for(source_instance, source_anchor),
+        "target_anchor_instance": _anchor_instance_for(target_instance, target_anchor),
+        "instance": line_instance,
+        "source_support_item": source_support_item,
+        "target_support_item": target_support_item,
+    }
+
+
+def _build_diagram_line_export(rel: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    source_latch_instance = _make_diagram_instance_id("latch", rel["instance"], "source")
+    target_latch_instance = _make_diagram_instance_id("latch", rel["instance"], "target")
+    handle_instance = _make_diagram_instance_id("handle", rel["instance"], "mid")
+    line_export = {
+        "id": "dynamic_line",
+        "instance": rel["instance"],
+        "source": source_latch_instance,
+        "target": target_latch_instance,
+        "handles": [handle_instance],
+    }
+    return (
+        line_export,
+        {"id": "generic_latch", "instance": source_latch_instance},
+        {"id": "generic_latch", "instance": target_latch_instance},
+        {"id": "generic_handle", "instance": handle_instance},
+    )
+
+
+def _build_diagram_block_export(spec: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    block_export = {
+        "id": spec["template_id"],
+        "instance": spec["instance"],
+        "anchors": {},
+    }
+    if spec["properties"]:
+        block_export["properties"] = spec["properties"]
+
+    anchors: list[dict[str, Any]] = []
+    for key in spec["anchor_keys"]:
+        anchor_instance = _anchor_instance_for(spec["instance"], key)
+        block_export["anchors"][key] = anchor_instance
+        anchors.append({
+            "id": _anchor_template_id_for_key(key),
+            "instance": anchor_instance,
+            "latches": [],
+        })
+    return block_export, anchors
+
+
+def _build_diagram_layout(block_specs: list[dict[str, Any]], relations: list[dict[str, Any]]) -> dict[str, list[float]]:
+    positions: dict[str, list[float]] = {}
+    outgoing: dict[str, list[dict[str, Any]]] = {}
+    incoming: dict[str, int] = {}
+    for spec in block_specs:
+        outgoing[spec["instance"]] = []
+        incoming.setdefault(spec["instance"], 0)
+    for rel in relations:
+        outgoing.setdefault(rel["source_instance"], []).append(rel)
+        incoming[rel["target_instance"]] = incoming.get(rel["target_instance"], 0) + 1
+
+    root_instances = [spec["instance"] for spec in block_specs if spec["kind"] in {"attack-action", "attack-condition", "attack-operator"} and incoming.get(spec["instance"], 0) == 0]
+    if not root_instances:
+        root_instances = [spec["instance"] for spec in block_specs if spec["kind"] in {"attack-action", "attack-condition", "attack-operator"}]
+
+    y_cursor = 0.0
+    for root in root_instances:
+        if root in positions:
+            continue
+        _place_node(root, 0.0, y_cursor, positions, outgoing, block_specs)
+        y_cursor += _DIAGRAM_ROOT_VERTICAL_GAP
+
+    # Place any remaining unpositioned nodes in a support column.
+    remaining = [spec["instance"] for spec in block_specs if spec["instance"] not in positions]
+    for index, instance in enumerate(remaining):
+        positions[instance] = [_DIAGRAM_SUPPORT_COLUMN_X, float(index) * _DIAGRAM_SUPPORT_ROW_GAP]
+
+    return positions
+
+
+def _place_node(
+    instance: str,
+    x: float,
+    y: float,
+    positions: dict[str, list[float]],
+    outgoing: dict[str, list[dict[str, Any]]],
+    block_specs: list[dict[str, Any]],
+) -> None:
+    if instance in positions:
+        return
+    positions[instance] = [x, y]
+    spec = next((item for item in block_specs if item["instance"] == instance), None)
+    if spec is None:
+        return
+    relations = outgoing.get(instance, [])
+    vertical_children = [rel for rel in relations if rel["kind"] == "vertical"]
+    horizontal_children = [rel for rel in relations if rel["kind"] == "horizontal"]
+    branch_children = [rel for rel in relations if rel["kind"] == "branch"]
+
+    next_y = y + _DIAGRAM_VERTICAL_CHILD_GAP
+    for rel in vertical_children + branch_children:
+        child = rel["target_instance"]
+        child_spec = next((item for item in block_specs if item["instance"] == child), None)
+        if child_spec is not None and child_spec["kind"] not in {"attack-action", "attack-condition", "attack-operator"}:
+            continue
+        if child not in positions:
+            _place_node(child, x, next_y, positions, outgoing, block_specs)
+            next_y += _DIAGRAM_VERTICAL_CHILD_GAP
+
+    next_x = x + _DIAGRAM_HORIZONTAL_CHILD_GAP
+    for rel in horizontal_children:
+        child = rel["target_instance"]
+        if child not in positions:
+            _place_node(child, next_x, y, positions, outgoing, block_specs)
+            next_x += _DIAGRAM_HORIZONTAL_CHILD_GAP
+
+
+def _main_template_id_for_type(object_type: str | None) -> str:
+    if object_type == "attack-action":
+        return "action"
+    if object_type == "attack-condition":
+        return "condition"
+    if object_type == "attack-operator":
+        return "attack-operator"
+    if object_type == "attack-asset":
+        return "asset"
+    return "action"
+
+
+def _main_properties_for_item(item: dict[str, Any]) -> list[list[Any]]:
+    object_type = item.get("type")
+    if object_type == "attack-action":
+        properties: list[list[Any]] = [["name", _coerce_non_empty_string(item.get("name")) or _coerce_non_empty_string(item.get("id")) or "Untitled action"]]
+        description = _coerce_non_empty_description(item.get("description"))
+        if description is not None:
+            properties.append(["description", description])
+        confidence = item.get("confidence")
+        if confidence is not None:
+            properties.append(["confidence", confidence])
+        ttp = _build_ttp_property(item)
+        if ttp is not None:
+            properties.append(["ttp", ttp])
+        tags = _build_tags_property(item.get("tags"))
+        if tags is not None:
+            properties.append(["tags", tags])
+        for field_name in ("execution_start", "execution_end"):
+            value = _coerce_non_empty_string(item.get(field_name))
+            if value is not None:
+                properties.append([field_name, value])
+        return properties
+    if object_type == "attack-condition":
+        properties = []
+        description = _coerce_non_empty_description(item.get("description"))
+        if description is not None:
+            properties.append(["description", description])
+        tags = _build_tags_property(item.get("tags"))
+        if tags is not None:
+            properties.append(["tags", tags])
+        return properties
+    if object_type == "attack-operator":
+        return [["operator", _coerce_non_empty_string(item.get("operator")) or "OR"]]
+    if object_type == "attack-asset":
+        properties = [["name", _coerce_non_empty_string(item.get("name")) or _coerce_non_empty_string(item.get("id")) or "Untitled asset"]]
+        description = _coerce_non_empty_description(item.get("description"))
+        if description is not None:
+            properties.append(["description", description])
+        tags = _build_tags_property(item.get("tags"))
+        if tags is not None:
+            properties.append(["tags", tags])
+        return properties
+    return []
+
+
+def _support_template_and_properties(item: dict[str, Any]) -> tuple[str | None, list[list[Any]]]:
+    kind = item.get("kind") or item.get("type")
+    if kind == "attack-pattern":
+        return "attack_pattern", _support_properties_from_item(item)
+    if kind == "attack-asset":
+        return "asset", _support_properties_from_item(item)
+    if kind in {"campaign", "grouping", "infrastructure", "intrusion-set", "location", "malware", "tool", "threat-actor", "vulnerability", "report", "note", "identity", "software"}:
+        if kind == "identity":
+            properties = _support_properties_from_item(item)
+            if not any(key == "identity_class" for key, _ in properties):
+                properties.append(["identity_class", "organization"])
+            return "identity", properties
+        return kind.replace("-", "_"), _support_properties_from_item(item)
+    if kind in {"artifact", "ipv4-addr", "ipv6-addr", "mac-addr", "domain-name", "email-addr", "url", "file", "directory", "mutex", "process", "user-account"}:
+        template = {
+            "artifact": "artifact",
+            "ipv4-addr": "ipv4_addr",
+            "ipv6-addr": "ipv6_addr",
+            "mac-addr": "mac_addr",
+            "domain-name": "domain_name",
+            "email-addr": "email_address",
+            "url": "url",
+            "file": "file",
+            "directory": "directory",
+            "mutex": "mutex",
+            "process": "process",
+            "user-account": "user_account",
+        }[kind]
+        return template, _support_properties_from_item(item)
+    return None, []
+
+
+def _support_properties_from_item(item: dict[str, Any]) -> list[list[Any]]:
+    source = item.get("stix_properties") if isinstance(item.get("stix_properties"), dict) else {}
+    merged: dict[str, Any] = {
+        **source,
+        **{
+            key: value
+            for key, value in item.items()
+            if key not in {"type", "kind", "id", "instance", "properties", "support_item", "stix_properties"} and value is not None
+        },
+    }
+    tags = merged.get("tags")
+    if isinstance(tags, list):
+        tag_entries = _build_tags_property(tags)
+        if tag_entries is not None:
+            merged["tags"] = tag_entries
+        else:
+            merged.pop("tags", None)
+    for key, value in list(merged.items()):
+        if isinstance(value, list) and key != "tags":
+            list_entries = _build_string_list_entries(value) or _build_ordered_list_property(value)
+            if list_entries is not None:
+                merged[key] = list_entries
+            else:
+                merged.pop(key, None)
+    return [[key, value] for key, value in merged.items()]
+
+
+def _support_properties_for_kind(kind: str, value: Any) -> list[list[Any]]:
+    text = _coerce_non_empty_string(value) or kind
+    if kind in {"domain-name", "email-addr", "ipv4-addr", "ipv6-addr", "mac-addr", "url"}:
+        return [["value", text]]
+    if kind == "file":
+        return [["name", text]]
+    if kind == "directory":
+        return [["path", text]]
+    if kind == "process":
+        return [["command_line", text]]
+    if kind == "user-account":
+        return [["display_name", text]]
+    if kind == "mutex":
+        return [["name", text]]
+    if kind == "artifact":
+        return [["mime_type", "application/octet-stream"]]
+    return [["name", text]]
+
+
+def _support_instance_for_item(item: dict[str, Any]) -> str | None:
+    candidate = _coerce_non_empty_string(item.get("diagram_instance")) or _coerce_non_empty_string(item.get("id")) or _coerce_non_empty_string(item.get("object_ref")) or _coerce_non_empty_string(item.get("technique_ref")) or _coerce_non_empty_string(item.get("technique_id"))
+    return candidate
+
+
+def _build_technique_support_item(item: dict[str, Any]) -> dict[str, Any] | None:
+    technique_ref = _coerce_non_empty_string(item.get("technique_ref")) or _coerce_non_empty_string(item.get("technique_id"))
+    if technique_ref is None:
+        return None
+    support_item = {
+        "type": "attack-pattern",
+        "kind": "attack-pattern",
+        "id": technique_ref,
+        "name": _coerce_non_empty_string(item.get("technique_name")) or technique_ref,
+    }
+    description = _coerce_non_empty_description(item.get("technique_description") or item.get("description"))
+    if description is not None:
+        support_item["description"] = description
+    aliases = _coerce_string_list(item.get("technique_aliases") or item.get("aliases"))
+    if aliases:
+        support_item["aliases"] = aliases
+    kill_chain_phases = _coerce_string_list(item.get("technique_kill_chain_phases") or item.get("kill_chain_phases"))
+    if kill_chain_phases:
+        support_item["kill_chain_phases"] = kill_chain_phases
+    tags = _coerce_string_list(item.get("technique_tags") or item.get("tags"))
+    if tags:
+        support_item["tags"] = tags
+    return support_item
+
+
+def _build_stix_support_item(ref: str) -> dict[str, Any] | None:
+    template_id, properties = _infer_stix_template_and_properties(ref)
+    if template_id is None:
+        return None
+    return {
+        "type": template_id.replace("_", "-"),
+        "kind": template_id.replace("_", "-"),
+        "id": ref,
+        "instance": ref,
+        "properties": properties,
+    }
+
+
+def _infer_stix_template_and_properties(ref: str) -> tuple[str | None, list[list[Any]]]:
+    prefix = ref.split("--", 1)[0]
+    if prefix in {"attack-pattern", "campaign", "grouping", "infrastructure", "intrusion-set", "location", "malware", "tool", "threat-actor", "vulnerability", "report", "note"}:
+        return prefix.replace("-", "_"), [["name", ref]]
+    if prefix == "identity":
+        return "identity", [["name", ref], ["identity_class", "organization"]]
+    if prefix in {"artifact", "ipv4-addr", "ipv6-addr", "mac-addr", "domain-name", "email-addr", "url", "file", "directory", "mutex", "process", "software", "user-account"}:
+        template = {
+            "artifact": "artifact",
+            "ipv4-addr": "ipv4_addr",
+            "ipv6-addr": "ipv6_addr",
+            "mac-addr": "mac_addr",
+            "domain-name": "domain_name",
+            "email-addr": "email_address",
+            "url": "url",
+            "file": "file",
+            "directory": "directory",
+            "mutex": "mutex",
+            "process": "process",
+            "software": "software",
+            "user-account": "user_account",
+        }[prefix]
+        return template, _support_properties_for_kind(prefix, ref)
+    return None, []
+
+
+def _dedupe_relations(relations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[tuple[str, str, str, str, str]] = set()
+    output: list[dict[str, Any]] = []
+    for rel in relations:
+        key = (
+            rel["source_instance"],
+            rel["target_instance"],
+            rel["source_anchor_key"],
+            rel["target_anchor_key"],
+            rel["kind"],
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(rel)
+    return output
+
+
+def _anchor_instance_for(block_instance: str, anchor_key: str) -> str:
+    return _make_diagram_instance_id("anchor", block_instance, anchor_key)
+
+
+def _anchor_template_id_for_key(anchor_key: str) -> str:
+    if anchor_key in _DIAGRAM_HORIZONTAL_ANCHOR_KEYS:
+        return "horizontal_anchor"
+    return "vertical_anchor"
+
+
+def _make_diagram_instance_id(*parts: str) -> str:
+    return f"instance--{uuid5(NAMESPACE_URL, ':'.join(parts))}"
