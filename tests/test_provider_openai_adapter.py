@@ -76,7 +76,7 @@ def test_azure_validate_uses_chat_completions_request(monkeypatch) -> None:
     request = seen["request"]
     assert request is not None
     assert request.url == (
-        "https://example.openai.azure.com/deployments/gpt-4.1-mini/chat/completions"
+        "https://example.openai.azure.com/openai/deployments/gpt-4.1-mini/chat/completions"
         "?api-version=2024-10-21"
     )
     assert request.headers["Authorization"] == "Bearer azure-token"

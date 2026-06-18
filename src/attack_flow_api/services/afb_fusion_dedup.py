@@ -876,7 +876,6 @@ def _merge_relationship(
             "ai_confidences": ai_confidences,
             "provenance": provenance,
             "conflicts": conflicts,
-            "tags": _dedupe_preserve_order(current.tags + _as_str_list(item.get("tags"))),
         }
     )
 
