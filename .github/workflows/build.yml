@@ -165,7 +165,7 @@ jobs:
       - name: Add Poetry to PATH
         run: echo "$HOME/.poetry/bin" >> $GITHUB_PATH
       - name: Install Python dependencies
-        run: poetry install --with api
+        run: poetry install --with api,docs
       - name: Install Node dependencies
         working-directory: ./src/attack_flow_builder/
         run: npm ci
