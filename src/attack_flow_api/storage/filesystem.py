@@ -11,6 +11,7 @@ DEFAULT_ALLOWED_EXTENSIONS = {
     "pdf",
     "csv",
     "bin",
+    "afb",
 }
 
 

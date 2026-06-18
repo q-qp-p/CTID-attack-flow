@@ -1,9 +1,16 @@
 from attack_flow_api.services.afb_extraction_contracts import (
     AttackFlowMetadata,
+    AfbExtractionResult,
+    AttackAssetNode,
+    AttackOperatorNode,
     OrchestrationMode,
     SourceClassification,
 )
-from attack_flow_api.services.afb_fusion_assembler import FusedOutputCandidate, build_fused_output_candidate
+from attack_flow_api.services.afb_fusion_assembler import (
+    FusedOutputCandidate,
+    build_fused_output_candidate,
+    build_fused_output_candidate_from_sources,
+)
 from attack_flow_api.services.afb_fusion_contracts import (
     FusionConflictCategory,
     FusionConflictRecord,
@@ -15,6 +22,7 @@ from attack_flow_api.services.afb_fusion_dedup import (
     MergedAttachmentBundle,
     MergedEntity,
     MergedRelationship,
+    MergedOperator,
 )
 from attack_flow_api.services.persistence_service import PersistenceService
 from attack_flow_api.storage.database import initialize_database
@@ -116,6 +124,34 @@ def test_build_fused_output_candidate_assembles_downstream_ready_shape() -> None
     assert payload["conflicts"][0]["category"] == "duplicate_attack_ref"
 
 
+def test_build_fused_output_candidate_accepts_attack_assets_without_object_type() -> None:
+    attack_flow = AttackFlowMetadata(
+        id="attack-flow--asset",
+        name="Asset example",
+        scope="incident",
+        orchestration_mode=OrchestrationMode.AI_ENRICHMENT,
+        source_classification=SourceClassification.STIX_STRUCTURED,
+    )
+
+    extraction_result = AfbExtractionResult(
+        validation_state="valid",
+        provider_invoked=True,
+        attack_flow=attack_flow,
+        attack_assets=[
+            AttackAssetNode(
+                id="attack-asset--1",
+                name="Runtime artifact",
+                confidence=0.5,
+            )
+        ],
+    )
+
+    candidate = build_fused_output_candidate_from_sources(normalized_package={}, extraction_result=extraction_result)
+
+    payload = candidate.to_json_ready()
+    assert payload["attack_assets"][0]["object_type"] == "attack-asset"
+
+
 def test_fused_output_candidate_remains_compatible_with_constrained_canonical_model() -> None:
     attack_flow = AttackFlowMetadata(
         id="attack-flow--2",
@@ -131,6 +167,35 @@ def test_fused_output_candidate_remains_compatible_with_constrained_canonical_mo
     assert round_tripped.schema_version == "afb-v2-fused-candidate"
     assert round_tripped.fusion_validation_state == "ready"
     assert round_tripped.attack_flow.id == "attack-flow--2"
+
+
+def test_build_fused_output_candidate_backfills_operator_provenance() -> None:
+    attack_flow = AttackFlowMetadata(
+        id="attack-flow--operator",
+        name="Example flow",
+        scope="incident",
+        orchestration_mode=OrchestrationMode.AI_ENRICHMENT,
+        source_classification=SourceClassification.STIX_STRUCTURED,
+    )
+
+    extraction_result = AfbExtractionResult(
+        validation_state="valid",
+        provider_invoked=True,
+        attack_flow=attack_flow,
+        attack_operators=[
+            AttackOperatorNode(
+                id="operator--1",
+                operator="OR",
+                confidence=0.5,
+                evidence=[{"source": "legacy_output", "excerpt": "A or B"}],
+            )
+        ],
+    )
+
+    candidate = build_fused_output_candidate_from_sources(normalized_package={}, extraction_result=extraction_result)
+
+    payload = candidate.to_json_ready()
+    assert payload["attack_operators"][0]["provenance"][0]["source_label"] == "ai_generated"
 
 
 def test_persist_fused_output_candidate_writes_job_fusion_fields(tmp_path: Path) -> None:

@@ -12,6 +12,7 @@ from attack_flow_api.services.afb_extraction_contracts import (
     SourceClassification,
     TechniqueGrounding,
 )
+from attack_flow_api.services.afb_fusion_assembler import build_fused_output_candidate_from_sources
 from attack_flow_api.services.afb_fusion_assembler import FusedOutputCandidate
 from attack_flow_api.services.afb_fusion_contracts import FusionFindingProvenance, FusionProvenanceKind
 from attack_flow_api.services.afb_fusion_dedup import MergedAttackAction, MergedAttackRef, MergedAttachmentBundle, MergedCondition, MergedEntity, MergedOperator, MergedRelationship
@@ -177,6 +178,7 @@ def _build_afb_extraction_canonical() -> AfbExtractionResult:
                     confidence=0.75,
                     technique=TechniqueGrounding(
                         technique_id="T1059",
+                        technique_name="Command and Scripting Interpreter",
                         confidence=0.75,
                         grounded_by="explicit_attack_id_in_source",
                     ),
@@ -243,6 +245,52 @@ def test_canonical_flow_validation_rejects_missing_action_provenance() -> None:
 
     assert result.valid is False
     assert any(item.code == "action_missing_provenance" for item in result.errors)
+
+
+def test_fused_action_without_explicit_provenance_is_backfilled_from_fact_origin() -> None:
+    extraction = AfbExtractionResult.model_validate(
+        {
+            "validation_state": ExtractionValidationState.VALID,
+            "provider_invoked": True,
+            "attack_flow": AttackFlowMetadata(
+                id="attack-flow--fused",
+                name="Example flow",
+                scope="incident",
+                orchestration_mode=OrchestrationMode.AI_ENRICHMENT,
+                source_classification=SourceClassification.DOCUMENT_EXTRACTED_TEXT,
+                start_refs=["attack-action--1"],
+                provenance={"source": "ai"},
+            ).model_dump(mode="json"),
+            "attack_actions": [
+                AttackActionNode(
+                    id="attack-action--1",
+                    name="Example step",
+                    description="Observed command exactly as reported.",
+                    confidence=0.5,
+                    evidence=[{"source": "narrative", "excerpt": "Observed command exactly as reported."}],
+                    fact_origin=FactOrigin.AI_GENERATED,
+                ).model_dump(mode="json")
+            ],
+            "attack_conditions": [],
+            "attack_operators": [],
+            "attack_assets": [],
+        }
+    )
+
+    fused = build_fused_output_candidate_from_sources(
+        normalized_package={
+            "authors": ["analyst-a"],
+            "external_references": ["https://example.com/report"],
+            "provenance": {"source": "normalized"},
+        },
+        extraction_result=extraction,
+    )
+
+    canonical = build_canonical_flow_output(fused_output=fused)
+    result = validate_canonical_flow_output(canonical)
+
+    assert result.valid is True
+    assert canonical.nodes[0].provenance or canonical.nodes[1].provenance
 
 
 def test_canonical_flow_validation_rejects_ungrounded_attachment_refs() -> None:

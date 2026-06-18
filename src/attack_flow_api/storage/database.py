@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 14
 
 
 def create_connection(sqlite_path: Path) -> sqlite3.Connection:
@@ -19,7 +19,7 @@ def initialize_database(sqlite_path: Path) -> None:
         current_version = _get_schema_version(connection)
         if current_version < SCHEMA_VERSION:
             _apply_schema(connection)
-            _set_schema_version(connection, SCHEMA_VERSION)
+        _set_schema_version(connection, SCHEMA_VERSION)
 
 
 def _create_schema_migrations_table(connection: sqlite3.Connection) -> None:
@@ -41,7 +41,7 @@ def _get_schema_version(connection: sqlite3.Connection) -> int:
 
 
 def _set_schema_version(connection: sqlite3.Connection, version: int) -> None:
-    connection.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
+    connection.execute("INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)", (version,))
 
 
 def _apply_schema(connection: sqlite3.Connection) -> None:
@@ -152,6 +152,12 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
             path TEXT NOT NULL,
             sha256 TEXT,
             size_bytes INTEGER,
+            metadata_json TEXT,
+            validation_state TEXT,
+            validation_errors_json TEXT,
+            export_status TEXT,
+            error_code TEXT,
+            error_message TEXT,
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             FOREIGN KEY (job_id) REFERENCES jobs(id)
         );

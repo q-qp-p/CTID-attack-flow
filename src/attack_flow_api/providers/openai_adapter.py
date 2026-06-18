@@ -410,7 +410,10 @@ class OpenAIProviderAdapter(ProviderAdapter):
                     provider_type=self.provider_type,
                 )
             )
-        return f"{base_url}/deployments/{deployment_name}/chat/completions?api-version={api_version}"
+        return (
+            f"{base_url}{self._azure_path_prefix()}/deployments/{deployment_name}/chat/completions"
+            f"?api-version={api_version}"
+        )
 
     def _azure_models_url(self) -> str:
         base_url = self._normalize_azure_base_url()
@@ -437,13 +440,16 @@ class OpenAIProviderAdapter(ProviderAdapter):
                     provider_type=self.provider_type,
                 )
             )
-        return f"{base_url}/openai/models?api-version={api_version}"
+        return f"{base_url}{self._azure_path_prefix()}/models?api-version={api_version}"
 
     def _normalize_azure_base_url(self) -> str:
-        base_url = (self._provider.base_url or "").rstrip("/")
-        if base_url.endswith("/openai"):
-            return base_url[: -len("/openai")]
-        return base_url
+        return (self._provider.base_url or "").rstrip("/")
+
+    def _azure_path_prefix(self) -> str:
+        base_url = self._normalize_azure_base_url()
+        if not base_url:
+            return ""
+        return "" if base_url.endswith("/openai") else "/openai"
 
     def _compose_chat_messages(self, prompt: str) -> list[dict[str, str]]:
         system_prompt, user_prompt = _split_provider_prompt(prompt)

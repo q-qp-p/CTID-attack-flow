@@ -33,9 +33,11 @@ class MergedEntity(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     object_id: str | None = None
-    object_type: str
+    object_type: str = "attack-asset"
     display_name: str | None = None
     description: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    stix_properties: dict[str, Any] = Field(default_factory=dict)
     labels: list[str] = Field(default_factory=list)
     first_seen: str | None = None
     last_seen: str | None = None
@@ -60,6 +62,7 @@ class MergedAttackAction(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     technique: dict[str, Any] | None = None
     tactic: dict[str, Any] | None = None
+    tags: list[str] = Field(default_factory=list)
     asset_refs: list[str] = Field(default_factory=list)
     object_refs: list[str] = Field(default_factory=list)
     effect_refs: list[str] = Field(default_factory=list)
@@ -93,6 +96,7 @@ class MergedCondition(BaseModel):
     description: str
     value: str
     confidence: float = Field(ge=0.0, le=1.0)
+    tags: list[str] = Field(default_factory=list)
     on_true_refs: list[str] = Field(default_factory=list)
     on_false_refs: list[str] = Field(default_factory=list)
     evidence: list[dict[str, Any]] = Field(default_factory=list)
@@ -109,6 +113,7 @@ class MergedOperator(BaseModel):
     id: str
     operator: str
     confidence: float = Field(ge=0.0, le=1.0)
+    tags: list[str] = Field(default_factory=list)
     effect_refs: list[str] = Field(default_factory=list)
     evidence: list[dict[str, Any]] = Field(default_factory=list)
     citations: list[str] = Field(default_factory=list)
@@ -598,12 +603,44 @@ def _build_entity(
         default=1.0,
     )
     labels = _as_str_list(item.get("labels"))
+    tags = _as_str_list(item.get("tags"))
     observed_data_refs = _as_str_list(item.get("observed_data_refs"))
+    known_keys = {
+        "object_id",
+        "entity_id",
+        "entity_ref",
+        "id",
+        "object_type",
+        "entity_type",
+        "kind",
+        "type",
+        "display_name",
+        "name",
+        "description",
+        "tags",
+        "labels",
+        "first_seen",
+        "last_seen",
+        "confidence",
+        "deterministic_confidence",
+        "ai_confidences",
+        "pattern",
+        "source_ref",
+        "target_ref",
+        "observed_data_refs",
+        "created_by_ref",
+        "provenance",
+        "conflicts",
+        "fact_origin",
+    }
+    stix_properties = {key: value for key, value in item.items() if key not in known_keys}
     return MergedEntity(
         object_id=_as_str(item.get("object_id")),
         object_type=_as_str(item.get("object_type")) or "unknown",
         display_name=_as_str(item.get("display_name")),
         description=_as_str(item.get("description")),
+        tags=tags,
+        stix_properties=stix_properties,
         labels=labels,
         first_seen=_as_str(item.get("first_seen")),
         last_seen=_as_str(item.get("last_seen")),
@@ -660,7 +697,14 @@ def _merge_entity(
             )
 
     current.labels = _dedupe_preserve_order(current.labels + _as_str_list(item.get("labels")))
+    current.tags = _dedupe_preserve_order(current.tags + _as_str_list(item.get("tags")))
     current.observed_data_refs = _dedupe_preserve_order(current.observed_data_refs + _as_str_list(item.get("observed_data_refs")))
+    current.stix_properties = {**current.stix_properties, **{k: v for k, v in item.items() if k not in {
+        "object_id", "entity_id", "entity_ref", "id", "object_type", "entity_type", "kind", "type",
+        "display_name", "name", "description", "tags", "labels", "first_seen", "last_seen", "confidence",
+        "deterministic_confidence", "ai_confidences", "pattern", "source_ref", "target_ref", "observed_data_refs",
+        "created_by_ref", "provenance", "conflicts", "fact_origin",
+    }}}
 
     provenance.append(
         _build_provenance(
@@ -720,6 +764,7 @@ def _build_action(
         confidence=confidence,
         technique=_mapping_to_dict(item.get("technique")),
         tactic=_mapping_to_dict(item.get("tactic")),
+        tags=_as_str_list(item.get("tags")),
         asset_refs=_as_str_list(item.get("asset_refs")),
         object_refs=_as_str_list(item.get("object_refs")),
         effect_refs=_as_str_list(item.get("effect_refs")),
@@ -851,6 +896,7 @@ def _build_condition(
         description=description,
         value=value,
         confidence=confidence,
+        tags=_as_str_list(item.get("tags")),
         on_true_refs=_as_str_list(item.get("on_true_refs")),
         on_false_refs=_as_str_list(item.get("on_false_refs")),
         evidence=evidence,
@@ -946,6 +992,7 @@ def _merge_condition(
             "citations": merged_citations,
             "provenance": provenance,
             "conflicts": conflicts,
+            "tags": _dedupe_preserve_order(current.tags + _as_str_list(item.get("tags"))),
         }
     )
 
@@ -964,6 +1011,7 @@ def _build_operator(
         id=_as_str(item.get("id")) or "operator--unknown",
         operator=operator,
         confidence=confidence,
+        tags=_as_str_list(item.get("tags")),
         effect_refs=_as_str_list(item.get("effect_refs")),
         evidence=evidence,
         citations=_as_str_list(item.get("citations")),
@@ -1033,6 +1081,7 @@ def _merge_operator(
             "citations": merged_citations,
             "provenance": provenance,
             "conflicts": conflicts,
+            "tags": _dedupe_preserve_order(current.tags + _as_str_list(item.get("tags"))),
         }
     )
 

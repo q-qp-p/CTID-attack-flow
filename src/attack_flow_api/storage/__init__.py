@@ -2,6 +2,7 @@ from attack_flow_api.storage.database import create_connection, initialize_datab
 from attack_flow_api.storage.filesystem import LocalFileStorage, StoredFile
 from attack_flow_api.storage.repositories import (
     ArtifactCreate,
+    ArtifactUpdate,
     AuditEventCreate,
     InputSourceCreate,
     JobCreate,
@@ -19,5 +20,6 @@ __all__ = [
     "JobUpdate",
     "InputSourceCreate",
     "ArtifactCreate",
+    "ArtifactUpdate",
     "AuditEventCreate",
 ]

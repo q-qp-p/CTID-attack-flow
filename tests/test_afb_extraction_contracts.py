@@ -84,7 +84,19 @@ def test_afb_extraction_contract_accepts_grounded_technique() -> None:
     assert result.attack_actions[0].technique.technique_id == "T1059"
 
 
-def test_technique_grounding_requires_identifier() -> None:
+def test_afb_extraction_contract_accepts_grounded_technique_name_only() -> None:
+    payload = _base_payload()
+    payload["attack_actions"][0]["technique"] = {
+        "technique_name": "Command and Scripting Interpreter",
+        "confidence": 0.9,
+        "grounded_by": "legacy_attack_term_mapped_to_v19_1",
+    }
+    result = AfbExtractionResult.model_validate(payload)
+    assert result.attack_actions[0].technique is not None
+    assert result.attack_actions[0].technique.technique_name == "Command and Scripting Interpreter"
+
+
+def test_technique_grounding_requires_identifier_or_name() -> None:
     with pytest.raises(ValidationError):
         TechniqueGrounding.model_validate({"confidence": 1.0, "grounded_by": "source"})
 

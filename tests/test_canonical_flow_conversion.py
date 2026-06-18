@@ -31,6 +31,7 @@ from attack_flow_api.services.afb_fusion_dedup import (
     MergedRelationship,
 )
 from attack_flow_api.services.canonical_flow_conversion_service import build_canonical_flow_output
+from attack_flow_api.services.canonical_flow_validation_service import validate_canonical_flow_output
 from attack_flow_api.services.canonical_flow_contracts import (
     CanonicalFlowEdgeKind,
     CanonicalFlowNodeKind,
@@ -244,6 +245,221 @@ def test_conversion_from_fused_output_preserves_flow_and_conflicts() -> None:
     assert canonical.conflicts[0].category == FusionConflictCategory.DUPLICATE_STEP
 
 
+def test_conversion_from_fused_output_materializes_action_object_refs_and_operator_evidence() -> None:
+    fused = FusedOutputCandidate(
+        attack_flow=AttackFlowMetadata(
+            id="attack-flow--2",
+            name="Example flow",
+            scope="incident",
+            orchestration_mode=OrchestrationMode.AI_ENRICHMENT,
+            source_classification=SourceClassification.STIX_STRUCTURED,
+            start_refs=["attack-action--1"],
+        ),
+        attack_refs=[],
+        entities=[],
+        relationships=[],
+        attack_actions=[
+            MergedAttackAction(
+                id="attack-action--1",
+                name="Example step",
+                description="Observed command exactly as reported.",
+                confidence=0.9,
+                object_refs=["tool--1"],
+                evidence=[{"source": "narrative", "excerpt": "Observed command exactly as reported."}],
+                provenance=[
+                    FusionFindingProvenance(
+                        kind=FusionProvenanceKind.DETERMINISTIC,
+                        source_label="deterministic-stix",
+                        source_object_id="attack-action--1",
+                    )
+                ],
+            )
+        ],
+        attack_conditions=[],
+        attack_operators=[
+            MergedOperator(
+                id="attack-operator--1",
+                operator="AND",
+                confidence=0.7,
+                effect_refs=["attack-action--1"],
+                evidence=[],
+                provenance=[
+                    FusionFindingProvenance(
+                        kind=FusionProvenanceKind.AI_DERIVED,
+                        source_label="afb",
+                        source_object_id="attack-operator--1",
+                    )
+                ],
+            )
+        ],
+        attack_assets=[],
+        source_grounded_attachments=MergedAttachmentBundle(),
+        provenance={},
+        conflicts=[],
+    )
+
+    canonical = build_canonical_flow_output(fused_output=fused)
+
+    assert canonical is not None
+    assert any(node.node_kind == CanonicalFlowNodeKind.ATTACK_ASSET and node.object_ref == "tool--1" for node in canonical.nodes)
+    assert canonical.nodes[-1].node_kind == CanonicalFlowNodeKind.ATTACK_OPERATOR
+    assert canonical.nodes[-1].evidence
+    assert validate_canonical_flow_output(canonical).valid is True
+
+
+def test_conversion_normalizes_legacy_action_reference_prefixes() -> None:
+    fused = FusedOutputCandidate(
+        attack_flow=AttackFlowMetadata(
+            id="attack-flow--3",
+            name="Example flow",
+            scope="incident",
+            orchestration_mode=OrchestrationMode.AI_ENRICHMENT,
+            source_classification=SourceClassification.STIX_STRUCTURED,
+            start_refs=["attack-action--1"],
+        ),
+        attack_refs=[],
+        entities=[],
+        relationships=[],
+        attack_actions=[
+            MergedAttackAction(
+                id="attack-action--1",
+                name="Example step",
+                description="Observed command exactly as reported.",
+                confidence=0.9,
+                effect_refs=["action--2"],
+                provenance=[],
+            ),
+            MergedAttackAction(
+                id="attack-action--2",
+                name="Next step",
+                description="Observed command exactly as reported.",
+                confidence=0.8,
+                provenance=[],
+            ),
+        ],
+        attack_conditions=[
+            MergedCondition(
+                id="attack-condition--1",
+                description="Observed branch decision exactly as reported.",
+                value="true",
+                confidence=0.7,
+                on_true_refs=["action--1"],
+                on_false_refs=["action--2"],
+                provenance=[],
+            )
+        ],
+        attack_operators=[
+            MergedOperator(
+                id="attack-operator--1",
+                operator="AND",
+                confidence=0.6,
+                effect_refs=["action--1"],
+                provenance=[],
+            )
+        ],
+        attack_assets=[],
+        source_grounded_attachments=MergedAttachmentBundle(),
+        provenance={},
+        conflicts=[],
+    )
+
+    canonical = build_canonical_flow_output(fused_output=fused)
+
+    assert canonical is not None
+    action = next(node for node in canonical.nodes if node.id == "attack-action--1")
+    condition = next(node for node in canonical.nodes if node.id == "attack-condition--1")
+    operator = next(node for node in canonical.nodes if node.id == "attack-operator--1")
+    assert action.effect_refs == ["attack-action--2"]
+    assert condition.on_true_refs == ["attack-action--1"]
+    assert condition.on_false_refs == ["attack-action--2"]
+    assert operator.effect_refs == ["attack-action--1"]
+
+
+def test_conversion_normalizes_short_legacy_action_reference_prefixes() -> None:
+    fused = FusedOutputCandidate(
+        attack_flow=AttackFlowMetadata(
+            id="attack-flow--5",
+            name="Example flow",
+            scope="incident",
+            orchestration_mode=OrchestrationMode.AI_ENRICHMENT,
+            source_classification=SourceClassification.STIX_STRUCTURED,
+            start_refs=["action-1"],
+        ),
+        attack_refs=[],
+        entities=[],
+        relationships=[],
+        attack_actions=[
+            MergedAttackAction(
+                id="attack-action--1",
+                name="Example step",
+                description="Observed command exactly as reported.",
+                confidence=0.9,
+                effect_refs=["action-2"],
+                provenance=[],
+            ),
+            MergedAttackAction(
+                id="attack-action--2",
+                name="Next step",
+                description="Observed command exactly as reported.",
+                confidence=0.8,
+                provenance=[],
+            ),
+        ],
+        attack_conditions=[],
+        attack_operators=[],
+        attack_assets=[],
+        source_grounded_attachments=MergedAttachmentBundle(),
+        provenance={},
+        conflicts=[],
+    )
+
+    canonical = build_canonical_flow_output(fused_output=fused)
+
+    assert canonical is not None
+    action = next(node for node in canonical.nodes if node.id == "attack-action--1")
+    assert action.effect_refs == ["attack-action--2"]
+    assert canonical.metadata.start_refs == ["attack-action--1"]
+
+
+def test_conversion_backfills_condition_provenance_when_missing() -> None:
+    fused = FusedOutputCandidate(
+        attack_flow=AttackFlowMetadata(
+            id="attack-flow--4",
+            name="Example flow",
+            scope="incident",
+            orchestration_mode=OrchestrationMode.AI_ENRICHMENT,
+            source_classification=SourceClassification.STIX_STRUCTURED,
+            start_refs=["attack-condition--1"],
+        ),
+        attack_refs=[],
+        entities=[],
+        relationships=[],
+        attack_actions=[],
+        attack_conditions=[
+            MergedCondition(
+                id="attack-condition--1",
+                description="Two types payloads were found in the spear-phishing emails:",
+                value="true",
+                confidence=0.5,
+                evidence=[{"source": "legacy_output", "excerpt": "Two types payloads were found in the spear-phishing emails:"}],
+                provenance=[],
+            )
+        ],
+        attack_operators=[],
+        attack_assets=[],
+        source_grounded_attachments=MergedAttachmentBundle(),
+        provenance={},
+        conflicts=[],
+    )
+
+    canonical = build_canonical_flow_output(fused_output=fused)
+
+    assert canonical is not None
+    condition = next(node for node in canonical.nodes if node.id == "attack-condition--1")
+    assert condition.provenance
+    assert validate_canonical_flow_output(canonical).valid is True
+
+
 def test_conversion_falls_back_to_afb_output_when_no_fused_output_exists() -> None:
     extraction = AfbExtractionResult.model_validate(
         {
@@ -269,6 +485,7 @@ def test_conversion_falls_back_to_afb_output_when_no_fused_output_exists() -> No
                     confidence=0.75,
                     technique=TechniqueGrounding(
                         technique_id="T1059",
+                        technique_name="Command and Scripting Interpreter",
                         confidence=0.75,
                         grounded_by="explicit_attack_id_in_source",
                     ),
@@ -357,6 +574,8 @@ def test_conversion_falls_back_to_afb_output_when_no_fused_output_exists() -> No
     assert canonical.source_grounded_attachments.attack_flow_external_references == ["https://example.com/afb"]
     assert canonical.source_grounded_attachments.preserved_object_refs == ["malware--afb", "threat-actor--afb"]
     assert canonical.attack_refs[0].confidence == 1.0
+    assert canonical.nodes[1].technique is not None
+    assert canonical.nodes[1].technique.technique_name == "Command and Scripting Interpreter"
     assert canonical.attack_refs[0].source_object_id == "attack-pattern--afb"
     assert canonical.nodes[0].node_kind == CanonicalFlowNodeKind.ATTACK_ASSET
     assert canonical.nodes[1].node_kind == CanonicalFlowNodeKind.ATTACK_ACTION

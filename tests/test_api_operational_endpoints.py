@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from fastapi.middleware.cors import CORSMiddleware
 
 from attack_flow_api.main import create_app
 from attack_flow_api.providers.adapter import ProviderAdapterInvocationError
@@ -11,7 +12,7 @@ from attack_flow_api.providers.contracts import (
 )
 
 
-def _build_client(monkeypatch, tmp_path: Path) -> TestClient:
+def _build_client(monkeypatch, tmp_path: Path, *, raise_server_exceptions: bool = True) -> TestClient:
     data_dir = tmp_path / "data"
     providers_path = tmp_path / "providers.yml"
     providers_path.write_text(
@@ -38,7 +39,7 @@ providers:
     monkeypatch.setenv("ARTIFACT_DIR", str(data_dir / "artifacts"))
     monkeypatch.setenv("PROVIDERS_CONFIG_PATH", str(providers_path))
 
-    return TestClient(create_app())
+    return TestClient(create_app(), raise_server_exceptions=raise_server_exceptions)
 
 
 def test_health_endpoint_returns_200_with_request_id(monkeypatch, tmp_path: Path):
@@ -170,6 +171,41 @@ providers:
     assert "error_code=provider_request_invalid" in message
 
 
+def test_provider_models_endpoint_returns_empty_list_for_non_openai_provider(monkeypatch, tmp_path: Path):
+    providers_path = tmp_path / "providers.yml"
+    providers_path.write_text(
+        """
+providers:
+  - provider_id: anthropic-primary
+    provider_type: anthropic
+    enabled: true
+    default_model: claude-3-5-haiku-latest
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("APP_NAME", "attack-flow-api")
+    monkeypatch.setenv("API_PREFIX", "/api/v1")
+    monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "data" / "attack-flow.db"))
+    monkeypatch.setenv("UPLOAD_DIR", str(tmp_path / "data" / "uploads"))
+    monkeypatch.setenv("ARTIFACT_DIR", str(tmp_path / "data" / "artifacts"))
+    monkeypatch.setenv("PROVIDERS_CONFIG_PATH", str(providers_path))
+
+    with TestClient(create_app()) as client:
+        response = client.get("/api/v1/providers/anthropic-primary/models")
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload == {
+        "provider_id": "anthropic-primary",
+        "provider_type": "anthropic",
+        "model_ids": [],
+        "request_id": payload["request_id"],
+    }
+
+
 def test_endpoints_are_wired_under_api_v1_prefix(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
         assert client.get("/health").status_code == 404
@@ -220,3 +256,87 @@ def test_openapi_includes_operational_endpoints_and_response_models(monkeypatch,
     assert "StatusResponse" in schemas
     assert "ProvidersResponse" in schemas
     assert "ProviderModelsResponse" in schemas
+
+
+def test_unhandled_exception_returns_structured_500_with_request_id(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path, raise_server_exceptions=False) as client:
+        async def boom():
+            raise RuntimeError("boom")
+
+        client.app.add_api_route("/boom", boom, methods=["GET"])
+
+        response = client.get("/boom", headers={"X-Request-ID": "req-boom-1"})
+
+    payload = response.json()
+    assert response.status_code == 500
+    assert payload["error"]["code"] == "internal_server_error"
+    assert payload["error"]["message"] == "An unexpected error occurred"
+    assert payload["request_id"] == "req-boom-1"
+    assert response.headers["X-Request-ID"] == "req-boom-1"
+
+
+def test_worker_task_is_cancelled_on_app_shutdown(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        worker_task = client.app.state.job_worker_task
+        assert worker_task is not None
+        assert not worker_task.done()
+
+    assert worker_task.done()
+    assert worker_task.cancelled()
+
+
+def test_app_lifespan_initializes_runtime_state(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        assert client.app.state.settings.app_name == "attack-flow-api"
+        assert client.app.state.providers_config.providers
+        assert client.app.state.provider_registry is not None
+        assert client.app.state.persistence_service is not None
+        assert client.app.state.file_storage is not None
+        assert client.app.state.job_worker is not None
+        assert client.app.state.job_worker_task is not None
+        assert not client.app.state.job_worker_task.done()
+
+
+def test_create_app_wires_cors_when_enabled(monkeypatch, tmp_path: Path):
+    data_dir = tmp_path / "data"
+    providers_path = tmp_path / "providers.yml"
+    providers_path.write_text(
+        """
+providers:
+  - provider_id: default-openai
+    provider_type: openai
+    enabled: true
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+    default_model: gpt-4.1-mini
+    allowed_models:
+      - gpt-4.1-mini
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("APP_NAME", "attack-flow-api")
+    monkeypatch.setenv("API_PREFIX", "/api/v1")
+    monkeypatch.setenv("DATA_DIR", str(data_dir))
+    monkeypatch.setenv("SQLITE_PATH", str(data_dir / "attack-flow.db"))
+    monkeypatch.setenv("UPLOAD_DIR", str(data_dir / "uploads"))
+    monkeypatch.setenv("ARTIFACT_DIR", str(data_dir / "artifacts"))
+    monkeypatch.setenv("PROVIDERS_CONFIG_PATH", str(providers_path))
+    monkeypatch.setenv("CORS_ENABLED", "true")
+    monkeypatch.setenv("CORS_ALLOW_ORIGINS", "https://example.com, https://admin.example.com")
+    monkeypatch.setenv("CORS_ALLOW_CREDENTIALS", "true")
+    monkeypatch.setenv("CORS_ALLOW_METHODS", "GET,POST")
+    monkeypatch.setenv("CORS_ALLOW_HEADERS", "Authorization,Content-Type")
+
+    with TestClient(create_app()) as client:
+        response = client.get(
+            "/api/v1/health",
+            headers={"Origin": "https://example.com"},
+        )
+
+        assert any(m.cls is CORSMiddleware for m in client.app.user_middleware)
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://example.com"
+    assert response.headers["access-control-allow-credentials"] == "true"

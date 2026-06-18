@@ -49,11 +49,25 @@ class JobInputSummary(BaseModel):
     title: str | None = None
 
 
+class JobArtifactOutcomeSummary(BaseModel):
+    valid: bool | None = None
+    validation_state: str | None = None
+    export_status: str | None = None
+    validation_error_count: int | None = None
+    checksum: str | None = None
+    size_bytes: int | None = None
+    created_at: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+
+
 class JobArtifactsSummary(BaseModel):
     has_stix: bool
     has_afb: bool
     stix_url: str | None = None
     afb_url: str | None = None
+    stix_outcome: JobArtifactOutcomeSummary | None = None
+    afb_outcome: JobArtifactOutcomeSummary | None = None
 
 
 class JobStatusResponse(BaseModel):
@@ -63,6 +77,8 @@ class JobStatusResponse(BaseModel):
     created_at: str
     updated_at: str
     completed_at: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
     input: JobInputSummary
     artifacts: JobArtifactsSummary
     request_id: str
@@ -78,6 +94,9 @@ class JobResultResponse(BaseModel):
     job_id: str
     status: str
     result: dict[str, Any]
+    error_code: str | None = None
+    error_message: str | None = None
+    artifacts: JobArtifactsSummary | None = None
     request_id: str
 
 
@@ -138,6 +157,22 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
     - Explicit ATT&CK refs, entities, relationships, and provenance are preserved in the
       canonical normalized package.
     - Content budgeting/truncation is applied explicitly to canonical normalized text where needed.
+
+    STIX export behavior:
+    - Canonical constrained flow models are exported downstream as STIX 2.1 bundles.
+    - Attack Flow extension objects are used where appropriate.
+    - Only explicit ATT&CK techniques from source are exported as technique mappings.
+    - Steps without ATT&CK mappings are allowed.
+    - Descriptions remain verbatim source excerpts.
+    - Only `AND`/`OR` operators and `true`/`false` conditions are exported.
+    - Source-grounded attachment semantics are preserved.
+
+    Shared export finalization behavior (AFA-42):
+    - Exporters validate output before success is finalized.
+    - Valid STIX/AFB artifacts are persisted with practical metadata.
+    - Invalid/incomplete artifacts are not exposed as successful downloads.
+    - Export validation failures are visible through existing job status/result/audit surfaces where practical.
+    - Partial export success is not treated as overall success: all requested exports are attempted, but the job fails if any export is invalid.
 
     Text submission behavior:
     - Raw text is normalized deterministically (line endings/whitespace) before processing.
@@ -693,9 +728,15 @@ def get_job_status(request: Request, job_id: str) -> JobStatusResponse:
     During `ai_extraction`, orchestration consumes canonical normalized package input
     and may run in `full_extraction` or `enrichment` mode. Deterministic STIX/OpenCTI
     findings remain authoritative and can reduce or bypass provider invocation when
-    sufficient. Intermediate extraction output is constrained to an AFB-compatible
-    shape with grounded-only ATT&CK mappings, verbatim action excerpts, AND/OR
-    operators, and true/false condition values.
+    sufficient. Intermediate extraction output is constrained to the pinned Attack
+    Flow v2-compatible export shape with grounded-only ATT&CK mappings, verbatim
+    action excerpts, AND/OR operators, and true/false condition values. Downstream
+    export may persist both STIX and AFB artifacts when available. Export finalization
+    is shared: valid artifacts are persisted with metadata, invalid artifacts are
+    suppressed from downloads, and any invalid export fails the job.
+
+    Artifact visibility is pragmatic: the response summarizes whether STIX/AFB
+    artifacts are downloadable and surfaces concise outcome metadata where available.
 
     Downstream processing should read canonical normalized package content when available
     instead of re-reading source-specific raw fields ad hoc.
@@ -714,9 +755,7 @@ def get_job_status(request: Request, job_id: str) -> JobStatusResponse:
             )
 
     artifacts = persistence_service.list_artifacts(job_id=job.id)
-    has_stix = any(artifact.type == "stix" for artifact in artifacts)
-    has_afb = any(artifact.type == "afb" for artifact in artifacts)
-    api_prefix = request.app.state.settings.api_prefix
+    artifacts_summary = _build_job_artifacts_summary(request, job.id, artifacts)
 
     return JobStatusResponse(
         job_id=job.id,
@@ -725,13 +764,10 @@ def get_job_status(request: Request, job_id: str) -> JobStatusResponse:
         created_at=_to_utc_z(job.created_at),
         updated_at=_to_utc_z(job.updated_at),
         completed_at=_to_utc_z(job.completed_at),
+        error_code=job.error_code,
+        error_message=job.error_message,
         input=input_summary,
-        artifacts=JobArtifactsSummary(
-            has_stix=has_stix,
-            has_afb=has_afb,
-            stix_url=f"{api_prefix}/jobs/{job.id}/artifacts/stix" if has_stix else None,
-            afb_url=f"{api_prefix}/jobs/{job.id}/artifacts/afb" if has_afb else None,
-        ),
+        artifacts=artifacts_summary,
         request_id=request.state.request_id,
     )
 
@@ -885,6 +921,54 @@ def download_job_afb_artifact(request: Request, job_id: str) -> FileResponse:
     )
 
 
+@router.get(
+    "/jobs/{job_id}/artifacts/ai-trace",
+    responses={
+        200: {
+            "description": "Download AI trace artifact as JSON file",
+            "content": {"application/json": {}},
+        },
+        404: {
+            "description": "Job or AI trace artifact not found",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "job_not_found": {
+                            "value": {
+                                "error": {
+                                    "code": "job_not_found",
+                                    "message": "Job not found",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        },
+                        "artifact_not_found": {
+                            "value": {
+                                "error": {
+                                    "code": "artifact_not_found",
+                                    "message": "ai trace artifact not found",
+                                    "details": [],
+                                },
+                                "request_id": "<request-id>",
+                            }
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+def download_job_ai_trace_artifact(request: Request, job_id: str) -> FileResponse:
+    label = request.query_params.get("label")
+    return _download_job_trace_artifact(
+        request,
+        job_id=job_id,
+        label=label,
+        download_extension="json",
+    )
+
+
 def _download_job_artifact(
     request: Request,
     job_id: str,
@@ -903,6 +987,28 @@ def _download_job_artifact(
         path=absolute_path,
         media_type="application/json",
         filename=f"{job.id}-{artifact_type}.{download_extension}",
+    )
+
+
+def _download_job_trace_artifact(
+    request: Request,
+    job_id: str,
+    label: str | None,
+    download_extension: str,
+) -> FileResponse:
+    persistence_service = request.app.state.persistence_service
+    file_storage = request.app.state.file_storage
+
+    job = _get_job_or_404(persistence_service, job_id)
+
+    artifact = _get_ai_trace_artifact_or_404(persistence_service, job.id, label)
+    absolute_path = _resolve_artifact_path_or_404(file_storage, artifact.path, "ai trace")
+    suffix = f"-ai-trace-{label}" if label else "-ai-trace"
+
+    return FileResponse(
+        path=absolute_path,
+        media_type="application/json",
+        filename=f"{job.id}{suffix}.{download_extension}",
     )
 
 
@@ -952,6 +1058,9 @@ def get_job_result(request: Request, job_id: str) -> JobResultResponse:
     persisted per input source and used by downstream orchestration/extraction stages.
     Result payloads in this phase represent intermediate constrained extraction output
     rather than final flow graph/export artifacts.
+
+    The response also includes concise export artifact visibility where available,
+    mirroring the job status endpoint.
     """
     persistence_service = request.app.state.persistence_service
     job = _get_job_or_404(persistence_service, job_id)
@@ -967,10 +1076,16 @@ def get_job_result(request: Request, job_id: str) -> JobResultResponse:
     if not isinstance(parsed_result, dict):
         raise ConflictError(code="result_not_ready", message="Result is not ready", details=[])
 
+    artifacts = persistence_service.list_artifacts(job_id=job.id)
+    artifacts_summary = _build_job_artifacts_summary(request, job.id, artifacts)
+
     return JobResultResponse(
         job_id=job.id,
         status=job.status,
         result=parsed_result,
+        error_code=job.error_code,
+        error_message=job.error_message,
+        artifacts=artifacts_summary,
         request_id=request.state.request_id,
     )
 
@@ -1018,13 +1133,165 @@ def _get_job_or_404(persistence_service: Any, job_id: str) -> Any:
 
 def _get_artifact_or_404(persistence_service: Any, job_id: str, artifact_type: str) -> Any:
     artifacts = persistence_service.list_artifacts(job_id=job_id, artifact_type=artifact_type)
+    for artifact in artifacts:
+        if _artifact_is_downloadable(artifact):
+            return artifact
     if not artifacts:
         raise NotFoundError(
             code="artifact_not_found",
             message=f"{artifact_type} artifact not found",
             details=[],
         )
-    return artifacts[0]
+    raise NotFoundError(
+        code="artifact_not_found",
+        message=f"{artifact_type} artifact not found",
+        details=[],
+    )
+
+
+def _get_ai_trace_artifact_or_404(persistence_service: Any, job_id: str, label: str | None = None) -> Any:
+    artifacts = persistence_service.list_artifacts(job_id=job_id, artifact_type="ai_trace")
+    if label is not None:
+        matching = [artifact for artifact in artifacts if _artifact_trace_label(artifact) == label]
+    else:
+        matching = artifacts
+
+    if matching:
+        return matching[-1]
+
+    raise NotFoundError(
+        code="artifact_not_found",
+        message="ai trace artifact not found",
+        details=[],
+    )
+
+
+def _latest_artifact(artifacts: list[Any], artifact_type: str) -> Any | None:
+    matching = [artifact for artifact in artifacts if getattr(artifact, "type", None) == artifact_type]
+    if not matching:
+        return None
+    return matching[-1]
+
+
+def _latest_downloadable_artifact(artifacts: list[Any], artifact_type: str) -> Any | None:
+    matching = [artifact for artifact in artifacts if getattr(artifact, "type", None) == artifact_type]
+    for artifact in reversed(matching):
+        if _artifact_is_downloadable(artifact):
+            return artifact
+    return None
+
+
+def _build_job_artifacts_summary(request: Request, job_id: str, artifacts: list[Any]) -> JobArtifactsSummary:
+    api_prefix = request.app.state.settings.api_prefix
+    stix_downloadable = _latest_downloadable_artifact(artifacts, "stix")
+    afb_downloadable = _latest_downloadable_artifact(artifacts, "afb")
+    return JobArtifactsSummary(
+        has_stix=stix_downloadable is not None,
+        has_afb=afb_downloadable is not None,
+        stix_url=f"{api_prefix}/jobs/{job_id}/artifacts/stix" if stix_downloadable is not None else None,
+        afb_url=f"{api_prefix}/jobs/{job_id}/artifacts/afb" if afb_downloadable is not None else None,
+        stix_outcome=_build_artifact_outcome_summary(_latest_artifact(artifacts, "stix")),
+        afb_outcome=_build_artifact_outcome_summary(_latest_artifact(artifacts, "afb")),
+    )
+
+
+def _build_artifact_outcome_summary(artifact: Any | None) -> JobArtifactOutcomeSummary | None:
+    if artifact is None:
+        return None
+
+    metadata = _artifact_metadata(artifact)
+    validation_state = _artifact_value(artifact, "validation_state", metadata)
+    export_status = _artifact_value(artifact, "export_status", metadata)
+    validation_errors = _artifact_validation_errors(artifact, metadata)
+    checksum = _artifact_value(artifact, "sha256", metadata)
+    size_bytes = _artifact_value(artifact, "size_bytes", metadata)
+    created_at = _artifact_value(artifact, "created_at", metadata)
+    if created_at is not None:
+        created_at = _to_utc_z(created_at)
+
+    valid = None
+    if validation_state is not None or export_status is not None:
+        valid = validation_state == "valid" and export_status == "completed"
+
+    return JobArtifactOutcomeSummary(
+        valid=valid,
+        validation_state=validation_state,
+        export_status=export_status,
+        validation_error_count=len(validation_errors) if validation_errors is not None else None,
+        checksum=checksum,
+        size_bytes=size_bytes,
+        created_at=created_at,
+        error_code=_artifact_value(artifact, "error_code", metadata),
+        error_message=_artifact_value(artifact, "error_message", metadata),
+    )
+
+
+def _artifact_metadata(artifact: Any) -> dict[str, Any]:
+    metadata_json = getattr(artifact, "metadata_json", None)
+    if not metadata_json:
+        return {}
+    try:
+        parsed = json.loads(metadata_json)
+    except json.JSONDecodeError:
+        return {}
+    if isinstance(parsed, dict):
+        return parsed
+    return {}
+
+
+def _artifact_validation_errors(artifact: Any, metadata: dict[str, Any]) -> list[dict[str, Any]] | None:
+    validation_errors_json = getattr(artifact, "validation_errors_json", None)
+    if validation_errors_json is None:
+        validation_errors_json = metadata.get("validation_errors")
+    if validation_errors_json is None:
+        return None
+    if isinstance(validation_errors_json, list):
+        return validation_errors_json
+    if not isinstance(validation_errors_json, str):
+        return None
+    try:
+        parsed = json.loads(validation_errors_json)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(parsed, list):
+        return parsed
+    return None
+
+
+def _artifact_value(artifact: Any, field_name: str, metadata: dict[str, Any]) -> Any:
+    value = getattr(artifact, field_name, None)
+    if value is not None:
+        return value
+    return metadata.get(field_name)
+
+
+def _artifact_trace_label(artifact: Any) -> str | None:
+    metadata = _artifact_metadata(artifact)
+    label = metadata.get("label")
+    if isinstance(label, str) and label.strip():
+        return label.strip()
+    return None
+
+
+def _artifact_is_downloadable(artifact: Any) -> bool:
+    validation_state = getattr(artifact, "validation_state", None)
+    export_status = getattr(artifact, "export_status", None)
+    if validation_state is not None or export_status is not None:
+        return validation_state == "valid" and export_status == "completed"
+
+    metadata_json = getattr(artifact, "metadata_json", None)
+    if metadata_json is None:
+        return False
+
+    try:
+        metadata = json.loads(metadata_json)
+    except json.JSONDecodeError:
+        return False
+
+    if not isinstance(metadata, dict):
+        return False
+
+    return metadata.get("validation_state") == "valid" and metadata.get("export_status") == "completed"
 
 
 def _resolve_artifact_path_or_404(file_storage: Any, relative_path: str, artifact_type: str):

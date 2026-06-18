@@ -1,6 +1,7 @@
 import hashlib
 import json
 from pathlib import Path
+from uuid import uuid4
 
 from pydantic import BaseModel
 
@@ -8,6 +9,7 @@ from attack_flow_api.audit.audit_redaction import sanitize_audit_details
 from attack_flow_api.storage.models import Artifact, AuditEvent, InputSource, Job
 from attack_flow_api.storage.repositories import (
     ArtifactCreate,
+    ArtifactUpdate,
     AuditEventCreate,
     JobCanonicalFlowUpdate,
     InputSourceCreate,
@@ -23,7 +25,9 @@ from attack_flow_api.storage.repositories import (
     PersistenceRepository,
 )
 from attack_flow_api.services.afb_fusion_assembler import FusedOutputCandidate
+from attack_flow_api.services.afb_export_contracts import AfbExportArtifactMetadata
 from attack_flow_api.services.canonical_flow_contracts import CanonicalFlowOutput
+from attack_flow_api.services.stix_export_contracts import StixExportArtifactMetadata
 
 
 class PersistenceService:
@@ -138,8 +142,264 @@ class PersistenceService:
                     "path": artifact.path,
                     "size_bytes": artifact.size_bytes,
                 },
-            )
+        )
         return artifact
+
+    def update_artifact(self, artifact_id: str, payload: ArtifactUpdate) -> Artifact | None:
+        return self.repository.update_artifact(artifact_id, payload)
+
+    def create_stix_export_artifact(
+        self,
+        *,
+        job_id: str,
+        path: str,
+        size_bytes: int | None = None,
+        sha256: str | None = None,
+        metadata: StixExportArtifactMetadata | None = None,
+    ) -> Artifact:
+        return self._create_export_artifact(
+            job_id=job_id,
+            artifact_type="stix",
+            path=path,
+            sha256=sha256,
+            size_bytes=size_bytes,
+            metadata_json=(metadata.model_dump_json() if metadata is not None else None),
+            validation_state=(metadata.validation_state if metadata is not None else None),
+            validation_errors_json=(
+                json.dumps(metadata.validation_errors, sort_keys=True, separators=(",", ":"))
+                if metadata is not None
+                else None
+            ),
+            export_status=(metadata.export_status if metadata is not None else None),
+            error_code=(metadata.error_code if metadata is not None else None),
+            error_message=(metadata.error_message if metadata is not None else None),
+        )
+
+    def create_afb_export_artifact(
+        self,
+        *,
+        job_id: str,
+        path: str,
+        size_bytes: int | None = None,
+        sha256: str | None = None,
+        metadata: AfbExportArtifactMetadata | None = None,
+    ) -> Artifact:
+        return self._create_export_artifact(
+            job_id=job_id,
+            artifact_type="afb",
+            path=path,
+            sha256=sha256,
+            size_bytes=size_bytes,
+            metadata_json=(metadata.model_dump_json() if metadata is not None else None),
+            validation_state=(metadata.validation_state if metadata is not None else None),
+            validation_errors_json=(
+                json.dumps(metadata.validation_errors, sort_keys=True, separators=(",", ":"))
+                if metadata is not None
+                else None
+            ),
+            export_status=(metadata.export_status if metadata is not None else None),
+            error_code=(metadata.error_code if metadata is not None else None),
+            error_message=(metadata.error_message if metadata is not None else None),
+        )
+
+    def record_stix_export_completed(
+        self,
+        *,
+        job: Job,
+        artifact: Artifact,
+        bundle_id: str,
+        object_count: int,
+        exported_at: str,
+    ) -> AuditEvent | None:
+        return self._record_export_event(
+            job=job,
+            event_type="stix_export_completed",
+            message="stix export completed",
+            artifact=artifact,
+            bundle_id=bundle_id,
+            object_count=object_count,
+            exported_at=exported_at,
+        )
+
+    def record_stix_export_failed(
+        self,
+        *,
+        job: Job,
+        bundle_id: str | None,
+        object_count: int | None,
+        validation_errors: list[dict[str, object]],
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> AuditEvent | None:
+        return self._record_export_event(
+            job=job,
+            event_type="stix_export_failed",
+            message="stix export validation failed",
+            bundle_id=bundle_id,
+            object_count=object_count,
+            validation_errors=validation_errors,
+            error_code=error_code,
+            error_message=error_message,
+        )
+
+    def record_afb_export_completed(
+        self,
+        *,
+        job: Job,
+        artifact: Artifact,
+        bundle_id: str,
+        object_count: int,
+        exported_at: str,
+        schema_version: str | None = None,
+    ) -> AuditEvent | None:
+        return self._record_export_event(
+            job=job,
+            event_type="afb_export_completed",
+            message="afb export completed",
+            artifact=artifact,
+            bundle_id=bundle_id,
+            object_count=object_count,
+            exported_at=exported_at,
+            schema_version=schema_version,
+        )
+
+    def record_afb_export_failed(
+        self,
+        *,
+        job: Job,
+        bundle_id: str | None,
+        object_count: int | None,
+        validation_errors: list[dict[str, object]],
+        schema_version: str | None = None,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> AuditEvent | None:
+        return self._record_export_event(
+            job=job,
+            event_type="afb_export_failed",
+            message="afb export validation failed",
+            bundle_id=bundle_id,
+            object_count=object_count,
+            validation_errors=validation_errors,
+            schema_version=schema_version,
+            error_code=error_code,
+            error_message=error_message,
+        )
+
+    def _create_export_artifact(
+        self,
+        *,
+        job_id: str,
+        artifact_type: str,
+        path: str,
+        sha256: str | None,
+        size_bytes: int | None,
+        metadata_json: str | None,
+        validation_state: str | None = None,
+        validation_errors_json: str | None = None,
+        export_status: str | None = None,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> Artifact:
+        return self.create_artifact(
+            ArtifactCreate(
+                id=str(uuid4()),
+                job_id=job_id,
+                type=artifact_type,
+                path=path,
+                sha256=sha256,
+                size_bytes=size_bytes,
+                metadata_json=metadata_json,
+                validation_state=validation_state,
+                validation_errors_json=validation_errors_json,
+                export_status=export_status,
+                error_code=error_code,
+                error_message=error_message,
+            )
+        )
+
+    def _record_export_event(
+        self,
+        *,
+        job: Job,
+        event_type: str,
+        message: str,
+        bundle_id: str | None,
+        object_count: int | None,
+        validation_errors: list[dict[str, object]] | None = None,
+        artifact: Artifact | None = None,
+        exported_at: str | None = None,
+        schema_version: str | None = None,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> AuditEvent | None:
+        details: dict[str, object] = {
+            "bundle_id": bundle_id,
+            "object_count": object_count,
+        }
+        if validation_errors is not None:
+            details["validation_errors"] = validation_errors
+            details["validation_error_count"] = len(validation_errors)
+        if artifact is None and (validation_errors is not None or error_code is not None or error_message is not None):
+            details["artifact_valid"] = False
+            details["export_status"] = "failed"
+            details["validation_state"] = "invalid"
+        if artifact is not None:
+            validation_error_count = self._artifact_validation_error_count(artifact)
+            details.update(
+                {
+                    "artifact_id": artifact.id,
+                    "artifact_type": artifact.type,
+                    "path": artifact.path,
+                    "artifact_valid": artifact.validation_state == "valid"
+                    and artifact.export_status == "completed",
+                    "validation_state": artifact.validation_state,
+                    "export_status": artifact.export_status,
+                    "checksum": artifact.sha256,
+                    "size_bytes": artifact.size_bytes,
+                    "validation_error_count": validation_error_count,
+                    "error_code": artifact.error_code,
+                    "error_message": artifact.error_message,
+                }
+            )
+        if exported_at is not None:
+            details["exported_at"] = exported_at
+        if schema_version is not None:
+            details["schema_version"] = schema_version
+        if error_code is not None:
+            details["error_code"] = error_code
+        if error_message is not None:
+            details["error_message"] = error_message
+        return self.record_job_event(
+            job=job,
+            event_type=event_type,
+            message=message,
+            details=details,
+        )
+
+    def _artifact_validation_error_count(self, artifact: Artifact) -> int | None:
+        if artifact.validation_errors_json is not None:
+            return self._validation_error_count_json(artifact.validation_errors_json)
+        if artifact.metadata_json is None:
+            return None
+        try:
+            parsed = json.loads(artifact.metadata_json)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(parsed, dict):
+            validation_errors = parsed.get("validation_errors")
+            if isinstance(validation_errors, list):
+                return len(validation_errors)
+        return None
+
+    def _validation_error_count_json(self, validation_errors_json: str) -> int | None:
+        try:
+            parsed = json.loads(validation_errors_json)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(parsed, list):
+            return len(parsed)
+        return None
 
     def get_artifact_by_id(self, artifact_id: str) -> Artifact | None:
         return self.repository.get_artifact_by_id(artifact_id)

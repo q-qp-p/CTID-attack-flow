@@ -52,13 +52,18 @@ class TechniqueGrounding(BaseModel):
 
     technique_id: str | None = None
     technique_ref: str | None = None
+    technique_name: str | None = None
+    description: str | None = None
+    aliases: list[str] = Field(default_factory=list)
+    kill_chain_phases: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     confidence: float = Field(ge=0.0, le=1.0)
     grounded_by: str
 
     @model_validator(mode="after")
     def _require_technique_identifier(self) -> "TechniqueGrounding":
-        if not self.technique_id and not self.technique_ref:
-            raise ValueError("technique_id or technique_ref is required when technique grounding is present")
+        if not self.technique_id and not self.technique_ref and not self.technique_name:
+            raise ValueError("technique_id, technique_ref, or technique_name is required when technique grounding is present")
         return self
 
 
@@ -67,13 +72,14 @@ class TacticGrounding(BaseModel):
 
     tactic_id: str | None = None
     tactic_ref: str | None = None
+    tactic_name: str | None = None
     confidence: float = Field(ge=0.0, le=1.0)
     grounded_by: str
 
     @model_validator(mode="after")
     def _require_tactic_identifier(self) -> "TacticGrounding":
-        if not self.tactic_id and not self.tactic_ref:
-            raise ValueError("tactic_id or tactic_ref is required when tactic grounding is present")
+        if not self.tactic_id and not self.tactic_ref and not self.tactic_name:
+            raise ValueError("tactic_id, tactic_ref, or tactic_name is required when tactic grounding is present")
         return self
 
 
@@ -102,6 +108,7 @@ class AttackAssetNode(BaseModel):
     spec_version: str = Field(default="2.1")
     name: str
     description: str | None = None
+    tags: list[str] = Field(default_factory=list)
     object_ref: str | None = None
     evidence: list[EvidenceCitation] = Field(default_factory=list)
     confidence: float = Field(ge=0.0, le=1.0)

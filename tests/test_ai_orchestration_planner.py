@@ -9,7 +9,7 @@ def test_select_mode_full_extraction_for_narrative_input() -> None:
     normalized_package = {
         "source_type": "narrative_text",
         "normalized_text": "Observed execution details...",
-        "structured_summary": {},
+        "structured_summary": {"bundle_metadata": {}, "inventory": {}, "narrative": {}},
         "attack_refs": [],
         "entities": [],
         "relationships": [],
@@ -64,7 +64,7 @@ def test_build_provider_input_preserves_deterministic_findings() -> None:
     assert packaged.deterministic_relationships[0]["relationship_type"] == "uses"
 
 
-def test_build_provider_input_requires_attack_refs_to_skip_provider() -> None:
+def test_build_provider_input_uses_full_extraction_for_document_input() -> None:
     packaged = build_provider_orchestration_input(
         {
             "source_type": "document_extracted_text",
@@ -75,7 +75,7 @@ def test_build_provider_input_requires_attack_refs_to_skip_provider() -> None:
         }
     )
 
-    assert packaged.mode == OrchestrationMode.ENRICHMENT
+    assert packaged.mode == OrchestrationMode.FULL_EXTRACTION
     assert packaged.deterministic_input_sufficient is False
 
 

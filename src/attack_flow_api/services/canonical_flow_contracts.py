@@ -81,6 +81,11 @@ class CanonicalFlowTechniqueReference(BaseModel):
 
     technique_id: str | None = None
     technique_ref: str | None = None
+    technique_name: str | None = None
+    description: str | None = None
+    aliases: list[str] = Field(default_factory=list)
+    kill_chain_phases: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     source_object_id: str | None = None
     source_field: str | None = None
     source_classification: CanonicalFlowSourceClassification | None = None
@@ -132,6 +137,7 @@ class CanonicalFlowNodeBase(BaseModel):
     node_kind: CanonicalFlowNodeKind
     name: str | None = None
     description: str | None = None
+    tags: list[str] = Field(default_factory=list)
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     object_ref: str | None = None
     object_refs: list[str] = Field(default_factory=list)
@@ -149,6 +155,7 @@ class CanonicalFlowActionNode(CanonicalFlowNodeBase):
     node_kind: Literal[CanonicalFlowNodeKind.ATTACK_ACTION] = CanonicalFlowNodeKind.ATTACK_ACTION
     technique: CanonicalFlowTechniqueReference | None = None
     tactic_ref: str | None = None
+    tactic_name: str | None = None
 
 
 class CanonicalFlowConditionNode(CanonicalFlowNodeBase):
@@ -163,6 +170,7 @@ class CanonicalFlowOperatorNode(CanonicalFlowNodeBase):
 
 class CanonicalFlowAssetNode(CanonicalFlowNodeBase):
     node_kind: Literal[CanonicalFlowNodeKind.ATTACK_ASSET] = CanonicalFlowNodeKind.ATTACK_ASSET
+    stix_properties: dict[str, Any] = Field(default_factory=dict)
 
 
 CanonicalFlowNode = Annotated[

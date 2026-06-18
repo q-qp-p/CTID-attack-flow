@@ -38,18 +38,6 @@ def select_orchestration_mode(normalized_package: dict[str, object]) -> Orchestr
     source_type = str(normalized_package.get("source_type", "")).strip()
     if source_type == "stix_structured":
         return OrchestrationMode.ENRICHMENT
-
-    structured_summary = normalized_package.get("structured_summary")
-    attack_refs = normalized_package.get("attack_refs")
-    entities = normalized_package.get("entities")
-    relationships = normalized_package.get("relationships")
-    has_structured = isinstance(structured_summary, dict) and bool(structured_summary)
-    has_deterministic = any(
-        isinstance(value, list) and len(value) > 0
-        for value in (attack_refs, entities, relationships)
-    )
-    if has_structured or has_deterministic:
-        return OrchestrationMode.ENRICHMENT
     return OrchestrationMode.FULL_EXTRACTION
 
 

@@ -7,12 +7,15 @@ from types import MethodType, SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+import pytest
 
 from attack_flow_api.main import create_app
 from attack_flow_api.config import ProviderConfig
 from attack_flow_api.providers.registry import ProviderRegistry
 from attack_flow_api.services.ai_orchestration_service import AIOrchestrationExecutionResult
 from attack_flow_api.services.job_worker_service import _AIExtractionJobProcessingError
+from attack_flow_api.services.job_worker_service import assemble_afb_export_bundle as _assemble_afb_export_bundle
+import attack_flow_api.services.job_worker_service as job_worker_service
 from attack_flow_api.services.afb_extraction_contracts import (
     AfbExtractionResult,
     AttackFlowMetadata,
@@ -20,6 +23,7 @@ from attack_flow_api.services.afb_extraction_contracts import (
     OrchestrationMode,
     SourceClassification,
 )
+from attack_flow_api.services.afb_export_contracts import AfbExportCompatibilityError
 from attack_flow_api.services.afb_fusion_assembler import build_fused_output_candidate
 from attack_flow_api.services.afb_fusion_dedup import (
     MergedAttackAction,
@@ -27,6 +31,12 @@ from attack_flow_api.services.afb_fusion_dedup import (
     MergedAttachmentBundle,
     MergedEntity,
     MergedRelationship,
+)
+from attack_flow_api.services.canonical_flow_contracts import (
+    CanonicalFlowActionNode,
+    CanonicalFlowAssetNode,
+    CanonicalFlowMetadata,
+    CanonicalFlowOutput,
 )
 from attack_flow_api.storage.repositories import InputSourceCreate, JobCreate
 from attack_flow_api.services.plaintext_extraction import PlaintextExtractionError
@@ -629,6 +639,271 @@ def test_worker_builds_and_persists_canonical_flow_from_fused_output(monkeypatch
         assert json.loads(updated.canonical_flow_provenance_json or "{}")
 
 
+def test_worker_persists_stix_export_artifact_and_downloads_it(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        worker = client.app.state.job_worker
+        persistence = client.app.state.persistence_service
+
+        input_source = persistence.create_input_source(
+            InputSourceCreate(
+                id="input-export-1",
+                type="file",
+            )
+        )
+        canonical_flow = CanonicalFlowOutput(
+            metadata=CanonicalFlowMetadata(
+                flow_id="attack-flow--export-1",
+                name="Example flow",
+                scope="incident",
+                start_refs=["attack-action--1"],
+            ),
+            nodes=[
+                CanonicalFlowActionNode(
+                    id="attack-action--1",
+                    name="Example step",
+                    description="Observed command exactly as reported.",
+                    provenance=[
+                        {
+                            "source_label": "fused",
+                            "source_object_id": "attack-action--1",
+                        }
+                    ],
+                    evidence=[
+                        {
+                            "source": "narrative",
+                            "excerpt": "Observed command exactly as reported.",
+                        }
+                    ],
+                    asset_refs=["attack-asset--1"],
+                ),
+                CanonicalFlowAssetNode(
+                    id="attack-asset--1",
+                    name="Host asset",
+                    object_ref="malware--1",
+                    provenance=[
+                        {
+                            "source_label": "fused",
+                            "source_object_id": "attack-asset--1",
+                        }
+                    ],
+                ),
+            ],
+            edges=[],
+            provenance={"source": "fused"},
+            conflicts=[],
+            validation_errors=[],
+        )
+        persistence.create_job(
+            JobCreate(
+                id="job-export-1",
+                status="exporting",
+                stage="exporting",
+                input_source_id=input_source.id,
+                canonical_flow_json=canonical_flow.model_dump_json(),
+            )
+        )
+
+        worker._processing_stages = ("flow_building",)
+        asyncio.run(worker._process_claimed_job("job-export-1"))
+
+        updated = persistence.get_job("job-export-1")
+        assert updated is not None
+        assert updated.status == "completed"
+
+        artifacts = persistence.list_artifacts(job_id="job-export-1", artifact_type="stix")
+        assert len(artifacts) == 1
+        artifact = artifacts[0]
+        assert artifact.metadata_json is not None
+        assert json.loads(artifact.metadata_json)["validation_state"] == "valid"
+
+        afb_artifacts = persistence.list_artifacts(job_id="job-export-1", artifact_type="afb")
+        assert len(afb_artifacts) == 1
+        afb_artifact = afb_artifacts[0]
+        assert afb_artifact.metadata_json is not None
+        assert json.loads(afb_artifact.metadata_json)["validation_state"] == "valid"
+
+        response = client.get("/api/v1/jobs/job-export-1/artifacts/stix")
+        assert response.status_code == 200
+        assert response.json()["type"] == "bundle"
+        assert response.json()["objects"][0]["type"] == "attack-flow"
+
+        status_response = client.get("/api/v1/jobs/job-export-1")
+        status_payload = status_response.json()
+        assert status_payload["artifacts"]["has_stix"] is True
+        assert status_payload["artifacts"]["stix_outcome"]["valid"] is True
+        assert status_payload["artifacts"]["stix_outcome"]["export_status"] == "completed"
+
+        audit_response = client.get("/api/v1/jobs/job-export-1/audit")
+        audit_payload = audit_response.json()
+        stix_completed_event = next(
+            event for event in audit_payload["events"] if event["event_type"] == "stix_export_completed"
+        )
+        assert stix_completed_event["details"]["artifact_valid"] is True
+        assert stix_completed_event["details"]["export_status"] == "completed"
+        assert stix_completed_event["details"]["validation_state"] == "valid"
+
+        afb_response = client.get("/api/v1/jobs/job-export-1/artifacts/afb")
+        assert afb_response.status_code == 200
+        afb_payload = afb_response.json()
+        assert afb_payload["schema"] == "attack_flow_v2"
+        assert afb_payload["objects"][0]["id"] == "flow"
+        assert afb_payload["objects"][0]["objects"][0] == "attack-action--1"
+
+
+def test_worker_marks_failed_export_without_publishing_artifact(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        worker = client.app.state.job_worker
+        persistence = client.app.state.persistence_service
+
+        input_source = persistence.create_input_source(
+            InputSourceCreate(
+                id="input-export-2",
+                type="file",
+            )
+        )
+        canonical_flow = CanonicalFlowOutput(
+            metadata=CanonicalFlowMetadata(
+                flow_id="attack-flow--export-2",
+                name="Example flow",
+                scope="incident",
+                start_refs=["attack-action--1"],
+            ),
+            nodes=[
+                CanonicalFlowActionNode(
+                    id="attack-action--1",
+                    name="Example step",
+                    description="Observed command exactly as reported.",
+                    asset_refs=["attack-asset--missing"],
+                )
+            ],
+            edges=[],
+            provenance={"source": "fused"},
+            conflicts=[],
+            validation_errors=[],
+        )
+        persistence.create_job(
+            JobCreate(
+                id="job-export-2",
+                status="exporting",
+                stage="exporting",
+                input_source_id=input_source.id,
+                canonical_flow_json=canonical_flow.model_dump_json(),
+            )
+        )
+
+        worker._processing_stages = ("flow_building",)
+        asyncio.run(worker._process_claimed_job("job-export-2"))
+
+        updated = persistence.get_job("job-export-2")
+        assert updated is not None
+        assert updated.status == "failed"
+        assert updated.error_code == "export_validation_failed"
+
+        artifacts = persistence.list_artifacts(job_id="job-export-2", artifact_type="stix")
+        assert artifacts == []
+
+        afb_artifacts = persistence.list_artifacts(job_id="job-export-2", artifact_type="afb")
+        assert afb_artifacts == []
+
+        response = client.get("/api/v1/jobs/job-export-2/artifacts/stix")
+        assert response.status_code == 404
+
+        audit_response = client.get("/api/v1/jobs/job-export-2/audit")
+        audit_payload = audit_response.json()
+        failed_event = next(
+            event for event in audit_payload["events"] if event["event_type"] == "stix_export_failed"
+        )
+        assert failed_event["details"]["artifact_valid"] is False
+        assert failed_event["details"]["export_status"] == "failed"
+        assert failed_event["details"]["validation_errors"]
+        assert failed_event["details"]["error_code"] == "export_validation_failed"
+        assert failed_event["details"]["error_message"] == "export validation failed"
+
+
+def test_worker_marks_failed_afb_export_without_publishing_artifact(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        worker = client.app.state.job_worker
+        persistence = client.app.state.persistence_service
+
+        input_source = persistence.create_input_source(
+            InputSourceCreate(
+                id="input-afb-export-1",
+                type="file",
+            )
+        )
+        canonical_flow = CanonicalFlowOutput(
+            metadata=CanonicalFlowMetadata(
+                flow_id="attack-flow--afb-export-1",
+                name="Example flow",
+                scope="incident",
+                start_refs=["attack-action--1"],
+            ),
+            nodes=[
+                CanonicalFlowActionNode(
+                    id="attack-action--1",
+                    name="Example step",
+                    description="Observed command exactly as reported.",
+                    asset_refs=["attack-asset--1"],
+                ),
+                CanonicalFlowAssetNode(
+                    id="attack-asset--1",
+                    name="Host asset",
+                    object_ref="malware--1",
+                ),
+            ],
+            edges=[],
+            provenance={"source": "fused"},
+            conflicts=[],
+            validation_errors=[],
+        )
+        persistence.create_job(
+            JobCreate(
+                id="job-afb-export-1",
+                status="exporting",
+                stage="exporting",
+                input_source_id=input_source.id,
+                canonical_flow_json=canonical_flow.model_dump_json(),
+            )
+        )
+
+        def failing_assemble(canonical_flow):
+            bundle = _assemble_afb_export_bundle(canonical_flow)
+            bundle.validation_errors = [
+                AfbExportCompatibilityError(code="forced_invalid", message="forced invalid export")
+            ]
+            return bundle
+
+        monkeypatch.setattr(job_worker_service, "assemble_afb_export_bundle", failing_assemble)
+
+        worker._processing_stages = ("flow_building",)
+        asyncio.run(worker._process_claimed_job("job-afb-export-1"))
+
+        updated = persistence.get_job("job-afb-export-1")
+        assert updated is not None
+        assert updated.status == "failed"
+        assert updated.error_code == "export_validation_failed"
+
+        artifacts = persistence.list_artifacts(job_id="job-afb-export-1", artifact_type="afb")
+        assert artifacts == []
+
+        stix_artifacts = persistence.list_artifacts(job_id="job-afb-export-1", artifact_type="stix")
+        assert len(stix_artifacts) == 1
+
+        response = client.get("/api/v1/jobs/job-afb-export-1/artifacts/afb")
+        assert response.status_code == 404
+
+        audit_response = client.get("/api/v1/jobs/job-afb-export-1/audit")
+        audit_payload = audit_response.json()
+        failed_event = next(
+            event for event in audit_payload["events"] if event["event_type"] == "afb_export_failed"
+        )
+        assert failed_event["details"]["artifact_valid"] is False
+        assert failed_event["details"]["export_status"] == "failed"
+        assert failed_event["details"]["validation_errors"]
+        assert failed_event["details"]["error_code"] == "export_validation_failed"
+        assert failed_event["details"]["error_message"] == "export validation failed"
+
+
 def test_worker_falls_back_to_afb_output_when_fused_output_missing(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
         worker = client.app.state.job_worker
@@ -908,6 +1183,89 @@ def test_worker_persists_url_fetch_failure_and_continues_next_job(monkeypatch, t
             assert input_row is not None
             assert input_row["fetch_error_code"] == "fetch_timeout"
             assert "timed out" in input_row["fetch_error_message"]
+
+
+def test_worker_marks_url_job_unsafe_when_fetch_blocks_private_destination(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        client.app.state.job_worker.poll_interval_seconds = 0.01
+
+        with patch("attack_flow_api.services.job_worker_service.fetch_url_bounded") as mocked_fetch:
+            mocked_fetch.side_effect = UrlFetchError("unsafe_destination", "destination resolves to private address")
+
+            response = client.post(
+                "/api/v1/jobs",
+                json={"input_type": "url", "url": "https://blocked.example/report"},
+            )
+            job_id = response.json()["job_id"]
+
+            failed_payload = _wait_for_status(client, job_id, "failed")
+            assert failed_payload is not None
+
+        with sqlite3.connect(client.app.state.sqlite_path) as connection:
+            connection.row_factory = sqlite3.Row
+            job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            assert job_row is not None
+            assert job_row["error_code"] == "url_destination_unsafe"
+            assert "private address" in job_row["error_message"]
+
+            input_row = connection.execute(
+                "SELECT fetch_error_code, fetch_error_message FROM input_sources WHERE id = ?",
+                (job_row["input_source_id"],),
+            ).fetchone()
+            assert input_row is not None
+            assert input_row["fetch_error_code"] == "unsafe_destination"
+            assert "private address" in input_row["fetch_error_message"]
+
+            audit_rows = connection.execute(
+                "SELECT event_type FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+                (job_id,),
+            ).fetchall()
+            assert "job_failed" in {row["event_type"] for row in audit_rows}
+
+
+@pytest.mark.parametrize(
+    ("fetch_error_code", "job_error_code"),
+    [
+        ("redirect_limit_exceeded", "url_redirect_limit_exceeded"),
+        ("response_too_large", "url_response_too_large"),
+        ("fetch_failed", "url_fetch_failed"),
+    ],
+)
+def test_worker_maps_url_fetch_errors_to_job_errors(
+    monkeypatch,
+    tmp_path: Path,
+    fetch_error_code: str,
+    job_error_code: str,
+):
+    with _build_client(monkeypatch, tmp_path) as client:
+        client.app.state.job_worker.poll_interval_seconds = 0.01
+
+        with patch("attack_flow_api.services.job_worker_service.fetch_url_bounded") as mocked_fetch:
+            mocked_fetch.side_effect = UrlFetchError(fetch_error_code, f"{fetch_error_code} message")
+
+            response = client.post(
+                "/api/v1/jobs",
+                json={"input_type": "url", "url": "https://example.com/report"},
+            )
+            job_id = response.json()["job_id"]
+
+            failed_payload = _wait_for_status(client, job_id, "failed")
+            assert failed_payload is not None
+
+        with sqlite3.connect(client.app.state.sqlite_path) as connection:
+            connection.row_factory = sqlite3.Row
+            job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            assert job_row is not None
+            assert job_row["error_code"] == job_error_code
+            assert fetch_error_code in job_row["error_message"]
+
+            input_row = connection.execute(
+                "SELECT fetch_error_code, fetch_error_message FROM input_sources WHERE id = ?",
+                (job_row["input_source_id"],),
+            ).fetchone()
+            assert input_row is not None
+            assert input_row["fetch_error_code"] == fetch_error_code
+            assert fetch_error_code in input_row["fetch_error_message"]
 
 
 def test_non_http_https_url_is_rejected_before_worker_processing(monkeypatch, tmp_path: Path):
