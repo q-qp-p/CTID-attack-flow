@@ -28,7 +28,7 @@ describe("SpawnMitigation", () => {
         expect(command.sourceId).toBe("M1021");
         expect(command.objectType).toBe("mitigation");
         expect(command.object.id).toBe("mitigation");
-        expect(command.object.properties.get("id", StringProperty)?.value).toBe("M1021");
+        expect(command.object.properties.get("mitigation_id", StringProperty)?.value).toBe("M1021");
         expect(command.object.properties.get("name", StringProperty)?.value).toBe("Restrict Web-Based Content");
     });
 

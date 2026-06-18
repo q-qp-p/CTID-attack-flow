@@ -28,7 +28,7 @@ describe("SpawnDetection", () => {
         expect(command.sourceId).toBe("DET0516");
         expect(command.objectType).toBe("detection");
         expect(command.object.id).toBe("detection");
-        expect(command.object.properties.get("id", StringProperty)?.value).toBe("DET0516");
+        expect(command.object.properties.get("detection_id", StringProperty)?.value).toBe("DET0516");
         expect(command.object.properties.get("name", StringProperty)?.value)
             .toBe("Behavioral Detection of Command and Scripting Interpreter Abuse");
     });

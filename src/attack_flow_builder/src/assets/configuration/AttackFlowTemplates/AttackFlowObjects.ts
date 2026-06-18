@@ -53,7 +53,7 @@ export const AttackFlowObjects: DiagramObjectTemplate[] = [
                     }
                 }
             },
-            id: {
+            mitigation_id: {
                 name: "ID",
                 type: PropertyType.String
             },
@@ -81,7 +81,7 @@ export const AttackFlowObjects: DiagramObjectTemplate[] = [
                     }
                 }
             },
-            id: {
+            detection_id: {
                 name: "ID",
                 type: PropertyType.String
             },

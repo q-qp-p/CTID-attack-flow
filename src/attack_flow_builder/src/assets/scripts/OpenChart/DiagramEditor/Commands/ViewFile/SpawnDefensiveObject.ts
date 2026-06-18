@@ -6,6 +6,11 @@ import type { DiagramViewFile } from "@OpenChart/DiagramView";
 export type DefensiveObjectType = "mitigation" | "detection";
 export type DefensiveSourceObject = SourceObject & { type: DefensiveObjectType };
 
+const DefensiveObjectIdProperties: Record<DefensiveObjectType, string> = {
+    mitigation: "mitigation_id",
+    detection: "detection_id"
+};
+
 export abstract class SpawnDefensiveObject extends SpawnObject {
 
     /**
@@ -54,7 +59,8 @@ export abstract class SpawnDefensiveObject extends SpawnObject {
      *  The defensive object's source object.
      */
     private configureDefensiveObject(sourceObject: DefensiveSourceObject): void {
-        this.object.properties.get("id", StringProperty)?.setValue(sourceObject.id);
+        const idProperty = DefensiveObjectIdProperties[sourceObject.type];
+        this.object.properties.get(idProperty, StringProperty)?.setValue(sourceObject.id);
         this.object.properties.get("name", StringProperty)?.setValue(sourceObject.name);
     }
 

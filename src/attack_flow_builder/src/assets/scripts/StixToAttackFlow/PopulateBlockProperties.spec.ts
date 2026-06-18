@@ -74,3 +74,27 @@ describe("PopulateBlockProperties - handleTTPTuple", () => {
         expect(technique).toBeNull();
     });
 });
+
+describe("PopulateBlockProperties - defensive object IDs", () => {
+    it("sets mitigation_id on mitigation objects", () => {
+        const root = new DictionaryProperty({ id: "root", editable: true });
+        const mitigationId = new StringProperty({ id: "mitigation_id", editable: true });
+        root.addProperty(mitigationId, "mitigation_id");
+        const stix = { type: "mitigation", mitigation_id: "M1021" } as unknown as StixObject;
+
+        populateProperties(stix, root);
+
+        expect(mitigationId.value).toBe("M1021");
+    });
+
+    it("sets detection_id on detection objects", () => {
+        const root = new DictionaryProperty({ id: "root", editable: true });
+        const detectionId = new StringProperty({ id: "detection_id", editable: true });
+        root.addProperty(detectionId, "detection_id");
+        const stix = { type: "detection", detection_id: "DET0516" } as unknown as StixObject;
+
+        populateProperties(stix, root);
+
+        expect(detectionId.value).toBe("DET0516");
+    });
+});

@@ -7,7 +7,8 @@ import {
     Block,
     Line,
     DiagramModelFile,
-    DiagramObjectFactory
+    DiagramObjectFactory,
+    StringProperty
 } from "@OpenChart/DiagramModel";
 
 /**
@@ -198,5 +199,37 @@ describe("AttackFlowPublisher - condition branch mapping", () => {
         const rel = sros.find((r: any) => r.source_ref === conditionId && r.target_ref === actionId);
         expect(rel).toBeDefined();
         expect(rel.relationship_type).toBe("related-to");
+    });
+});
+
+describe("AttackFlowPublisher - defensive object IDs", () => {
+    it("exports mitigation_id without overwriting the STIX id", () => {
+        const factory = buildFactory();
+        const file = new DiagramModelFile(factory);
+        createBlock(factory, file, "action");
+        const mitigation = createBlock(factory, file, "mitigation");
+        mitigation.properties.get("mitigation_id", StringProperty)?.setValue("M1021");
+
+        const bundle = publish(file);
+        const mitigationSdo = bundle.objects.find(o => o.type === "mitigation");
+
+        expect(mitigationSdo).toBeDefined();
+        expect(mitigationSdo.id).toBe(`mitigation--${mitigation.instance}`);
+        expect(mitigationSdo.mitigation_id).toBe("M1021");
+    });
+
+    it("exports detection_id without overwriting the STIX id", () => {
+        const factory = buildFactory();
+        const file = new DiagramModelFile(factory);
+        createBlock(factory, file, "action");
+        const detection = createBlock(factory, file, "detection");
+        detection.properties.get("detection_id", StringProperty)?.setValue("DET0516");
+
+        const bundle = publish(file);
+        const detectionSdo = bundle.objects.find(o => o.type === "detection");
+
+        expect(detectionSdo).toBeDefined();
+        expect(detectionSdo.id).toBe(`detection--${detection.instance}`);
+        expect(detectionSdo.detection_id).toBe("DET0516");
     });
 });
