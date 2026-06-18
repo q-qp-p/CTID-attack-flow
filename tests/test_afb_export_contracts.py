@@ -492,6 +492,62 @@ def test_assemble_afb_export_bundle_renders_action_to_action_connector() -> None
     assert diagram_export["layout"]["attack-action--2"][1] > diagram_export["layout"]["attack-action--1"][1]
 
 
+def test_assemble_afb_export_bundle_renders_condition_branch_connectors() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--diagram-2b",
+            name="Example flow",
+            scope="incident",
+            start_refs=["attack-condition--1"],
+        ),
+        nodes=[
+            CanonicalFlowConditionNode(
+                id="attack-condition--1",
+                description="Choose the OR branch.",
+                condition_value="true",
+                on_true_refs=["attack-action--1", "attack-action--2"],
+                on_false_refs=["attack-action--3"],
+            ),
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Observed step one",
+                description="Observed command exactly as reported.",
+            ),
+            CanonicalFlowActionNode(
+                id="attack-action--2",
+                name="Observed step two",
+                description="Observed command exactly as reported.",
+            ),
+            CanonicalFlowActionNode(
+                id="attack-action--3",
+                name="Observed step three",
+                description="Observed command exactly as reported.",
+            ),
+        ],
+        edges=[
+            CanonicalFlowEdge(source_ref="attack-condition--1", target_ref="attack-action--1", edge_type=CanonicalFlowEdgeKind.TRUE_BRANCH),
+            CanonicalFlowEdge(source_ref="attack-condition--1", target_ref="attack-action--2", edge_type=CanonicalFlowEdgeKind.TRUE_BRANCH),
+            CanonicalFlowEdge(source_ref="attack-condition--1", target_ref="attack-action--3", edge_type=CanonicalFlowEdgeKind.FALSE_BRANCH),
+        ],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    bundle = assemble_afb_export_bundle(canonical)
+    diagram_export = bundle.to_diagram_export_ready()
+    line_exports = [item for item in diagram_export["objects"] if item["id"] == "dynamic_line"]
+    condition = next(item for item in diagram_export["objects"] if item.get("id") == "condition")
+
+    assert len(line_exports) >= 3
+    assert condition["anchors"]["branch:True"]
+    assert condition["anchors"]["branch:False"]
+    assert diagram_export["layout"]["attack-condition--1"] == [0.0, 0.0]
+    assert diagram_export["layout"]["attack-action--1"][1] > diagram_export["layout"]["attack-condition--1"][1]
+    assert diagram_export["layout"]["attack-action--2"][1] > diagram_export["layout"]["attack-condition--1"][1]
+    assert diagram_export["layout"]["attack-action--3"][1] > diagram_export["layout"]["attack-condition--1"][1]
+
+
 def test_assemble_afb_export_bundle_falls_back_to_sequential_action_chain() -> None:
     canonical = CanonicalFlowOutput(
         metadata=CanonicalFlowMetadata(

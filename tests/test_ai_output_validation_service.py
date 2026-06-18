@@ -806,6 +806,76 @@ def test_legacy_attack_flow_objects_shape_is_coerced() -> None:
     assert result.extraction_result.attack_operators[0].evidence[0].excerpt == "The source explicitly shows an OR branch."
 
 
+def test_legacy_attack_operator_children_shape_is_coerced() -> None:
+    packaged = build_provider_orchestration_input(
+        {
+            "source_type": "narrative_text",
+            "normalized_text": "The source describes an OR branch.",
+            "metadata": {"title": "Legacy operator children example"},
+        }
+    )
+    output_json = {
+        "validation_state": "valid",
+        "provider_invoked": True,
+        "attack_flow": {
+            "type": "attack-flow",
+            "name": "Legacy operator children example",
+            "objects": [
+                {
+                    "id": "action-1",
+                    "type": "attack-action",
+                    "name": "Initial step",
+                    "description": "Observed command: whoami",
+                    "confidence": 0.95,
+                    "evidence": [{"source": "report", "excerpt": "Observed command: whoami"}],
+                },
+                {
+                    "id": "operator-1",
+                    "type": "attack-operator",
+                    "operator": "OR",
+                    "confidence": 0.9,
+                    "children": ["action-2", "action-3"],
+                    "evidence": "The source explicitly shows an OR branch.",
+                },
+                {
+                    "id": "action-2",
+                    "type": "attack-action",
+                    "name": "Branch A",
+                    "description": "Observed command: whoami",
+                    "confidence": 0.88,
+                    "evidence": [{"source": "report", "excerpt": "Observed command: whoami"}],
+                },
+                {
+                    "id": "action-3",
+                    "type": "attack-action",
+                    "name": "Branch B",
+                    "description": "Observed command: whoami",
+                    "confidence": 0.88,
+                    "evidence": [{"source": "report", "excerpt": "Observed command: whoami"}],
+                },
+            ],
+        },
+    }
+    invocation_result = ProviderInvocationResult(
+        provider_invoked=True,
+        provider_id="default-openai",
+        model_used="gpt-5.4",
+        deterministic_input_sufficient=False,
+        output_json=output_json,
+    )
+
+    result = parse_validate_and_repair_extraction_output(
+        invocation_result=invocation_result,
+        packaged_input=packaged,
+    )
+
+    assert result.valid is True
+    assert result.extraction_result is not None
+    operator = result.extraction_result.attack_operators[0]
+    assert operator.id == "operator-1"
+    assert operator.effect_refs == ["action-2", "action-3"]
+
+
 def test_legacy_bundle_shape_is_coerced() -> None:
     packaged = build_provider_orchestration_input(
         {

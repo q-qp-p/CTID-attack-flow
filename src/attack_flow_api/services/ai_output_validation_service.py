@@ -508,7 +508,11 @@ def _coerce_legacy_object_to_operator(item: dict[str, Any], index: int) -> dict[
         "id": _first_non_empty_string(_as_str(item.get("id")), _as_str(item.get("operator_id")), f"attack-operator--{index}"),
         "operator": _first_non_empty_string(_as_str(item.get("operator")), "OR"),
         "confidence": _coerce_float(item.get("confidence"), default=0.5),
-        "effect_refs": _as_str_list(item.get("effect_refs")) or _as_str_list(item.get("action_refs")),
+        "effect_refs": _dedupe_preserve_order(
+            _as_str_list(item.get("effect_refs"))
+            + _as_str_list(item.get("action_refs"))
+            + _as_str_list(item.get("children"))
+        ),
         "evidence": normalized_evidence,
         "citations": _as_str_list(item.get("citations")),
         "fact_origin": _as_str(item.get("fact_origin")) or "ai_generated",
