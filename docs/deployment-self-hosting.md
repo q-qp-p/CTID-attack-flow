@@ -28,7 +28,7 @@ Proxy certificate support:
 - `Dockerfile.api` copies `certs/` into the image and imports those certificates during build.
 - Rebuild the API image after changing certificates.
 
-## Provider Configuration and Metadata (AFA-30)
+## Provider Configuration and Metadata
 
 Provider configuration is loaded from `PROVIDERS_CONFIG_PATH` into a registry-backed abstraction layer.
 
@@ -41,12 +41,12 @@ Provider configuration is loaded from `PROVIDERS_CONFIG_PATH` into a registry-ba
 
 Keep provider secrets in environment variables or your secret manager. Do not store secret values in repository config files.
 
-## Provider Validation API (AFA-31)
+## Provider Validation API
 
-AFA-31 introduces provider validation through the API:
+Provider validation is available through the API:
 
 - `POST /api/v1/providers/validate` validates a configured provider by `provider_id`.
-- Validation runs through the provider abstraction/registry layer and currently uses the OpenAI concrete adapter for `provider_type=openai`.
+- Validation runs through the provider abstraction/registry layer and currently uses the OpenAI concrete adapter for `provider_type=openai` and `provider_type=azure_openai`.
 - OpenAI adapter behavior for validation supports practical runtime controls:
   - model selection from request/default/allowed models,
   - bounded timeout behavior,
@@ -55,15 +55,15 @@ AFA-31 introduces provider validation through the API:
   - includes result/status metadata and `request_id`,
   - does not expose provider secrets or secret-bearing config fields.
 
-## Orchestration Behavior (AFA-32)
+## Orchestration Behavior
 
-AFA-32 introduces orchestration in the worker pipeline (`ai_extraction` stage) using canonical normalized input.
+Orchestration runs in the worker pipeline (`ai_extraction` stage) using canonical normalized input.
 
-- Canonical normalized package data (AFA-23) is the orchestration source input.
+- Canonical normalized package data is the orchestration source input.
 - Orchestration modes:
   - `full_extraction` for narrative-heavy inputs,
   - `enrichment` for deterministic structured STIX/OpenCTI-derived inputs.
-- Deterministic findings from AFA-24 are preserved in intermediate output:
+- Deterministic findings are preserved in intermediate output:
   - explicit ATT&CK refs,
   - entities,
   - relationships,
@@ -81,12 +81,12 @@ AFA-32 introduces orchestration in the worker pipeline (`ai_extraction` stage) u
 
 This stage intentionally does not produce final flow graph/export artifacts.
 
-## Canonical Flow Behavior (AFA-33)
+## Canonical Flow Behavior
 
-AFA-33 adds the internal canonical flow model used after orchestration/extraction.
+This adds the internal canonical flow model used after orchestration/extraction.
 
-- AFA-34 fused output is converted into one canonical internal flow model.
-- AFA-32 direct extraction output may be used as fallback only if it is passed into the canonical converter.
+- Fused output is converted into one canonical internal flow model.
+- Direct extraction output may be used as fallback only if it is passed into the canonical converter.
 - The canonical model preserves actions, conditions, operators, assets/attachments, ATT&CK refs, evidence, confidence, provenance, authors, external references, and conflict metadata when present.
 - Only explicit source-grounded ATT&CK techniques are allowed.
 - Steps without ATT&CK mappings are allowed.
@@ -96,9 +96,9 @@ AFA-33 adds the internal canonical flow model used after orchestration/extractio
 
 This is an internal worker-stage model and does not change the public API surface.
 
-## STIX Export Behavior (AFA-40)
+## STIX Export Behavior
 
-AFA-40 exports the canonical constrained flow model as a STIX 2.1 bundle after canonical flow persistence.
+This exports the canonical constrained flow model as a STIX 2.1 bundle after canonical flow persistence.
 
 - Attack Flow extension objects are used where appropriate.
 - Only explicit ATT&CK techniques from source are exported as technique mappings.
@@ -109,9 +109,9 @@ AFA-40 exports the canonical constrained flow model as a STIX 2.1 bundle after c
 - Valid STIX artifacts are persisted and retrievable through `GET /api/v1/jobs/{job_id}/artifacts/stix`.
 - Invalid exports fail clearly and are not exposed as successful artifacts.
 
-## AFB Export Behavior (AFA-41)
+## AFB Export Behavior
 
-AFA-41 exports the canonical constrained flow model to a pinned Attack Flow v2-compatible AFB artifact.
+This exports the canonical constrained flow model to a pinned Attack Flow v2-compatible AFB artifact.
 
 - Canonical flow metadata is mapped into the pinned `attack-flow` root object.
 - Only explicit ATT&CK techniques from source are exported as technique mappings.
@@ -126,7 +126,7 @@ Practical limitation:
 
 - The export target is intentionally pinned to the local Attack Flow v2 schema and extension definition.
 
-## Shared Export Finalization (AFA-42)
+## Shared Export Finalization
 
 - Exporters validate output before success is finalized.
 - Artifact metadata is persisted consistently for valid STIX/AFB exports.
@@ -134,7 +134,7 @@ Practical limitation:
 - Export validation failures are visible through existing job status/result/audit surfaces where practical.
 - The partial failure policy is all-or-nothing at the job level: all requested exports are attempted, but the job fails if any export is invalid.
 
-## Audit Trail (AFA-14)
+## Audit Trail
 
 Jobs emit structured audit events across the lifecycle, and the API exposes a debug-oriented retrieval endpoint:
 

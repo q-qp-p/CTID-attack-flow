@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -36,75 +37,19 @@ class PayloadTooLargeError(Exception):
 
 
 async def bad_request_exception_handler(request: Request, exc: BadRequestError) -> JSONResponse:
-    request_id = getattr(request.state, "request_id", "")
-    response = JSONResponse(
-        status_code=400,
-        content={
-            "error": {
-                "code": exc.code,
-                "message": exc.message,
-                "details": exc.details,
-            },
-            "request_id": request_id,
-        },
-    )
-    if request_id:
-        response.headers[REQUEST_ID_HEADER] = request_id
-    return response
+    return _structured_error_response(request, 400, exc)
 
 
 async def not_found_exception_handler(request: Request, exc: NotFoundError) -> JSONResponse:
-    request_id = getattr(request.state, "request_id", "")
-    response = JSONResponse(
-        status_code=404,
-        content={
-            "error": {
-                "code": exc.code,
-                "message": exc.message,
-                "details": exc.details,
-            },
-            "request_id": request_id,
-        },
-    )
-    if request_id:
-        response.headers[REQUEST_ID_HEADER] = request_id
-    return response
+    return _structured_error_response(request, 404, exc)
 
 
 async def conflict_exception_handler(request: Request, exc: ConflictError) -> JSONResponse:
-    request_id = getattr(request.state, "request_id", "")
-    response = JSONResponse(
-        status_code=409,
-        content={
-            "error": {
-                "code": exc.code,
-                "message": exc.message,
-                "details": exc.details,
-            },
-            "request_id": request_id,
-        },
-    )
-    if request_id:
-        response.headers[REQUEST_ID_HEADER] = request_id
-    return response
+    return _structured_error_response(request, 409, exc)
 
 
 async def payload_too_large_exception_handler(request: Request, exc: PayloadTooLargeError) -> JSONResponse:
-    request_id = getattr(request.state, "request_id", "")
-    response = JSONResponse(
-        status_code=413,
-        content={
-            "error": {
-                "code": exc.code,
-                "message": exc.message,
-                "details": exc.details,
-            },
-            "request_id": request_id,
-        },
-    )
-    if request_id:
-        response.headers[REQUEST_ID_HEADER] = request_id
-    return response
+    return _structured_error_response(request, 413, exc)
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -133,6 +78,32 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         },
     )
 
+    if request_id:
+        response.headers[REQUEST_ID_HEADER] = request_id
+    return response
+
+
+class _StructuredError(Protocol):
+    code: str
+    message: str
+    details: list[dict[str, object]]
+
+
+def _structured_error_response(
+    request: Request, status_code: int, exc: _StructuredError
+) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", "")
+    response = JSONResponse(
+        status_code=status_code,
+        content={
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "details": exc.details,
+            },
+            "request_id": request_id,
+        },
+    )
     if request_id:
         response.headers[REQUEST_ID_HEADER] = request_id
     return response

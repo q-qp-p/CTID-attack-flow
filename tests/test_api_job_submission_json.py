@@ -75,7 +75,7 @@ providers:
     base_url: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY
     default_model: gpt-4.1-mini
-    models:
+    allowed_models:
       - gpt-4.1-mini
 """.strip()
         + "\n",

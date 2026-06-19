@@ -153,7 +153,7 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
     - Supported input classes (text, URL-derived narrative, document-derived narrative, STIX/OpenCTI)
       produce a canonical normalized representation for downstream stages.
     - Narrative inputs contribute normalized narrative text.
-    - STIX/OpenCTI inputs consume deterministic AFA-24 structured extraction outputs.
+    - STIX/OpenCTI inputs consume deterministic structured extraction outputs.
     - Explicit ATT&CK refs, entities, relationships, and provenance are preserved in the
       canonical normalized package.
     - Content budgeting/truncation is applied explicitly to canonical normalized text where needed.
@@ -167,7 +167,7 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
     - Only `AND`/`OR` operators and `true`/`false` conditions are exported.
     - Source-grounded attachment semantics are preserved.
 
-    Shared export finalization behavior (AFA-42):
+    Shared export finalization behavior:
     - Exporters validate output before success is finalized.
     - Valid STIX/AFB artifacts are persisted with practical metadata.
     - Invalid/incomplete artifacts are not exposed as successful downloads.

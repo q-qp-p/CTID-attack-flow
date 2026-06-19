@@ -311,8 +311,8 @@ class JobWorkerService:
         await asyncio.sleep(0)
 
     def _run_canonical_flow_building(self, job_id: str) -> None:
-        # AFA-42 partial export policy: all requested exports are attempted, but the job only
-        # succeeds if every attempted export validates and finalizes successfully.
+        # All requested exports are attempted, but the job only succeeds if every attempted
+        # export validates and finalizes successfully.
         job = self.persistence_service.get_job(job_id)
         if job is None:
             return

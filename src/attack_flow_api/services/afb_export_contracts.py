@@ -143,7 +143,12 @@ class AfbExportExtensionDefinitionObject(BaseModel):
     created: str = Field(default=AFB_PINNED_TARGET_EXTENSION_CREATED, min_length=1)
     modified: str = Field(default=AFB_PINNED_TARGET_EXTENSION_MODIFIED, min_length=1)
     created_by_ref: str = Field(default=AFB_PINNED_TARGET_EXTENSION_CREATED_BY_REF, min_length=1)
-    schema: str = Field(default=AFB_PINNED_TARGET_EXTENSION_SCHEMA_URL, min_length=1)
+    schema_uri: str = Field(
+        default=AFB_PINNED_TARGET_EXTENSION_SCHEMA_URL,
+        min_length=1,
+        alias="schema",
+        serialization_alias="schema",
+    )
     version: str = Field(default=AFB_PINNED_TARGET_VERSION, min_length=1)
     extension_types: list[str] = Field(default_factory=lambda: list(AFB_PINNED_TARGET_EXTENSION_TYPES))
     external_references: list[dict[str, Any]] = Field(default_factory=list)
@@ -294,7 +299,7 @@ def assemble_afb_export_bundle(canonical_flow: CanonicalFlowOutput) -> AfbExport
     )
     export_objects = _build_export_object_models(canonical_flow)
     prune_errors = _prune_invalid_export_references(export_objects)
-    bundle.objects.objects = [obj.model_dump(mode="json") for obj in export_objects]
+    bundle.objects.objects = [obj.model_dump(mode="json", by_alias=True) for obj in export_objects]
     bundle.metadata.object_count = len(bundle.objects.objects)
 
     validation = validate_afb_export_bundle(bundle)
