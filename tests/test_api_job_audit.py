@@ -4,8 +4,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from attack_flow_api.main import create_app
-from attack_flow_api.storage.repositories import JobCreate
 from attack_flow_api.storage.repositories import AuditEventCreate
+from attack_flow_api.storage.repositories import JobCreate
 
 
 def _build_client(monkeypatch, tmp_path: Path) -> TestClient:
@@ -20,7 +20,7 @@ providers:
     base_url: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY
     default_model: gpt-4.1-mini
-    models:
+    allowed_models:
       - gpt-4.1-mini
 """.strip()
         + "\n",

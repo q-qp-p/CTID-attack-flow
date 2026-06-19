@@ -21,7 +21,6 @@ def test_provider_validation_contract_round_trip() -> None:
         provider_type="openai",
         timeout_seconds=5.0,
         model="gpt-4.1-mini",
-        metadata={"ticket": "AFA-30"},
     )
     result = ProviderValidationResult(
         provider_id=request.provider_id,

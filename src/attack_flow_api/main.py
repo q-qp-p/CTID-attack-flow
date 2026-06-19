@@ -1,15 +1,12 @@
 import asyncio
 from contextlib import asynccontextmanager
+from importlib.metadata import PackageNotFoundError, version as package_version
 import logging
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from attack_flow_api.config import (
-    AppSettings,
-    ProviderConfig,
-    ProviderPublicMetadata,
-    ProvidersConfig,
     ensure_runtime_directories,
     load_providers_config,
     load_settings,
@@ -100,7 +97,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = load_settings()
-    app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title=settings.app_name, version=_resolve_package_version(), lifespan=lifespan)
     if settings.cors_enabled:
         app.add_middleware(
             CORSMiddleware,
@@ -123,32 +120,11 @@ def _split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _resolve_package_version() -> str:
+    try:
+        return package_version("attack-flow")
+    except PackageNotFoundError:
+        return "3.0.0"
+
+
 app = create_app()
-
-
-def get_app_settings(app_instance: FastAPI) -> AppSettings:
-    return app_instance.state.settings
-
-
-def get_providers_config(app_instance: FastAPI) -> ProvidersConfig:
-    return app_instance.state.providers_config
-
-
-def get_provider_config_by_id(app_instance: FastAPI, provider_id: str) -> ProviderConfig | None:
-    return get_providers_config(app_instance).get_provider_by_id(provider_id)
-
-
-def list_public_provider_metadata(app_instance: FastAPI) -> list[ProviderPublicMetadata]:
-    return get_providers_config(app_instance).list_public_metadata()
-
-
-def get_provider_registry(app_instance: FastAPI) -> ProviderRegistry:
-    return app_instance.state.provider_registry
-
-
-def get_openai_provider_config_by_id(app_instance: FastAPI, provider_id: str) -> ProviderConfig | None:
-    return get_providers_config(app_instance).get_openai_provider_by_id(provider_id)
-
-
-def validate_openai_provider_config(app_instance: FastAPI, provider_id: str) -> list[str]:
-    return get_providers_config(app_instance).validate_openai_provider_config(provider_id)

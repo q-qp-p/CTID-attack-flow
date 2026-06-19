@@ -80,7 +80,9 @@ class ProviderValidationService:
                 status_code=normalized_error.status_code,
             )
 
-    def _build_validation_request(self, *, provider_id: str, provider_type: str, model: str | None):
+    def _build_validation_request(
+        self, *, provider_id: str, provider_type: str, model: str | None
+    ) -> ProviderValidationRequest:
         return ProviderValidationRequest(
             provider_id=provider_id,
             provider_type=provider_type,

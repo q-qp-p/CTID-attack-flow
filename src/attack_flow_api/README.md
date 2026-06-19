@@ -69,7 +69,7 @@ For full self-hosting guidance (API/UI separate deployment, persistence, env set
 On startup, the API initializes SQLite automatically at `SQLITE_PATH` (default: `data/attack-flow.db`).
 It also ensures local storage directories exist for uploads, artifacts, and normalized content under `DATA_DIR`.
 
-## AFA-34 Fusion
+## Fusion
 
 The API worker now performs conservative fusion after successful AI extraction.
 
@@ -83,7 +83,7 @@ The API worker now performs conservative fusion after successful AI extraction.
 
 This fusion pass is internal to the worker pipeline and does not change the public API surface.
 
-## AFA-14 Audit Trail
+## Audit Trail
 
 The API now records structured audit events as jobs move through submission, worker claim, stage transitions, and downstream processing.
 
@@ -137,7 +137,7 @@ Optional environment variables:
 - `FILE_STORAGE_MAX_BYTES`
 - `PROVIDERS_CONFIG_PATH`
 
-## Provider Abstraction (AFA-30)
+## Provider Abstraction
 
 The API now treats AI providers through a shared provider abstraction and a registry built from `PROVIDERS_CONFIG_PATH`.
 
@@ -152,17 +152,17 @@ The API now treats AI providers through a shared provider abstraction and a regi
   - provider requested but skipped when deterministic structured input is sufficient,
   - provider requested and resolved.
 
-Current limitations in AFA-30:
+Current limitations:
 
 - Concrete provider vendor behavior is intentionally placeholder-only.
-- Registry/adapters are for abstraction and wiring; provider validation execution and orchestration logic are handled in later tickets.
+- Registry/adapters are for abstraction and wiring; provider validation execution and orchestration logic are handled elsewhere in the worker pipeline.
 
-## Provider Validation (AFA-31)
+## Provider Validation
 
-AFA-31 adds the first concrete provider adapter implementation: OpenAI.
+This stage adds the first concrete provider adapter implementation: OpenAI.
 
 - `POST /api/v1/providers/validate` validates a configured provider by `provider_id`.
-- Validation executes through the provider abstraction/registry layer and then the concrete OpenAI adapter.
+- Validation executes through the provider abstraction/registry layer and then the concrete OpenAI adapter for `openai` and `azure_openai` provider types.
 - OpenAI adapter runtime behavior includes:
   - model selection (explicit request model, then provider default, then first allowed model),
   - bounded timeout handling,
@@ -172,20 +172,20 @@ AFA-31 adds the first concrete provider adapter implementation: OpenAI.
   - failure details are normalized (error code/category/retryable/status),
   - secret-bearing values are never returned.
 
-Practical limitations in AFA-31:
+Practical limitations:
 
-- Only OpenAI is implemented as a concrete adapter in this ticket.
+- OpenAI and Azure OpenAI are implemented through the shared OpenAI adapter.
 - Other provider types remain registry-configurable but adapter behavior is not implemented yet.
 
-## Orchestration and Intermediate Extraction (AFA-32)
+## Orchestration and Intermediate Extraction
 
-AFA-32 adds orchestration and structured extraction assembly for downstream flow-building.
+This stage adds orchestration and structured extraction assembly for downstream flow-building.
 
-- Orchestration input is the canonical normalized package produced by AFA-23.
+- Orchestration input is the canonical normalized package produced by the normalization stage.
 - Two orchestration modes are supported:
   - `full_extraction` for narrative-heavy inputs,
   - `enrichment` for deterministic structured inputs.
-- Deterministic STIX/OpenCTI findings from AFA-24 are preserved explicitly in output:
+- Deterministic STIX/OpenCTI findings are preserved explicitly in output:
   - ATT&CK refs,
   - entities,
   - relationships,
@@ -202,16 +202,16 @@ AFA-32 adds orchestration and structured extraction assembly for downstream flow
   - authors and external references are preserved as lists.
 - Malformed provider output is validated and may receive one practical bounded repair attempt.
 
-Current limitations in AFA-32:
+Current limitations:
 
 - Output is an intermediate extraction result, not final flow graph/export output.
 
-## Canonical Flow (AFA-33)
+## Canonical Flow
 
-AFA-33 converts AFA-34 fused output into one canonical internal flow model.
+This stage converts fused output into one canonical internal flow model.
 
-- AFA-34 fused output is the primary input.
-- AFA-32 direct extraction output may be used only as a fallback if the canonical converter is given that input.
+- Fused output is the primary input.
+- Direct extraction output may be used only as a fallback if the canonical converter is given that input.
 - The canonical model preserves actions, conditions, operators, assets/attachments, ATT&CK refs, evidence, confidence, provenance, authors, external references, and upstream conflict metadata where available.
 - Only explicit source-grounded ATT&CK techniques are allowed.
 - Steps without ATT&CK mappings are allowed.
@@ -221,9 +221,9 @@ AFA-33 converts AFA-34 fused output into one canonical internal flow model.
 
 This canonical model is internal to the worker pipeline and is what the backend persists before export-specific handling.
 
-## STIX Export (AFA-40)
+## STIX Export
 
-AFA-40 exports the canonical constrained flow model as a STIX 2.1 bundle.
+This stage exports the canonical constrained flow model as a STIX 2.1 bundle.
 
 - The export uses Attack Flow extension objects where appropriate.
 - The root `attack-flow` object preserves the canonical flow name, scope, description when present, start refs, and external references.
@@ -235,9 +235,9 @@ AFA-40 exports the canonical constrained flow model as a STIX 2.1 bundle.
 - Valid STIX export artifacts are persisted and retrievable through the existing STIX artifact endpoint.
 - Invalid exports fail clearly and are not exposed as successful artifacts.
 
-## AFB Export (AFA-41)
+## AFB Export
 
-AFA-41 exports the same canonical constrained flow model as a pinned Attack Flow v2-compatible AFB artifact.
+This stage exports the same canonical constrained flow model as a pinned Attack Flow v2-compatible AFB artifact.
 
 - Canonical flow metadata is mapped into the pinned `attack-flow` root object.
 - Only explicit source-grounded ATT&CK techniques are exported as technique mappings.
@@ -252,7 +252,7 @@ Practical limitation:
 
 - AFB export is intentionally pinned to the local Attack Flow v2 schema/extension target.
 
-## Shared Export Finalization (AFA-42)
+## Shared Export Finalization
 
 - Exporters validate output before success is finalized.
 - Valid STIX and AFB artifacts are persisted with practical metadata (validation state, checksum, size, creation time).

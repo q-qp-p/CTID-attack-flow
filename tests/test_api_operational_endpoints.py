@@ -1,4 +1,5 @@
 from pathlib import Path
+from importlib.metadata import version as package_version
 
 from fastapi.testclient import TestClient
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,7 +51,7 @@ def test_health_endpoint_returns_200_with_request_id(monkeypatch, tmp_path: Path
     assert response.status_code == 200
     assert payload["status"] == "ok"
     assert payload["service"] == "attack-flow-api"
-    assert payload["version"] == "0.1.0"
+    assert payload["version"] == package_version("attack-flow")
     assert isinstance(payload["time"], str)
     assert payload["request_id"]
 

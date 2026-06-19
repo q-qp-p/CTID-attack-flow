@@ -1,5 +1,5 @@
 providers:
-  - provider_id: default-openai
+  - provider_id: default-azure-openai
     provider_type: azure_openai
     enabled: true
     base_url: https://mdevchat.apim.mitre.org/openai
