@@ -26,6 +26,13 @@
           </option>
         </select>
       </label>
+      <VisualizationWidthControl
+        v-model="timelineWidth"
+        aria-label="Timeline width"
+        :min="minTimelineWidth"
+        :max="maxTimelineWidth"
+        :step="timelineWidthStep"
+      />
       <label class="checkbox-control">
         <input
           v-model="showTechniqueIds"
@@ -43,7 +50,7 @@
       <label>
         <span>Line width</span>
         <input
-          v-model.number="timelineWidth"
+          v-model.number="timelineLineWidth"
           type="range"
           min="1"
           max="5"
@@ -95,7 +102,7 @@
             :x2="timelineLayout.width"
             :y2="timelineLayout.axisPosition"
             :stroke="timelineColor"
-            :stroke-width="timelineWidth"
+            :stroke-width="timelineLineWidth"
           />
           <line
             v-else
@@ -104,7 +111,7 @@
             :x2="timelineLayout.axisPosition"
             :y2="timelineLayout.height"
             :stroke="timelineColor"
-            :stroke-width="timelineWidth"
+            :stroke-width="timelineLineWidth"
           />
 
           <g
@@ -144,7 +151,7 @@
             <circle
               r="6"
               :stroke="timelineColor"
-              :stroke-width="timelineWidth"
+              :stroke-width="timelineLineWidth"
               fill="white"
             />
           </g>
@@ -167,6 +174,7 @@ import { DateTime } from "luxon";
 import { DateProperty, StringProperty, TTPTupleProperty } from "@/assets/scripts/OpenChart/DiagramModel";
 import { getTechniqueNameFromLabel } from "@/assets/configuration/AttackFlowTemplates/TTPFrameworkConstants.ts";
 import { useApplicationStore } from "@/stores/ApplicationStore";
+import VisualizationWidthControl from "./VisualizationWidthControl.vue";
 
 type TimelineOrientation = "horizontal" | "vertical";
 type TimestampFormat = "date" | "time" | "datetime";
@@ -208,10 +216,16 @@ const orientation = ref<TimelineOrientation>("horizontal");
 const timestampFormat = ref<TimestampFormat>("datetime");
 const showTechniqueIds = ref(true);
 const timelineColor = ref("#005B94");
-const timelineWidth = ref(3);
+const timelineLineWidth = ref(3);
 const labelOutlineColor = ref("#D4D4D3");
 const labelLineWidth = ref(1);
 const labelBackgroundColor = ref("#F1F3F4");
+
+const defaultTimelineWidth = 1000;
+const minTimelineWidth = 760;
+const maxTimelineWidth = 2400;
+const timelineWidthStep = 200;
+const timelineWidth = ref(defaultTimelineWidth);
 
 const boxWidth = 180;
 const boxHeight = 100;
@@ -259,7 +273,7 @@ const timelineLayout = computed<TimelineLayout | null>(() => {
     }
 
     const isHorizontal = orientation.value === "horizontal";
-    const width = 1000;
+    const width = timelineWidth.value;
     const height = isHorizontal ? 900 : 1000;
     const axisPosition = isHorizontal ? height / 2 : width / 2;
     const positiveLanes: [number, number][][] = [[]];

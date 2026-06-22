@@ -29,30 +29,13 @@
           </option>
         </select>
       </label>
-      <div
-        class="width-control"
-        role="group"
+      <VisualizationWidthControl
+        v-model="treemapWidth"
         aria-label="Treemap width"
-      >
-        <span>Width</span>
-        <button
-          type="button"
-          title="Decrease Width"
-          :disabled="treemapWidth <= minTreemapWidth"
-          @click="decreaseTreemapWidth"
-        >
-          -
-        </button>
-        <span class="width-value">{{ treemapWidth }}px</span>
-        <button
-          type="button"
-          title="Increase Width"
-          :disabled="treemapWidth >= maxTreemapWidth"
-          @click="increaseTreemapWidth"
-        >
-          +
-        </button>
-      </div>
+        :min="minTreemapWidth"
+        :max="maxTreemapWidth"
+        :step="treemapWidthStep"
+      />
       <label class="file-control">
         <span>Additional flows</span>
         <input
@@ -161,6 +144,7 @@ import {
     getTechniqueNameFromLabel
 } from "@/assets/configuration/AttackFlowTemplates/TTPFrameworkConstants.ts";
 import { useApplicationStore } from "@/stores/ApplicationStore";
+import VisualizationWidthControl from "./VisualizationWidthControl.vue";
 
 type TileMethod = "binary" | "squarify" | "slice-dice";
 
@@ -487,20 +471,6 @@ function getTile() {
     }
 }
 
-function decreaseTreemapWidth() {
-    treemapWidth.value = Math.max(
-        minTreemapWidth,
-        treemapWidth.value - treemapWidthStep
-    );
-}
-
-function increaseTreemapWidth() {
-    treemapWidth.value = Math.min(
-        maxTreemapWidth,
-        treemapWidth.value + treemapWidthStep
-    );
-}
-
 async function loadUploadedFlows(event: Event) {
     const input = event.target as HTMLInputElement;
     const files = input.files ? Array.from(input.files) : [];
@@ -725,38 +695,6 @@ function truncateText(text: string, maxChars: number): string {
 
 .treemap-controls input[type="file"] {
     max-width: 220px;
-}
-
-.width-control {
-    align-items: center;
-    color: #333;
-    display: flex;
-    font-size: 12px;
-    gap: 6px;
-    white-space: nowrap;
-}
-
-.width-control button {
-    background: #fff;
-    border: 1px solid #bbb;
-    color: #333;
-    cursor: pointer;
-    font-size: 14px;
-    height: 24px;
-    line-height: 1;
-    min-width: 24px;
-    padding: 2px 6px;
-}
-
-.width-control button:disabled {
-    cursor: default;
-    opacity: 0.45;
-}
-
-.width-value {
-    color: #555;
-    min-width: 48px;
-    text-align: center;
 }
 
 .checkbox-control {

@@ -1,82 +1,104 @@
 <template>
-  <div
-    id="tactic-table-vis"
-    v-if="groupedTechniques"
-  >
-    <div
-      v-for="(group, index) in groupedTechniques.values()"
-      :key="group.tactic.id"
-      class="tactic"
-      style="margin-bottom: 30px;"
-    >
-      <h3>
-        Table {{ index + 1 }}: {{ group.tactic.id }} - {{ group.tactic.name }}
-        <span v-if="group.tactic.domainLong">({{ group.tactic.domainLong }})</span>
-      </h3>
-      <table>
-        <thead>
-          <tr style="background-color: rgb(0, 91, 148);">
-            <th
-              width="25%"
-              style="padding: 5px; color: rgb(241, 243, 244);"
-            >
-              Technique Name
-            </th>
-            <th
-              width="15%"
-              style="padding: 5px; color: rgb(241, 243, 244);"
-            >
-              ATT&amp;CK ID
-            </th>
-            <th
-              width="50%"
-              style="padding: 5px; color: rgb(241, 243, 244);"
-            >
-              Use
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="technique in group.techniques"
-            :key="technique.id"
-          >
-            <td style="padding: 5px;">
-              {{ technique.name }}
-            </td>
-            <td style="padding: 5px;">
-              <a
-                :href="getTechniqueUrl(technique.id, technique.name, group.tactic.domainShort)"
-                target="_blank"
-              >{{
-                technique.id }}</a>
-            </td>
-            <td style="padding: 5px;">
-              {{ technique.description }}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+  <div class="tactic-table-visualization">
+    <div class="tactic-table-controls">
+      <VisualizationWidthControl
+        v-model="tacticTableWidth"
+        aria-label="Tactic table width"
+        :min="minTacticTableWidth"
+        :max="maxTacticTableWidth"
+        :step="tacticTableWidthStep"
+      />
     </div>
-  </div>
-  <div
-    id="tactic-table-vis"
-    v-else
-  >
-    No data
+    <div class="tactic-table-stage">
+      <div
+        id="tactic-table-vis"
+        v-if="groupedTechniques"
+        :style="{ width: `${tacticTableWidth}px` }"
+      >
+        <div
+          v-for="(group, index) in groupedTechniques.values()"
+          :key="group.tactic.id"
+          class="tactic"
+          style="margin-bottom: 30px;"
+        >
+          <h3>
+            Table {{ index + 1 }}: {{ group.tactic.id }} - {{ group.tactic.name }}
+            <span v-if="group.tactic.domainLong">({{ group.tactic.domainLong }})</span>
+          </h3>
+          <table>
+            <thead>
+              <tr style="background-color: rgb(0, 91, 148);">
+                <th
+                  width="25%"
+                  style="padding: 5px; color: rgb(241, 243, 244);"
+                >
+                  Technique Name
+                </th>
+                <th
+                  width="15%"
+                  style="padding: 5px; color: rgb(241, 243, 244);"
+                >
+                  ATT&amp;CK ID
+                </th>
+                <th
+                  width="50%"
+                  style="padding: 5px; color: rgb(241, 243, 244);"
+                >
+                  Use
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="technique in group.techniques"
+                :key="technique.id"
+              >
+                <td style="padding: 5px;">
+                  {{ technique.name }}
+                </td>
+                <td style="padding: 5px;">
+                  <a
+                    :href="getTechniqueUrl(technique.id, technique.name, group.tactic.domainShort)"
+                    target="_blank"
+                  >{{
+                    technique.id }}</a>
+                </td>
+                <td style="padding: 5px;">
+                  {{ technique.description }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div
+        id="tactic-table-vis"
+        v-else
+        :style="{ width: `${tacticTableWidth}px` }"
+      >
+        No data
+      </div>
+    </div>
   </div>
 </template>
 <script setup lang="ts">
 import { StringProperty, TTPTupleProperty } from '@/assets/scripts/OpenChart/DiagramModel';
 import { useApplicationStore } from '@/stores/ApplicationStore';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import {
     getTacticNameFromLabel,
     getTechniqueNameFromLabel,
     getDomainCodeFromLabel
 } from '@/assets/configuration/AttackFlowTemplates/TTPFrameworkConstants.ts';
+import VisualizationWidthControl from './VisualizationWidthControl.vue';
 
 const app = useApplicationStore();
+
+const defaultTacticTableWidth = 1200;
+const minTacticTableWidth = 760;
+const maxTacticTableWidth = 2400;
+const tacticTableWidthStep = 200;
+const tacticTableWidth = ref(defaultTacticTableWidth);
 
 interface GroupedTechnique {
     tactic: {
@@ -200,6 +222,27 @@ function getTechniqueUrl(techniqueId: string, techniqueName: string, domainShort
 
 </script>
 <style scoped>
+.tactic-table-visualization {
+    background-color: white;
+    color: #111;
+    min-height: 100%;
+}
+
+.tactic-table-controls {
+    align-items: center;
+    background: #f7f7f7;
+    border-bottom: 1px solid #d4d4d3;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    padding: 10px;
+}
+
+.tactic-table-stage {
+    background-color: white;
+    overflow: auto;
+}
+
 #tactic-table-vis {
     background-color: white;
     padding: 1px;
