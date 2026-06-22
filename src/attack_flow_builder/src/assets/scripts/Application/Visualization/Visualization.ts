@@ -109,7 +109,7 @@ export async function exportVisualization(
 }
 
 /**
- * Exports a visualization as an SVG file.
+ * Exports a visualization as an SVG file using html-to-image.
  * @param context
  *  The visualization export context.
  */
@@ -124,6 +124,40 @@ export async function exportVisualizationAsSvg(
         svgDataUrlToText(svgDataUrl),
         "svg"
     );
+}
+
+/**
+ * Finds an svg element and exports it to an svg image. If no svg element exists
+ * in the root or if multiple exist, throws an error.
+ * Uses browser-native capability instead of html-to-image.
+ * @param context The visualization export context
+ */
+export async function liteSvgExporter(
+    context: VisualizationExportContext
+): Promise<void> {
+
+    const exportRoot = context.visualization.getExportRoot?.(context.root)
+        ?? context.root;
+    const svgCandidates = exportRoot.querySelectorAll("svg");
+
+    if (svgCandidates.length === 0) {
+        throw new Error("No svg element found. Cannot export.");
+    }
+
+    if (svgCandidates.length > 1) {
+        throw new Error("Multiple svg elements found. Cannot export.");
+    }
+
+    const svg = svgCandidates[0];
+
+    const svgText = new XMLSerializer().serializeToString(svg);
+    const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = getVisualizationExportName(context) + ".svg";
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 /**

@@ -19,6 +19,7 @@ import {
 } from "./AttackFlowTemplates";
 import { BasicVisualizationModal } from "../scripts/Application/Visualization";
 import type { AppConfiguration } from "../scripts/Application/Configuration/AppConfiguration";
+import { MatrixViewVisualization } from "./AttackFlowVisualizations/MatrixViewVisualization.ts";
 
 const configuration: AppConfiguration = {
 
@@ -153,6 +154,7 @@ const configuration: AppConfiguration = {
 
     visualizations: [
         TacticTableVisualization,
+        MatrixViewVisualization,
         TimelineVisualization,
         TreemapVisualization
     ]
