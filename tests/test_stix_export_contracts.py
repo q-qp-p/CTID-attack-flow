@@ -175,7 +175,7 @@ def test_build_attack_action_objects_preserves_explicit_fields() -> None:
                 ),
                 tactic_ref="x-mitre-tactic--1",
                 asset_refs=["attack-asset--1"],
-                effect_refs=["attack-condition--1"],
+                effect_refs=["condition-1"],
             )
         ],
         edges=[],
@@ -197,7 +197,7 @@ def test_build_attack_action_objects_preserves_explicit_fields() -> None:
     assert action.tactic_id is None
     assert action.tactic_ref == "x-mitre-tactic--1"
     assert action.asset_refs == ["attack-asset--1"]
-    assert action.effect_refs == ["attack-condition--1"]
+    assert action.effect_refs == ["condition-1"]
     assert action.extensions == {
         "extension-definition--fb9c968a-745b-4ade-9b25-c324172197f4": {
             "extension_type": "new-sdo"
@@ -252,8 +252,8 @@ def test_build_attack_condition_objects_preserves_branching_refs() -> None:
                 id="attack-condition--1",
                 description="Observed branch decision exactly as reported.",
                 condition_value="true",
-                on_true_refs=["attack-operator--1"],
-                on_false_refs=["attack-action--2"],
+                on_true_refs=["operator-1"],
+                on_false_refs=["action-2"],
             )
         ],
         edges=[],
@@ -269,8 +269,8 @@ def test_build_attack_condition_objects_preserves_branching_refs() -> None:
     assert isinstance(condition, StixExportAttackConditionObject)
     assert condition.id == "attack-condition--1"
     assert condition.description == "Observed branch decision exactly as reported."
-    assert condition.on_true_refs == ["attack-operator--1"]
-    assert condition.on_false_refs == ["attack-action--2"]
+    assert condition.on_true_refs == ["operator-1"]
+    assert condition.on_false_refs == ["action-2"]
     assert condition.extensions == {
         "extension-definition--fb9c968a-745b-4ade-9b25-c324172197f4": {
             "extension_type": "new-sdo"
@@ -290,7 +290,7 @@ def test_build_attack_operator_objects_preserves_boolean_operator() -> None:
             CanonicalFlowOperatorNode(
                 id="attack-operator--1",
                 operator="AND",
-                effect_refs=["attack-action--1"],
+                effect_refs=["action-1"],
             )
         ],
         edges=[],
@@ -306,7 +306,7 @@ def test_build_attack_operator_objects_preserves_boolean_operator() -> None:
     assert isinstance(operator, StixExportAttackOperatorObject)
     assert operator.id == "attack-operator--1"
     assert operator.operator == "AND"
-    assert operator.effect_refs == ["attack-action--1"]
+    assert operator.effect_refs == ["action-1"]
 
 
 def test_build_attack_operator_objects_allows_or_operator() -> None:
