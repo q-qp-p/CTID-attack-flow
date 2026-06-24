@@ -101,6 +101,7 @@ import {
     getTacticNameFromLabel,
     getTechniqueNameFromLabel,
 } from '@/assets/configuration/AttackFlowTemplates/TTPFrameworkConstants.ts';
+import { getTacticOrder } from './TacticOrder';
 
 interface Tactic {
     id: string,
@@ -250,10 +251,12 @@ const groupedTechniques = computed<GroupedTechnique[] | null>(() => {
 
         const tacticId = tacticProp?.value || "(NA)";
         const tacticLabel = tacticProp ? tacticProp.toString() : "None";
+        const tacticName = tacticLabel === "None" ? "(Tactic Not Provided)" : getTacticNameFromLabel(tacticLabel);
+        const tacticOrder = tacticLabel === "None" ? 99 : getTacticOrder(tacticName);
         const tactic = {
             id: tacticId,
-            name: tacticLabel === "None" ? "(Tactic Not Provided)" : getTacticNameFromLabel(tacticLabel),
-            order: tacticLabel === "None" ? 99 : 0,
+            name: tacticName,
+            order: tacticOrder,
             domain: tacticLabel === "None" ? "" : getDomainCodeFromLabel(tacticLabel),
         }
 

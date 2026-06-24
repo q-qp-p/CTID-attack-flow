@@ -91,6 +91,7 @@ import {
     getDomainCodeFromLabel
 } from '@/assets/configuration/AttackFlowTemplates/TTPFrameworkConstants.ts';
 import VisualizationWidthControl from './VisualizationWidthControl.vue';
+import { getTacticOrder } from './TacticOrder.ts';
 
 const app = useApplicationStore();
 
@@ -166,12 +167,13 @@ const groupedTechniques = computed<Map<string, GroupedTechnique> | null>(() => {
                         })
                     } else {
                         const tacticStr = (tacticProp as StringProperty).toString();
+                        const tacticName = getTacticNameFromLabel(tacticStr);
                         const domainCode = getDomainCodeFromLabel(tacticStr);
                         result.set(tacticKey, {
                             tactic: {
                                 id: tacticKey,
-                                name: getTacticNameFromLabel(tacticStr),
-                                order: 0,
+                                name: tacticName,
+                                order: getTacticOrder(tacticName),
                                 domainShort: domainCode,
                                 domainLong: domainShortToLong[domainCode] || ""
                             },
