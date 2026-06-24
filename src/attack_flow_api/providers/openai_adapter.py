@@ -23,6 +23,9 @@ from attack_flow_api.providers.contracts import (
     build_normalized_provider_error,
 )
 
+
+_logger = logging.getLogger("attack_flow_api.provider_openai")
+
 @dataclass(frozen=True, slots=True)
 class OpenAIHttpRequest:
     method: str
@@ -43,6 +46,13 @@ class OpenAIHttpError(RuntimeError):
     status_code: int
     response_body: str | None = None
     response_headers: dict[str, str] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OpenAIRequestError(RuntimeError):
+    request: OpenAIHttpRequest
+    original_error: Exception
+    details: dict[str, str]
 
 
 class OpenAIProviderAdapter(ProviderAdapter):
@@ -74,6 +84,17 @@ class OpenAIProviderAdapter(ProviderAdapter):
         model = self._resolve_model(request.model)
         self._execute_with_retry(
             operation=ProviderOperation.VALIDATE,
+            request=self._build_openai_request(
+                api_key=api_key,
+                timeout_seconds=self._resolve_timeout_seconds(request.timeout_seconds),
+                method="POST",
+                url=self._responses_url(),
+                json_body={
+                    "model": model,
+                    "input": "ping",
+                    "max_output_tokens": 16,
+                },
+            ),
             action=lambda: self._request_executor(
                 self._build_openai_request(
                     api_key=api_key,
@@ -105,6 +126,18 @@ class OpenAIProviderAdapter(ProviderAdapter):
 
         response = self._execute_with_retry(
             operation=ProviderOperation.STRUCTURED_GENERATION,
+            request=self._build_openai_request(
+                api_key=api_key,
+                timeout_seconds=self._resolve_timeout_seconds(request.timeout_seconds),
+                method="POST",
+                url=self._responses_url(),
+                json_body=_build_openai_generation_body(
+                    model=model,
+                    prompt=request.prompt,
+                    temperature=request.temperature,
+                    max_output_tokens=request.max_output_tokens,
+                ),
+            ),
             action=lambda: self._request_executor(
                 self._build_openai_request(
                     api_key=api_key,
@@ -140,6 +173,13 @@ class OpenAIProviderAdapter(ProviderAdapter):
         if self._provider.provider_type == "azure_openai":
             response = self._execute_with_retry(
                 operation=ProviderOperation.VALIDATE,
+                request=self._build_azure_request(
+                    headers=self._azure_headers(operation=ProviderOperation.VALIDATE),
+                    timeout_seconds=self._resolve_timeout_seconds(10.0),
+                    method="GET",
+                    url=self._azure_models_url(),
+                    json_body=None,
+                ),
                 action=lambda: self._request_executor(
                     self._build_azure_request(
                         headers=self._azure_headers(operation=ProviderOperation.VALIDATE),
@@ -168,6 +208,13 @@ class OpenAIProviderAdapter(ProviderAdapter):
         api_key = self._resolve_api_key(operation=ProviderOperation.VALIDATE)
         response = self._execute_with_retry(
             operation=ProviderOperation.VALIDATE,
+            request=self._build_openai_request(
+                api_key=api_key,
+                timeout_seconds=self._resolve_timeout_seconds(10.0),
+                method="GET",
+                url=self._models_url(),
+                json_body=None,
+            ),
             action=lambda: self._request_executor(
                 self._build_openai_request(
                     api_key=api_key,
@@ -316,6 +363,16 @@ class OpenAIProviderAdapter(ProviderAdapter):
         model = self._resolve_model(request.model)
         self._execute_with_retry(
             operation=ProviderOperation.VALIDATE,
+            request=self._build_azure_request(
+                headers=self._azure_headers(operation=ProviderOperation.VALIDATE),
+                timeout_seconds=self._resolve_timeout_seconds(request.timeout_seconds),
+                method="POST",
+                url=self._azure_chat_completions_url(model),
+                json_body={
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_completion_tokens": 16,
+                },
+            ),
             action=lambda: self._request_executor(
                 self._build_azure_request(
                     headers=self._azure_headers(operation=ProviderOperation.VALIDATE),
@@ -341,6 +398,17 @@ class OpenAIProviderAdapter(ProviderAdapter):
         model = self._resolve_model(request.model)
         response = self._execute_with_retry(
             operation=ProviderOperation.STRUCTURED_GENERATION,
+            request=self._build_azure_request(
+                headers=self._azure_headers(operation=ProviderOperation.STRUCTURED_GENERATION),
+                timeout_seconds=self._resolve_timeout_seconds(request.timeout_seconds),
+                method="POST",
+                url=self._azure_chat_completions_url(model),
+                json_body=_build_azure_generation_body(
+                    messages=self._compose_chat_messages(request.prompt),
+                    temperature=request.temperature,
+                    max_completion_tokens=request.max_output_tokens,
+                ),
+            ),
             action=lambda: self._request_executor(
                 self._build_azure_request(
                     headers=self._azure_headers(operation=ProviderOperation.STRUCTURED_GENERATION),
@@ -509,6 +577,7 @@ class OpenAIProviderAdapter(ProviderAdapter):
         operation: ProviderOperation,
         action: Callable[[], OpenAIHttpResponse],
         model: str,
+        request: OpenAIHttpRequest | None = None,
     ) -> OpenAIHttpResponse:
         max_attempts = self._provider.retry_max_attempts or 1
         base_delay_ms = self._provider.retry_base_delay_ms or 200
@@ -525,6 +594,7 @@ class OpenAIProviderAdapter(ProviderAdapter):
                     exc,
                     operation=operation,
                     model=model,
+                    request=request,
                 )
 
             if last_error is None:
@@ -555,8 +625,21 @@ class OpenAIProviderAdapter(ProviderAdapter):
         *,
         operation: ProviderOperation,
         model: str,
+        request: OpenAIHttpRequest | None = None,
     ) -> NormalizedProviderError:
         if isinstance(exc, TimeoutError):
+            details = _request_diagnostics(request)
+            _logger.warning(
+                "provider timeout operation=%s provider_id=%s provider_type=%s model=%s details=%s error_type=%s error=%s",
+                operation.value,
+                self.provider_id,
+                self.provider_type,
+                model,
+                details,
+                type(exc).__name__,
+                exc,
+                exc_info=exc,
+            )
             return build_normalized_provider_error(
                 category=ProviderErrorCategory.TIMEOUT,
                 code="provider_timeout",
@@ -565,6 +648,44 @@ class OpenAIProviderAdapter(ProviderAdapter):
                 provider_id=self.provider_id,
                 provider_type=self.provider_type,
                 model=model,
+                details=details,
+            )
+
+        if isinstance(exc, OpenAIRequestError):
+            details = dict(exc.details)
+            details.update(_request_diagnostics(exc.request))
+            original_error = exc.original_error
+            _logger.warning(
+                "provider network error operation=%s provider_id=%s provider_type=%s model=%s details=%s error_type=%s error=%s",
+                operation.value,
+                self.provider_id,
+                self.provider_type,
+                model,
+                details,
+                type(original_error).__name__,
+                original_error,
+                exc_info=original_error,
+            )
+            if isinstance(original_error, TimeoutError):
+                return build_normalized_provider_error(
+                    category=ProviderErrorCategory.TIMEOUT,
+                    code="provider_timeout",
+                    message="provider request timed out",
+                    operation=operation,
+                    provider_id=self.provider_id,
+                    provider_type=self.provider_type,
+                    model=model,
+                    details=details,
+                )
+            return build_normalized_provider_error(
+                category=ProviderErrorCategory.UNAVAILABLE,
+                code="provider_network_error",
+                message="provider network request failed",
+                operation=operation,
+                provider_id=self.provider_id,
+                provider_type=self.provider_type,
+                model=model,
+                details=details,
             )
 
         if isinstance(exc, OpenAIHttpError):
@@ -635,6 +756,18 @@ class OpenAIProviderAdapter(ProviderAdapter):
             )
 
         if isinstance(exc, (OSError, ConnectionError)):
+            details = _request_diagnostics(request)
+            _logger.warning(
+                "provider network error operation=%s provider_id=%s provider_type=%s model=%s details=%s error_type=%s error=%s",
+                operation.value,
+                self.provider_id,
+                self.provider_type,
+                model,
+                details,
+                type(exc).__name__,
+                exc,
+                exc_info=exc,
+            )
             return build_normalized_provider_error(
                 category=ProviderErrorCategory.UNAVAILABLE,
                 code="provider_network_error",
@@ -643,6 +776,7 @@ class OpenAIProviderAdapter(ProviderAdapter):
                 provider_id=self.provider_id,
                 provider_type=self.provider_type,
                 model=model,
+                details=details,
             )
 
         if isinstance(exc, (ValueError, json.JSONDecodeError)):
@@ -680,6 +814,7 @@ def _default_openai_request_executor(request: OpenAIHttpRequest) -> OpenAIHttpRe
     if request.json_body is not None:
         body = json.dumps(request.json_body).encode("utf-8")
 
+    _logger.debug("openai request details=%s", _request_diagnostics(request))
     connection = HTTPSConnection(host=parsed.hostname, port=parsed.port, timeout=request.timeout_seconds)
     try:
         connection.request(request.method, path, body=body, headers=request.headers)
@@ -701,12 +836,39 @@ def _default_openai_request_executor(request: OpenAIHttpRequest) -> OpenAIHttpRe
         if not isinstance(payload, dict):
             raise ValueError("provider response payload must be an object")
         return OpenAIHttpResponse(status_code=response.status, json_body=payload)
-    except TimeoutError:
-        raise
-    except OSError:
-        raise
+    except TimeoutError as exc:
+        raise OpenAIRequestError(request=request, original_error=exc, details=_request_diagnostics(request)) from exc
+    except (OSError, ConnectionError) as exc:
+        raise OpenAIRequestError(request=request, original_error=exc, details=_request_diagnostics(request)) from exc
     finally:
         connection.close()
+
+
+def _request_diagnostics(request: OpenAIHttpRequest | None) -> dict[str, str]:
+    if request is None:
+        return {}
+
+    parsed = urlsplit(request.url)
+    details: dict[str, str] = {
+        "request_method": request.method,
+        "request_scheme": parsed.scheme,
+        "request_host": parsed.hostname or "",
+        "request_path": parsed.path or "/",
+        "request_port": str(parsed.port or (443 if parsed.scheme == "https" else 80)),
+        "request_timeout_seconds": str(request.timeout_seconds),
+        "ssl_cert_file_set": str(bool(os.environ.get("SSL_CERT_FILE"))).lower(),
+        "requests_ca_bundle_set": str(bool(os.environ.get("REQUESTS_CA_BUNDLE"))).lower(),
+        "https_proxy_set": str(bool(os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy"))).lower(),
+        "http_proxy_set": str(bool(os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy"))).lower(),
+        "no_proxy_set": str(bool(os.environ.get("NO_PROXY") or os.environ.get("no_proxy"))).lower(),
+    }
+    ssl_cert_file = os.environ.get("SSL_CERT_FILE")
+    if ssl_cert_file:
+        details["ssl_cert_file"] = ssl_cert_file
+    requests_ca_bundle = os.environ.get("REQUESTS_CA_BUNDLE")
+    if requests_ca_bundle:
+        details["requests_ca_bundle"] = requests_ca_bundle
+    return details
 
 
 def _extract_usage(payload: dict[str, object]) -> ProviderTokenUsage:

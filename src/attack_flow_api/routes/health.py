@@ -73,6 +73,7 @@ class ProviderValidateResponse(BaseModel):
     error_message: str | None = None
     retryable: bool | None = None
     status_code: int | None = None
+    error_details: dict[str, str] = Field(default_factory=dict)
     request_id: str
 
 
@@ -222,5 +223,6 @@ def _to_provider_validate_response(
         error_message=result.error_message,
         retryable=result.retryable,
         status_code=result.status_code,
+        error_details=result.error_details,
         request_id=request_id,
     )

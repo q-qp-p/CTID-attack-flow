@@ -1,5 +1,5 @@
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from attack_flow_api.providers.contracts import ProviderValidationRequest
 from attack_flow_api.providers.adapter import ProviderAdapterInvocationError
@@ -18,6 +18,7 @@ class ProviderValidationServiceResult:
     error_message: str | None = None
     retryable: bool | None = None
     status_code: int | None = None
+    error_details: dict[str, str] = field(default_factory=dict)
 
 
 class ProviderValidationService:
@@ -78,6 +79,7 @@ class ProviderValidationService:
                 error_message=normalized_error.message,
                 retryable=normalized_error.retryable,
                 status_code=normalized_error.status_code,
+                error_details=normalized_error.details,
             )
 
     def _build_validation_request(
@@ -100,6 +102,7 @@ class ProviderValidationService:
         error_message: str,
         retryable: bool,
         status_code: int | None = None,
+        error_details: dict[str, str] | None = None,
     ) -> ProviderValidationServiceResult:
         latency_ms = max(0, int(round((time.perf_counter() - started) * 1000)))
         return ProviderValidationServiceResult(
@@ -113,4 +116,5 @@ class ProviderValidationService:
             error_message=error_message,
             retryable=retryable,
             status_code=status_code,
+            error_details=error_details or {},
         )

@@ -106,6 +106,39 @@ def test_validate_provider_endpoint_disabled_provider_is_normalized(monkeypatch,
     assert payload["request_id"]
 
 
+def test_validate_provider_endpoint_exposes_error_details(monkeypatch, tmp_path: Path):
+    def fake_validate(self, provider_id: str, model: str | None = None):
+        return ProviderValidationServiceResult(
+            valid=False,
+            provider_id=provider_id,
+            provider_type="azure_openai",
+            model=None,
+            latency_ms=7,
+            error_code="provider_network_error",
+            error_category="unavailable",
+            error_message="provider network request failed",
+            retryable=True,
+            error_details={"request_method": "POST", "https_proxy_set": "true"},
+        )
+
+    monkeypatch.setattr(
+        "attack_flow_api.services.provider_validation_service.ProviderValidationService.validate_provider",
+        fake_validate,
+    )
+
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/providers/validate",
+            json={"provider_id": "default-openai", "model": "gpt-4.1-mini"},
+        )
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["valid"] is False
+    assert payload["error_details"]["request_method"] == "POST"
+    assert payload["error_details"]["https_proxy_set"] == "true"
+
+
 def test_validate_provider_endpoint_includes_request_id_header(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
         response = client.post(
