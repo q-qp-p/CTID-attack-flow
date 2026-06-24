@@ -135,6 +135,7 @@ li:not(.icon) {
   position: relative;
   height: 100%;
   padding: 0px 7px;
+  cursor: pointer;
 }
 li:not(.icon):hover,
 li:not(.icon).focused {

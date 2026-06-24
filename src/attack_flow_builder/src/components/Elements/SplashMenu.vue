@@ -370,10 +370,12 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   padding: 0px 24px;
+  cursor: pointer;
 }
 
 .button {
   padding: 24px;
+  cursor: pointer;
 }
 
 .file-header,
@@ -442,6 +444,7 @@ export default defineComponent({
   border: solid 1px var(--af-border-color-primary);
   border-radius: 5px;
   margin-left: 8px;
+  cursor: pointer;
 }
 
 .file:hover,

@@ -321,6 +321,11 @@ export default defineComponent({
     --af-color-info: #2E5FAD;
 }
 
+/* Show enabled native buttons as clickable controls across the app. */
+button:not(:disabled) {
+    cursor: pointer;
+}
+
 html,
 body {
   width: 100%;
