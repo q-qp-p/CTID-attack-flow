@@ -298,6 +298,7 @@ def assemble_afb_export_bundle(canonical_flow: CanonicalFlowOutput) -> AfbExport
         canonical_flow=canonical_flow,
     )
     export_objects = _build_export_object_models(canonical_flow)
+    _normalize_export_object_refs(export_objects)
     prune_errors = _prune_invalid_export_references(export_objects)
     bundle.objects.objects = [obj.model_dump(mode="json", by_alias=True) for obj in export_objects]
     bundle.metadata.object_count = len(bundle.objects.objects)
@@ -871,6 +872,67 @@ def _build_supporting_object_refs(canonical_flow: CanonicalFlowOutput) -> list[s
             if object_ref is not None:
                 refs.append(object_ref)
     return _dedupe_preserve_order(refs)
+
+
+def _normalize_export_object_refs(export_objects: list[BaseModel]) -> None:
+    start_target_id = _first_export_target_id(export_objects)
+    for obj in export_objects:
+        if isinstance(obj, AfbExportAttackActionObject):
+            obj.asset_refs = _normalize_export_ref_list(obj.asset_refs, obj.id)
+            obj.effect_refs = _normalize_export_ref_list(obj.effect_refs, obj.id)
+        elif isinstance(obj, AfbExportAttackConditionObject):
+            obj.on_true_refs = _normalize_export_ref_list(obj.on_true_refs, obj.id)
+            obj.on_false_refs = _normalize_export_ref_list(obj.on_false_refs, obj.id)
+        elif isinstance(obj, AfbExportAttackOperatorObject):
+            obj.effect_refs = _normalize_export_ref_list(obj.effect_refs, obj.id)
+        elif isinstance(obj, AfbExportAttackFlowRootObject) and start_target_id is not None:
+            obj.start_refs = _normalize_export_ref_list(obj.start_refs, start_target_id)
+
+
+def _first_export_target_id(export_objects: list[BaseModel]) -> str | None:
+    for obj in export_objects:
+        if isinstance(obj, (AfbExportAttackActionObject, AfbExportAttackConditionObject)):
+            return obj.id
+    return None
+
+
+def _normalize_export_ref_list(refs: list[str], exemplar_id: str | None) -> list[str]:
+    return [_normalize_export_ref(ref, exemplar_id) for ref in refs]
+
+
+def _normalize_export_ref(ref: str, exemplar_id: str | None) -> str:
+    if not isinstance(ref, str) or not ref:
+        return ref
+    if exemplar_id is None:
+        return ref
+    exemplar_long = exemplar_id.startswith("attack-") and "--" in exemplar_id
+    prefix, separator, suffix = ref.partition("--")
+    if not separator:
+        if exemplar_long:
+            short_prefix, short_sep, short_suffix = ref.partition("-")
+            if not short_sep:
+                return ref
+            mapped_prefix = {
+                "action": "attack-action",
+                "condition": "attack-condition",
+                "operator": "attack-operator",
+                "asset": "attack-asset",
+            }.get(short_prefix)
+            if mapped_prefix is None:
+                return ref
+            return f"{mapped_prefix}--{short_suffix}"
+        return ref
+    if exemplar_long:
+        return ref
+    mapped_prefix = {
+        "attack-action": "action",
+        "attack-condition": "condition",
+        "attack-operator": "operator",
+        "attack-asset": "asset",
+    }.get(prefix)
+    if mapped_prefix is None:
+        return ref
+    return f"{mapped_prefix}-{suffix}"
 
 
 def _build_diagram_export_json_ready(bundle: AfbExportBundle) -> dict[str, Any]:

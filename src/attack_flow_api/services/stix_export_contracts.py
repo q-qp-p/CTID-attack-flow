@@ -247,8 +247,9 @@ def _build_attack_asset_object(
 def assemble_stix_export_bundle(canonical_flow: CanonicalFlowOutput) -> StixExportBundle:
     bundle_id = _build_deterministic_bundle_id(canonical_flow.metadata.flow_id)
     export_objects = build_stix_export_objects(canonical_flow)
+    _normalize_export_object_refs(export_objects)
     root_object = export_objects[0]
-    root_object.start_refs = _filter_valid_start_refs(canonical_flow.metadata.start_refs, export_objects)
+    root_object.start_refs = _normalize_export_ref_list(canonical_flow.metadata.start_refs, _first_export_target_id(export_objects))
 
     bundle = build_stix_export_bundle(
         bundle_id,
@@ -385,7 +386,69 @@ def _filter_valid_start_refs(start_refs: list[str], export_objects: list[Any]) -
         for obj in export_objects
         if isinstance(obj, (StixExportAttackActionObject, StixExportAttackConditionObject))
     }
-    return [ref for ref in _coerce_string_list(start_refs) if ref in allowed_ids]
+    exemplar_id = next(iter(allowed_ids), None)
+    return [ref for ref in _normalize_export_ref_list(_coerce_string_list(start_refs), exemplar_id) if ref in allowed_ids]
+
+
+def _normalize_export_object_refs(export_objects: list[Any]) -> None:
+    target_id = _first_export_target_id(export_objects)
+    for obj in export_objects:
+        if isinstance(obj, StixExportAttackActionObject):
+            obj.asset_refs = _normalize_export_ref_list(obj.asset_refs, obj.id)
+            obj.effect_refs = _normalize_export_ref_list(obj.effect_refs, obj.id)
+        elif isinstance(obj, StixExportAttackConditionObject):
+            obj.on_true_refs = _normalize_export_ref_list(obj.on_true_refs, obj.id)
+            obj.on_false_refs = _normalize_export_ref_list(obj.on_false_refs, obj.id)
+        elif isinstance(obj, StixExportAttackOperatorObject):
+            obj.effect_refs = _normalize_export_ref_list(obj.effect_refs, obj.id)
+        elif isinstance(obj, StixExportAttackFlowObject) and target_id is not None:
+            obj.start_refs = _normalize_export_ref_list(obj.start_refs, target_id)
+
+
+def _first_export_target_id(export_objects: list[Any]) -> str | None:
+    for obj in export_objects:
+        if isinstance(obj, (StixExportAttackActionObject, StixExportAttackConditionObject)):
+            return obj.id
+    return None
+
+
+def _normalize_export_ref_list(refs: list[str], exemplar_id: str | None) -> list[str]:
+    return [_normalize_export_ref(ref, exemplar_id) for ref in refs]
+
+
+def _normalize_export_ref(ref: str, exemplar_id: str | None) -> str:
+    if not isinstance(ref, str) or not ref:
+        return ref
+    if exemplar_id is None:
+        return ref
+    exemplar_long = exemplar_id.startswith("attack-") and "--" in exemplar_id
+    prefix, separator, suffix = ref.partition("--")
+    if not separator:
+        if exemplar_long:
+            short_prefix, short_sep, short_suffix = ref.partition("-")
+            if not short_sep:
+                return ref
+            mapped_prefix = {
+                "action": "attack-action",
+                "condition": "attack-condition",
+                "operator": "attack-operator",
+                "asset": "attack-asset",
+            }.get(short_prefix)
+            if mapped_prefix is None:
+                return ref
+            return f"{mapped_prefix}--{short_suffix}"
+        return ref
+    if exemplar_long:
+        return ref
+    mapped_prefix = {
+        "attack-action": "action",
+        "attack-condition": "condition",
+        "attack-operator": "operator",
+        "attack-asset": "asset",
+    }.get(prefix)
+    if mapped_prefix is None:
+        return ref
+    return f"{mapped_prefix}-{suffix}"
 
 
 def _validate_bundle_header(bundle: StixExportBundle, errors: list[StixExportValidationError]) -> None:

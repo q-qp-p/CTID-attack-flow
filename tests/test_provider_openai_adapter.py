@@ -302,6 +302,35 @@ def test_validate_maps_unavailable_error(monkeypatch) -> None:
     assert exc.value.error.retryable is True
 
 
+def test_validate_maps_network_error_with_diagnostics(monkeypatch, caplog) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("SSL_CERT_FILE", "/Users/youngrm/mitre.pem")
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example:8080")
+
+    def executor(request):
+        raise OSError("certificate verify failed")
+
+    adapter = OpenAIProviderAdapter(_provider_config(), request_executor=executor)
+
+    with caplog.at_level("WARNING", logger="attack_flow_api.provider_openai"):
+        with pytest.raises(ProviderAdapterInvocationError) as exc:
+            adapter.validate(
+                ProviderValidationRequest(provider_id="default-openai", provider_type="openai")
+            )
+
+    assert exc.value.error.category.value == "unavailable"
+    assert exc.value.error.code == "provider_network_error"
+    assert exc.value.error.details["request_method"] == "POST"
+    assert exc.value.error.details["request_path"] == "/v1/responses"
+    assert exc.value.error.details["request_host"] == "api.openai.com"
+    assert exc.value.error.details["ssl_cert_file"] == "/Users/youngrm/mitre.pem"
+    assert exc.value.error.details["https_proxy_set"] == "true"
+
+    message = " ".join(record.message for record in caplog.records)
+    assert "provider network error" in message
+    assert "certificate verify failed" in message
+
+
 def test_rate_limit_error_logs_response_headers(monkeypatch, caplog) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
