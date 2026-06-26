@@ -291,6 +291,7 @@ export async function importExistingStixFile(
     const stixBundle = JSON.parse(file) as StixBundle;
     // Construct factory
     const factory = await getObjectFactory(context);
+    factory.theme = editor.file.factory.theme;
     // Translate STIX
     const jsonFile = new StixToAttackFlowConverter(factory).convert(stixBundle);
     // Construct file
