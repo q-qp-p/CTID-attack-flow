@@ -50,6 +50,11 @@ export interface AppConfiguration {
         open_file: SplashButton;
 
         /**
+         * Generate flow splash button.
+         */
+        generate_flow: SplashButton;
+
+        /**
          * Import STIX file button.
          */
         import_stix: SplashButton;

@@ -57,6 +57,10 @@ const configuration: AppConfiguration = {
             title: "Open Flow",
             description: "Open an existing flow."
         },
+        generate_flow: {
+            title: "Generate Flow",
+            description: "Generate a flow out of a security incident report."
+        },
         import_stix: {
             title: "Import STIX",
             description: "Import a STIX bundle."

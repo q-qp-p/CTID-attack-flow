@@ -15,7 +15,10 @@
         :src="organization"
       >
     </div>
-    <div class="menu-body">
+    <div
+      class="menu-body"
+      v-if="menuMode === 'home'"
+    >
       <div
         class="section open-recovered-file"
         v-if="files.size"
@@ -89,6 +92,20 @@
           </div>
           <div
             class="button"
+            @click="onGenerateFlow"
+          >
+            <div class="button-header">
+              <span class="button-icon"><FolderIcon /></span>
+              <p class="button-title">
+                {{ generateFlow.title }}
+              </p>
+            </div>
+            <p class="button-description">
+              {{ generateFlow.description }}
+            </p>
+          </div>
+          <div
+            class="button"
             @click="onImportStix"
           >
             <div class="button-header">
@@ -130,6 +147,12 @@
         </div>
       </div>
     </div>
+    <div
+      class="menu-body"
+      v-else
+    >
+      <AIGenerationSplashScreen />
+    </div>
   </div>
 </template>
 
@@ -147,6 +170,9 @@ import FolderIcon from "@/components/Icons/FolderIcon.vue";
 import FullPageIcon from "@/components/Icons/FullPageIcon.vue";
 import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
 import ScrollBox from "../Containers/ScrollBox.vue";
+import AIGenerationSplashScreen from "./AIGenerationSplashScreen.vue";
+
+type SplashMenuMode = "home" | "ai-generation";
 
 export default defineComponent({
   name: 'SplashMenu',
@@ -158,8 +184,10 @@ export default defineComponent({
       organization: Configuration.splash.organization,
       newFile: Configuration.splash.new_file,
       openFile: Configuration.splash.open_file,
+      generateFlow: Configuration.splash.generate_flow,
       importStix: Configuration.splash.import_stix,
-      helpLinks: Configuration.splash.help_links
+      helpLinks: Configuration.splash.help_links,
+      menuMode: "home" as SplashMenuMode
     }
   },
   computed: {
@@ -208,6 +236,13 @@ export default defineComponent({
     },
 
     /**
+     * Generate Flow behavior.
+     */
+    onGenerateFlow() {
+      this.menuMode = "ai-generation";
+    },
+
+    /**
      * Import STIX behavior.
      */
     async onImportStix() {
@@ -248,6 +283,7 @@ export default defineComponent({
 
   },
   components: { 
+    AIGenerationSplashScreen,
     LinkIcon, FolderIcon, 
     FullPageIcon, EmptyPageIcon,
     ScrollBox
@@ -458,8 +494,8 @@ export default defineComponent({
 .section.open-file .button-grid {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  column-gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 /** === Recovered File Section === */
