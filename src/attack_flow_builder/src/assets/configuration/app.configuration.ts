@@ -20,6 +20,7 @@ import {
 import { BasicVisualizationModal } from "../scripts/Application/Visualization";
 import type { AppConfiguration } from "../scripts/Application/Configuration/AppConfiguration";
 import { MatrixViewVisualization } from "./AttackFlowVisualizations/MatrixViewVisualization.ts";
+import { IOCTableVisualization } from "./AttackFlowVisualizations/IOCTableVisualization.ts";
 
 const configuration: AppConfiguration = {
 
@@ -156,7 +157,8 @@ const configuration: AppConfiguration = {
         TacticTableVisualization,
         MatrixViewVisualization,
         TimelineVisualization,
-        TreemapVisualization
+        TreemapVisualization,
+        IOCTableVisualization
     ]
 
 };
