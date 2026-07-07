@@ -1,6 +1,6 @@
 <template>
   <div class="treemap-visualization">
-    <div class="treemap-controls">
+    <div class="treemap-controls visualization-export-ignore">
       <label class="checkbox-control">
         <input
           v-model="showTechniqueIds"

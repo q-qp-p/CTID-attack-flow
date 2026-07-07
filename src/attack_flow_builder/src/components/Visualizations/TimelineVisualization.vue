@@ -1,6 +1,6 @@
 <template>
   <div class="timeline-visualization">
-    <div class="timeline-controls">
+    <div class="timeline-controls visualization-export-ignore">
       <label>
         <span>Orientation</span>
         <select v-model="orientation">

@@ -1,6 +1,6 @@
 <template>
   <div class="tactic-table-visualization">
-    <div class="tactic-table-controls">
+    <div class="tactic-table-controls visualization-export-ignore">
       <VisualizationWidthControl
         v-model="tacticTableWidth"
         aria-label="Tactic table width"

@@ -10,6 +10,17 @@
       <div class="controls">
         <button
           type="button"
+          @click="copyVis"
+          :title="copyTitle"
+        >
+          <CopyIcon
+            :width="iconSize"
+            :height="iconSize"
+            :color="iconColor"
+          />
+        </button>
+        <button
+          type="button"
           @click="exportVis"
           title="Download Image"
         >
@@ -62,11 +73,12 @@
   </dialog>
 </template>
 <script setup lang="ts">
-import { exportVisualization } from "@/assets/scripts/Application";
+import { copyVisualizationToClipboard, exportVisualization } from "@/assets/scripts/Application";
 import type { VisualizationRegistration } from "@/assets/scripts/Application/Visualization";
 import { useApplicationStore } from "@/stores/ApplicationStore";
 import { computed, onMounted, ref, useTemplateRef, watch } from "vue";
 import CloseIcon from "../Icons/CloseIcon.vue";
+import CopyIcon from "../Icons/CopyIcon.vue";
 import DownloadIcon from "../Icons/DownloadIcon.vue";
 import ExitFullscreenIcon from "../Icons/ExitFullscreenIcon.vue";
 import FullscreenIcon from "../Icons/FullscreenIcon.vue";
@@ -78,6 +90,8 @@ const app = useApplicationStore();
 
 const iconSize = 20;
 const isFullscreen = ref(false);
+const copyTitle = ref("Copy Image");
+let copyResetTimeout: ReturnType<typeof setTimeout> | undefined;
 
 const iconColor = computed<string>(() => {
     let result = "#737373";
@@ -118,6 +132,24 @@ async function exportVis() {
         visualization,
         root
     });
+}
+
+async function copyVis() {
+    const root = visContainer.value;
+    const visualization = activeVisualization.value;
+    if (!root || !visualization) {
+        return;
+    }
+    await copyVisualizationToClipboard({
+        app,
+        visualization,
+        root
+    });
+    copyTitle.value = "Copied!";
+    clearTimeout(copyResetTimeout);
+    copyResetTimeout = setTimeout(() => {
+        copyTitle.value = "Copy Image";
+    }, 1500);
 }
 
 function toggleFullscreen() {

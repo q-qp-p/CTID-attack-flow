@@ -1,6 +1,6 @@
 <template>
   <div id="matrix-vis-root">
-    <div class="matrix-toolbar">
+    <div class="matrix-toolbar visualization-export-ignore">
       <label>
         <input
           type="checkbox"
@@ -21,9 +21,9 @@
 
     <div class="svg-container">
       <svg
-        ref="svg-element"
-        :width="svgBbox?.width"
-        :height="svgBbox?.height"
+        :width="svgWidth"
+        :height="svgHeight"
+        :viewBox="`0 0 ${svgWidth} ${svgHeight}`"
         v-if="groupedTechniques && groupedTechniques.length"
       >
         <g
@@ -95,14 +95,13 @@
 <script setup lang="ts">
 import { StringProperty, TTPTupleProperty } from '@/assets/scripts/OpenChart/DiagramModel';
 import { useApplicationStore } from '@/stores/ApplicationStore';
-import { computed, ref, useTemplateRef } from 'vue';
+import { computed, ref } from 'vue';
 import {
     getDomainCodeFromLabel,
     getTacticNameFromLabel,
     getTechniqueNameFromLabel,
 } from '@/assets/configuration/AttackFlowTemplates/TTPFrameworkConstants.ts';
 import { getTacticOrder } from './TacticOrder';
-import { wrapText } from './SvgHelpers';
 
 interface Tactic {
     id: string,
@@ -126,8 +125,6 @@ const app = useApplicationStore();
 
 const showTacticIds = ref(false);
 const showTechniqueIds = ref(false);
-
-const svgElement = useTemplateRef('svg-element');
 
 const columnWidth = 200;
 const techniqueHeight = 90;
@@ -165,14 +162,57 @@ function getHeaderLineY(tactic: Tactic, lineIndex: number) : number {
     return result;
 }
 
-const svgBbox = computed<DOMRect | null>(() => {
-    let result = null;
+function wrapText(text: string, maxCols: number, maxRows: number): string[] {
+  // A naive approach to wrapping. It assumes that there will be
+  // spaces in opportune places and never forces a line break.
+  let startIdx = 0;
+  let lastSpace = -1;
+  let lines = [];
 
-    if (svgElement.value) {
-        result = svgElement.value.getBBox();
+  // Break the string into multiple smaller strings, ideally at natural spaces.
+  for (let endIdx = 0; endIdx < text.length; endIdx++) {
+    if (/\s/.test(text.charAt(endIdx))) {
+      lastSpace = endIdx;
+    } else if (endIdx - startIdx >= maxCols) {
+      if (lastSpace === -1) {
+        lastSpace = endIdx // Break long strings even if there's no space.
+      }
+      lines.push(text.substring(startIdx, lastSpace));
+      startIdx = lastSpace + 1;
+      lastSpace = -1;
     }
+  }
+  lines.push(text.substring(startIdx));
 
-    return result;
+  // Truncate lines beyond limit and add ellipsis.
+  if (lines.length > maxRows) {
+    lines = lines.slice(0, maxRows);
+    if (lines[maxRows - 1].length > maxCols - 3) {
+      lines[maxRows - 1] = lines[maxRows - 1].substring(0, maxCols - 3);
+    }
+    lines[maxRows - 1] += "…";
+  }
+
+    return lines;
+}
+
+const svgWidth = computed(() => {
+    const tacticCount = groupedTechniques.value?.length ?? 0;
+    return Math.max(
+        columnWidth,
+        tacticCount * columnWidth + Math.max(0, tacticCount - 1) * gap
+    );
+});
+
+const svgHeight = computed(() => {
+    const maxTechniqueCount = groupedTechniques.value?.reduce((max, tactic) => {
+        return Math.max(max, tactic.techniques.length);
+    }, 0) ?? 0;
+
+    return Math.max(
+        headerHeight,
+        headerHeight + maxTechniqueCount * (techniqueHeight + gap)
+    );
 });
 
 const headerLinesByTactic = computed<Map<Tactic, string[]>>(() => {
@@ -205,7 +245,7 @@ const groupedTechniques = computed<GroupedTechnique[] | null>(() => {
         const ttp = block.properties.get("ttp", TTPTupleProperty);
 
         if (!ttp) return;
-        
+
         const techniqueProp = ttp.value.get("technique") as StringProperty | undefined;
 
         if (!techniqueProp) return;
@@ -296,7 +336,6 @@ const groupedTechniques = computed<GroupedTechnique[] | null>(() => {
 
     svg {
         min-width: 100%;
-        min-height: 100%;
         font-family: "Times", serif;
     }
 </style>

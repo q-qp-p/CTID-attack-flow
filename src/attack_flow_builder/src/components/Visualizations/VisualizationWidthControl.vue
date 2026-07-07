@@ -1,6 +1,6 @@
 <template>
   <div
-    class="visualization-width-control"
+    class="visualization-width-control visualization-export-ignore"
     role="group"
     :aria-label="ariaLabel"
   >
