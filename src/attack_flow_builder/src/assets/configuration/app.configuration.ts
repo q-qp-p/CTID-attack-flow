@@ -6,6 +6,9 @@ import { AttackFlowRecommender } from "./AttackFlowRecommender/AttackFlowRecomme
 import { TacticTableVisualization } from "./AttackFlowVisualizations/TacticTableVisualization.ts";
 import { TimelineVisualization } from "./AttackFlowVisualizations/TimelineVisualization.ts";
 import { TreemapVisualization } from "./AttackFlowVisualizations/TreemapVisualization.ts";
+import { PresentationVisualization } from "./AttackFlowVisualizations/PresentationVisualization.ts";
+import { MatrixViewVisualization } from "./AttackFlowVisualizations/MatrixViewVisualization.ts";
+import { IOCTableVisualization } from "./AttackFlowVisualizations/IOCTableVisualization.ts";
 import { DarkTheme } from "./AttackFlowThemes/DarkTheme.ts";
 import { BlogTheme } from "./AttackFlowThemes/BlogTheme.ts";
 import { LightTheme } from "./AttackFlowThemes/LightTheme.ts";
@@ -19,8 +22,6 @@ import {
 } from "./AttackFlowTemplates";
 import { BasicVisualizationModal } from "../scripts/Application/Visualization";
 import type { AppConfiguration } from "../scripts/Application/Configuration/AppConfiguration";
-import { MatrixViewVisualization } from "./AttackFlowVisualizations/MatrixViewVisualization.ts";
-import { IOCTableVisualization } from "./AttackFlowVisualizations/IOCTableVisualization.ts";
 
 const configuration: AppConfiguration = {
 
@@ -159,6 +160,7 @@ const configuration: AppConfiguration = {
 
     visualizations: [
         TacticTableVisualization,
+        PresentationVisualization,
         MatrixViewVisualization,
         TimelineVisualization,
         TreemapVisualization,

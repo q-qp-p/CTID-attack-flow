@@ -113,6 +113,89 @@ export function buildGraph(
 }
 
 /**
+ * Collapse disallowed nodes out of a graph while preserving adjacency among allowed nodes.
+ * e.g. If in A -> B -> C "B" is not allowed, then the graph collapses to A -> C.
+ * @param nodes Full set of nodes to inspect.
+ * @param lines Full set of lines to inspect.
+ * @param allowedBlockIds Allowed block type identifiers. Any node whose `id` is not in this set is treated as disallowed.
+ * @returns Collapsed outgoing and incoming adjacency lists containing only allowed nodes.
+ */
+export function collapseDisallowedRelationships(
+    nodes: Set<BlockView>,
+    lines: Set<LineView>,
+    allowedBlockIds: Set<string>
+): {
+        graph: Map<BlockView, Set<BlockView>>;
+        incomingEdges: Map<BlockView, Set<BlockView>>;
+    } {
+    const { graph } = buildGraph(nodes, lines);
+    const collapsedGraph = new Map<BlockView, Set<BlockView>>();
+    const incomingEdges = new Map<BlockView, Set<BlockView>>();
+
+    const collectAllowedDescendants = (
+        node: BlockView,
+        result: Set<BlockView>,
+        visited: Set<BlockView>
+    ) => {
+        if (visited.has(node)) {
+            return;
+        }
+
+        if (allowedBlockIds.has(node.id)) {
+            result.add(node);
+            return;
+        }
+
+        const children = graph.get(node);
+        if (!children) {
+            return;
+        }
+
+        const nextVisited = new Set(visited);
+        nextVisited.add(node);
+
+        for (const child of children) {
+            collectAllowedDescendants(child, result, nextVisited);
+        }
+    };
+
+    for (const block of graph.keys()) {
+        if (!allowedBlockIds.has(block.id)) {
+            continue;
+        }
+
+        collapsedGraph.set(block, new Set());
+        incomingEdges.set(block, new Set());
+    }
+
+    for (const [block, children] of graph) {
+        if (!allowedBlockIds.has(block.id)) {
+            continue;
+        }
+
+        const collapsedChildren = collapsedGraph.get(block)!;
+        for (const child of children) {
+            const allowedDescendants = new Set<BlockView>();
+            collectAllowedDescendants(child, allowedDescendants, new Set<BlockView>());
+
+            for (const descendant of allowedDescendants) {
+                if (descendant === block) {
+                    continue;
+                }
+
+                collapsedChildren.add(descendant);
+                incomingEdges.get(descendant)?.add(block);
+            }
+        }
+    }
+
+    return {
+        graph: collapsedGraph,
+        incomingEdges
+    };
+}
+
+/**
  * For a given child block, get a map of each parents to the direction of the child from the parent.
  * @param block the child block to check.
  * @param incomingEdges The graph as an adjacency list of incoming edges.
