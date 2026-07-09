@@ -151,3 +151,73 @@ def test_validate_provider_endpoint_includes_request_id_header(monkeypatch, tmp_
     assert response.status_code == 200
     assert payload["request_id"] == "req-test-123"
     assert response.headers["X-Request-ID"] == "req-test-123"
+
+
+def test_validate_provider_endpoint_accepts_runtime_override(monkeypatch, tmp_path: Path):
+    def fake_validate_runtime_provider(
+        self,
+        *,
+        runtime_override,
+        allow_runtime_provider_override: bool,
+        allowed_provider_types: set[str],
+        allow_extra_headers: bool = False,
+    ):
+        assert allow_runtime_provider_override is False
+        assert "openai_compatible" in allowed_provider_types
+        assert allow_extra_headers is False
+        assert runtime_override.provider_type == "openai_compatible"
+        return ProviderValidationServiceResult(
+            valid=True,
+            provider_id="runtime-openai_compatible",
+            provider_type="openai_compatible",
+            model="model-a",
+            latency_ms=15,
+        )
+
+    monkeypatch.setattr(
+        "attack_flow_api.services.provider_validation_service.ProviderValidationService.validate_runtime_provider",
+        fake_validate_runtime_provider,
+    )
+
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/providers/validate",
+            json={
+                "provider_override": {
+                    "provider_type": "openai_compatible",
+                    "endpoint": "https://compatible.example/v1",
+                    "api_key": "runtime-secret",
+                    "model": "model-a",
+                }
+            },
+        )
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["valid"] is True
+    assert payload["provider_id"] == "runtime-openai_compatible"
+    assert payload["provider_type"] == "openai_compatible"
+    assert payload["model"] == "model-a"
+    assert payload["latency_ms"] == 15
+    assert "runtime-secret" not in str(payload)
+    assert "api_key" not in payload
+
+
+def test_validate_provider_endpoint_rejects_ambiguous_provider_selection(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/providers/validate",
+            json={
+                "provider_id": "default-openai",
+                "provider_override": {
+                    "provider_type": "openai",
+                    "api_key": "runtime-secret",
+                    "model": "gpt-4.1-mini",
+                },
+            },
+        )
+
+    payload = response.json()
+    assert response.status_code == 400
+    assert payload["error"]["code"] == "invalid_provider_selection"
+    assert "runtime-secret" not in response.text

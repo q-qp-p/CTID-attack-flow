@@ -60,10 +60,14 @@ class OpenAIProviderAdapter(ProviderAdapter):
         self,
         provider_config: ProviderConfig,
         *,
+        runtime_api_key: str | None = None,
+        runtime_extra_headers: dict[str, str] | None = None,
         request_executor: Callable[[OpenAIHttpRequest], OpenAIHttpResponse] | None = None,
         sleep_fn: Callable[[float], None] | None = None,
     ):
         self._provider = provider_config
+        self._runtime_api_key = runtime_api_key
+        self._runtime_extra_headers = runtime_extra_headers or {}
         self._request_executor = request_executor or _default_openai_request_executor
         self._sleep_fn = sleep_fn or time.sleep
         self._logger = logging.getLogger("attack_flow_api.provider_openai")
@@ -241,6 +245,9 @@ class OpenAIProviderAdapter(ProviderAdapter):
         return sorted(dict.fromkeys(model_ids))
 
     def _resolve_api_key(self, *, operation: ProviderOperation) -> str:
+        if self._runtime_api_key is not None and self._runtime_api_key.strip():
+            return self._runtime_api_key
+
         env_var = (self._provider.api_key_env or "").strip()
         if not env_var:
             raise ProviderAdapterInvocationError(
@@ -269,6 +276,9 @@ class OpenAIProviderAdapter(ProviderAdapter):
         return api_key
 
     def _resolve_azure_api_key(self, *, operation: ProviderOperation) -> str:
+        if self._runtime_api_key is not None and self._runtime_api_key.strip():
+            return self._runtime_api_key
+
         for env_var_name in (
             self._provider.azure_api_key_env,
             self._provider.api_key_env,
@@ -331,13 +341,15 @@ class OpenAIProviderAdapter(ProviderAdapter):
         url: str,
         json_body: dict[str, object] | None,
         ) -> OpenAIHttpRequest:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        headers.update(self._runtime_extra_headers)
         return OpenAIHttpRequest(
             method=method,
             url=url,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
+            headers=headers,
             timeout_seconds=timeout_seconds,
             json_body=json_body,
         )
@@ -448,10 +460,12 @@ class OpenAIProviderAdapter(ProviderAdapter):
             }
 
         api_key = self._resolve_azure_api_key(operation=operation)
-        return {
+        headers = {
             "api-key": api_key,
             "Content-Type": "application/json",
         }
+        headers.update(self._runtime_extra_headers)
+        return headers
 
     def _azure_chat_completions_url(self, deployment_name: str) -> str:
         base_url = self._normalize_azure_base_url()

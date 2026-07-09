@@ -168,6 +168,96 @@ def test_submit_job_text_returns_202_and_persists_records(monkeypatch, tmp_path:
         assert json.loads(audit_rows[2]["details_json"])["normalized_char_count"] == len("investigation content")
 
 
+def test_submit_job_options_provider_override_persists_safe_metadata(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            json={
+                "input_type": "text",
+                "text": "investigation content",
+                "options": {
+                    "provider_override": {
+                        "provider_type": "openai_compatible",
+                        "endpoint": "https://compatible.example/v1",
+                        "api_key": "runtime-secret",
+                        "model": "model-a",
+                        "extra_headers": {"X-Test": "header-secret"},
+                    }
+                },
+            },
+        )
+
+        payload = response.json()
+        assert response.status_code == 202
+        sqlite_path = client.app.state.sqlite_path
+
+    with sqlite3.connect(sqlite_path) as connection:
+        connection.row_factory = sqlite3.Row
+        job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (payload["job_id"],)).fetchone()
+        assert job_row is not None
+        assert job_row["provider_id"] == "runtime-openai_compatible"
+        assert job_row["model"] == "model-a"
+
+        input_row = connection.execute(
+            "SELECT * FROM input_sources WHERE id = ?", (job_row["input_source_id"],)
+        ).fetchone()
+        assert input_row is not None
+        options = json.loads(input_row["options_json"])
+        provider_override = options["provider_override"]
+        assert provider_override == {
+            "provider_source": "runtime_override",
+            "provider_type": "openai_compatible",
+            "endpoint_redacted": "https://compatible.example",
+            "model": "model-a",
+            "api_version": None,
+            "deployment": None,
+            "extra_header_names": ["X-Test"],
+        }
+        assert "runtime-secret" not in input_row["options_json"]
+        assert "header-secret" not in input_row["options_json"]
+        assert "api_key" not in input_row["options_json"]
+        assert "extra_headers" not in input_row["options_json"]
+
+        audit_rows = connection.execute(
+            "SELECT event_type, details_json FROM audit_events WHERE job_id = ? ORDER BY sequence ASC",
+            (payload["job_id"],),
+        ).fetchall()
+        runtime_event = next(
+            row for row in audit_rows if row["event_type"] == "runtime_provider_override_received"
+        )
+        runtime_details = json.loads(runtime_event["details_json"])
+        assert runtime_details["provider_source"] == "runtime_override"
+        assert runtime_details["provider_type"] == "openai_compatible"
+        assert runtime_details["endpoint_redacted"] == "https://compatible.example"
+        assert runtime_details["model"] == "model-a"
+        assert "runtime-secret" not in runtime_event["details_json"]
+        assert "header-secret" not in runtime_event["details_json"]
+
+
+def test_submit_job_options_rejects_provider_id_and_override(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            json={
+                "input_type": "text",
+                "text": "investigation content",
+                "options": {
+                    "provider_id": "default-openai",
+                    "provider_override": {
+                        "provider_type": "openai",
+                        "api_key": "runtime-secret",
+                        "model": "gpt-4.1-mini",
+                    },
+                },
+            },
+        )
+
+    payload = response.json()
+    assert response.status_code == 400
+    assert payload["error"]["code"] == "invalid_provider_selection"
+    assert "runtime-secret" not in response.text
+
+
 def test_submit_job_text_persists_normalized_text(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
         response = client.post(

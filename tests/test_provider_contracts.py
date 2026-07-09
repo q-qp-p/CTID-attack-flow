@@ -1,9 +1,13 @@
+import pytest
+from pydantic import ValidationError
+
 from attack_flow_api.providers.contracts import (
     DEFAULT_ERROR_RETRYABLE,
     NormalizedProviderError,
     ProviderErrorCategory,
     ProviderInvocationMode,
     ProviderOperation,
+    RuntimeProviderOverride,
     ProviderTokenUsage,
     ProviderValidationRequest,
     ProviderValidationResult,
@@ -95,3 +99,46 @@ def test_invocation_mode_values_are_explicit() -> None:
         == "requested_but_skipped_sufficient_input"
     )
     assert ProviderInvocationMode.REQUESTED_AND_RESOLVED.value == "requested_and_resolved"
+
+
+def test_runtime_provider_override_model_preserves_only_safe_metadata() -> None:
+    override = RuntimeProviderOverride(
+        provider_type="openai_compatible",
+        endpoint="https://compatible.example/v1/path?token=secret",
+        api_key="runtime-secret",
+        model="model-a",
+        extra_headers={"X-Api-Key": "header-secret"},
+    )
+
+    dumped = override.model_dump(mode="json")
+    safe_metadata = override.safe_metadata().model_dump(mode="json")
+
+    assert dumped == {
+        "provider_type": "openai_compatible",
+        "endpoint": "https://compatible.example/v1/path?token=secret",
+        "model": "model-a",
+        "api_version": None,
+        "deployment": None,
+    }
+    assert safe_metadata == {
+        "provider_source": "runtime_override",
+        "provider_type": "openai_compatible",
+        "endpoint_redacted": "https://compatible.example",
+        "model": "model-a",
+        "api_version": None,
+        "deployment": None,
+        "extra_header_names": ["X-Api-Key"],
+    }
+    assert "runtime-secret" not in str(dumped)
+    assert "header-secret" not in str(dumped)
+    assert "runtime-secret" not in str(safe_metadata)
+    assert "header-secret" not in str(safe_metadata)
+
+
+def test_runtime_provider_override_model_rejects_unsupported_provider_type() -> None:
+    with pytest.raises(ValidationError):
+        RuntimeProviderOverride(
+            provider_type="anthropic",
+            api_key="runtime-secret",
+            model="claude-3-5-haiku-latest",
+        )

@@ -202,6 +202,19 @@ class AppSettings(BaseSettings):
     providers_config_path: Path = Field(
         default=Path("config/providers.yml"), validation_alias="PROVIDERS_CONFIG_PATH"
     )
+    allow_runtime_provider_override: bool = Field(
+        default=False, validation_alias="ALLOW_RUNTIME_PROVIDER_OVERRIDE"
+    )
+    allow_runtime_provider_types: str = Field(
+        default="openai,openai_compatible,azure_openai",
+        validation_alias="ALLOW_RUNTIME_PROVIDER_TYPES",
+    )
+    allow_runtime_provider_extra_headers: bool = Field(
+        default=False, validation_alias="ALLOW_RUNTIME_PROVIDER_EXTRA_HEADERS"
+    )
+
+    def allowed_runtime_provider_type_set(self) -> set[str]:
+        return {item.strip() for item in self.allow_runtime_provider_types.split(",") if item.strip()}
 
 
 def load_settings() -> AppSettings:

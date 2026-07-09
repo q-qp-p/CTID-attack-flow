@@ -13,6 +13,7 @@ from starlette.datastructures import UploadFile
 
 from attack_flow_api.errors import BadRequestError, ConflictError, NotFoundError, PayloadTooLargeError
 from attack_flow_api.audit.audit_contracts import JobAuditResponse
+from attack_flow_api.providers.contracts import RuntimeProviderOverride
 from attack_flow_api.services.file_upload import FileUploadValidationError, validate_and_describe_upload
 from attack_flow_api.services.stix_json_validation import (
     StixJsonValidationError,
@@ -115,6 +116,8 @@ class SubmissionPayload:
     size_bytes: int | None = None
     metadata: dict[str, Any] | None = None
     options: dict[str, Any] | None = None
+    provider_id: str | None = None
+    model: str | None = None
     title: str | None = None
     case_id: str | None = None
     source_name: str | None = None
@@ -189,6 +192,15 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
 
     Optional `metadata` and `options` are persisted when provided.
 
+    Runtime provider override behavior:
+    - `options.provider_id` selects a configured provider for the job.
+    - `options.provider_override` supplies safe runtime provider metadata for per-job use.
+    - `provider_id` and `provider_override` are mutually exclusive.
+    - Supported runtime provider types are `openai`, `openai_compatible`, and `azure_openai`.
+    - Runtime API keys and secret-bearing header values are not persisted.
+    - Persisted runtime metadata is redacted to provider source/type, redacted endpoint,
+      model/deployment, API version, and header names only.
+
     Submission is non-blocking: this endpoint queues work and returns `202 Accepted`.
     An in-process worker advances queued jobs asynchronously through lifecycle stages.
     """
@@ -239,7 +251,12 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
             sha256=submission.sha256,
         )
     )
-    return _create_queued_job_response(request, input_source.id)
+    return _create_queued_job_response(
+        request,
+        input_source.id,
+        provider_id=submission.provider_id,
+        model=submission.model,
+    )
 
 
 async def _parse_json_payload(request: Request) -> JobSubmissionRequest:
@@ -314,6 +331,7 @@ def _submission_from_json(payload: JobSubmissionRequest, raw_text_max_chars: int
     title = _coerce_optional_metadata_str(payload.metadata, "title")
     case_id = _coerce_optional_metadata_str(payload.metadata, "case_id")
     source_name = _coerce_optional_metadata_str(payload.metadata, "source_name")
+    safe_options, provider_id, model = _normalize_submission_options(payload.options)
     if normalized_input_type == "text" and raw_text is not None:
         normalized_result = normalize_raw_text(raw_text)
         normalized_text = normalized_result.text
@@ -329,7 +347,9 @@ def _submission_from_json(payload: JobSubmissionRequest, raw_text_max_chars: int
         normalized_char_count=normalized_char_count,
         normalization_version=normalization_version,
         metadata=payload.metadata,
-        options=payload.options,
+        options=safe_options,
+        provider_id=provider_id,
+        model=model,
         title=title,
         case_id=case_id,
         source_name=source_name,
@@ -371,6 +391,7 @@ async def _submission_from_multipart(request: Request) -> SubmissionPayload:
 
     metadata = _parse_optional_json_object(form_data.get("metadata"), "metadata")
     options = _parse_optional_json_object(form_data.get("options"), "options")
+    safe_options, provider_id, model = _normalize_submission_options(options)
 
     file_bytes = await upload_file.read()
     settings = request.app.state.settings
@@ -422,7 +443,9 @@ async def _submission_from_multipart(request: Request) -> SubmissionPayload:
         normalized_char_count=None,
         normalization_version=None,
         metadata=metadata,
-        options=options,
+        options=safe_options,
+        provider_id=provider_id,
+        model=model,
         source_name=None,
         title=None,
         case_id=None,
@@ -459,19 +482,90 @@ def _parse_optional_json_object(raw_value: object, field_name: str) -> dict[str,
     return parsed
 
 
+def _normalize_submission_options(options: dict[str, Any] | None) -> tuple[dict[str, Any] | None, str | None, str | None]:
+    if options is None:
+        return None, None, None
+
+    safe_options = dict(options)
+    has_provider_id = "provider_id" in safe_options and safe_options.get("provider_id") is not None
+    has_provider_override = "provider_override" in safe_options and safe_options.get("provider_override") is not None
+
+    if has_provider_id and has_provider_override:
+        raise BadRequestError(
+            code="invalid_provider_selection",
+            message="options must include only one of provider_id or provider_override",
+            details=[],
+        )
+
+    model = _coerce_optional_options_str(safe_options, "model")
+    if has_provider_id:
+        provider_id_value = safe_options.get("provider_id")
+        if not isinstance(provider_id_value, str) or not provider_id_value.strip():
+            raise BadRequestError(
+                code="invalid_provider_id",
+                message="options.provider_id must be a non-empty string",
+                details=[],
+            )
+        provider_id = provider_id_value.strip()
+        safe_options["provider_id"] = provider_id
+        if model is not None:
+            safe_options["model"] = model
+        return safe_options, provider_id, model
+
+    if has_provider_override:
+        try:
+            runtime_override = RuntimeProviderOverride.model_validate(safe_options.get("provider_override"))
+        except ValidationError:
+            raise BadRequestError(
+                code="invalid_provider_override",
+                message="options.provider_override is invalid",
+                details=[],
+            ) from None
+
+        safe_metadata = runtime_override.safe_metadata().model_dump(mode="json")
+        safe_options["provider_override"] = safe_metadata
+        return (
+            safe_options,
+            f"runtime-{runtime_override.provider_type}",
+            runtime_override.deployment or runtime_override.model,
+        )
+
+    if model is not None:
+        safe_options["model"] = model
+    return safe_options, None, model
+
+
+def _coerce_optional_options_str(options: dict[str, Any], key: str) -> str | None:
+    value = options.get(key)
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip()
+    if not candidate:
+        return None
+    return candidate
+
+
 def _serialize_optional_json(value: dict[str, Any] | None) -> str | None:
     if value is None:
         return None
     return json.dumps(value)
 
 
-def _create_queued_job_response(request: Request, input_source_id: str) -> JobSubmissionResponse:
+def _create_queued_job_response(
+    request: Request,
+    input_source_id: str,
+    *,
+    provider_id: str | None = None,
+    model: str | None = None,
+) -> JobSubmissionResponse:
     persistence_service = request.app.state.persistence_service
     job = persistence_service.create_job(
         JobCreate(
             id=str(uuid4()),
             status="queued",
             stage="queued",
+            provider_id=provider_id,
+            model=model,
             input_source_id=input_source_id,
             request_id=request.state.request_id,
         )
@@ -484,6 +578,16 @@ def _create_queued_job_response(request: Request, input_source_id: str) -> JobSu
             source_type=input_source.type,
             request_id=request.state.request_id,
         )
+        runtime_provider_metadata = _runtime_provider_metadata_from_options(input_source.options_json)
+        if runtime_provider_metadata is not None:
+            persistence_service.record_job_event(
+                job=job,
+                event_type="runtime_provider_override_received",
+                source_component="api",
+                message="runtime provider override received",
+                request_id=request.state.request_id,
+                details=runtime_provider_metadata,
+            )
     persistence_service.record_job_queued(job=job, request_id=request.state.request_id)
     if input_source is not None and input_source.type == "text" and input_source.normalized_text is not None:
         persistence_service.record_job_event(
@@ -507,6 +611,21 @@ def _create_queued_job_response(request: Request, input_source_id: str) -> JobSu
         poll_url=f"{settings.api_prefix}/jobs/{job.id}",
         request_id=request.state.request_id,
     )
+
+
+def _runtime_provider_metadata_from_options(options_json: str | None) -> dict[str, object] | None:
+    if not options_json:
+        return None
+    try:
+        options = json.loads(options_json)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(options, dict):
+        return None
+    provider_override = options.get("provider_override")
+    if not isinstance(provider_override, dict):
+        return None
+    return dict(provider_override)
 
 
 submit_job.openapi_extra = {
@@ -559,6 +678,21 @@ submit_job.openapi_extra = {
                             "options": {"priority": "normal"},
                         },
                     },
+                    "runtime_provider_override": {
+                        "summary": "Text submission with runtime provider override",
+                        "value": {
+                            "input_type": "text",
+                            "text": "investigation content",
+                            "options": {
+                                "provider_override": {
+                                    "provider_type": "openai_compatible",
+                                    "endpoint": "https://compatible.example/v1",
+                                    "api_key": "<runtime-api-key>",
+                                    "model": "model-a",
+                                }
+                            },
+                        },
+                    },
                 },
             },
             "multipart/form-data": {
@@ -596,6 +730,20 @@ submit_job.openapi_extra = {
                             "file": "<binary>",
                             "metadata": '{"source":"upload"}',
                             "options": '{"priority":"high"}',
+                        },
+                    },
+                    "file_submission_runtime_provider": {
+                        "summary": "Multipart file submission with runtime provider override",
+                        "value": {
+                            "file": "<binary>",
+                            "metadata": '{"source":"upload"}',
+                            "options": (
+                                '{"provider_override":{"provider_type":"azure_openai",'
+                                '"endpoint":"https://example.openai.azure.com/openai",'
+                                '"api_key":"<runtime-api-key>",'
+                                '"api_version":"2024-10-21",'
+                                '"deployment":"deployment-a"}}'
+                            ),
                         },
                     }
                 },

@@ -1,6 +1,11 @@
 from enum import Enum
+from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
+
+
+RuntimeProviderOverrideType = Literal["openai", "openai_compatible", "azure_openai"]
 
 
 class ProviderOperation(str, Enum):
@@ -34,6 +39,53 @@ class StructuredFinishReason(str, Enum):
     CONTENT_FILTER = "content_filter"
     TOOL_CALL = "tool_call"
     UNKNOWN = "unknown"
+
+
+class RuntimeProviderOverrideMetadata(BaseModel):
+    provider_source: Literal["runtime_override"] = "runtime_override"
+    provider_type: RuntimeProviderOverrideType
+    endpoint_redacted: str | None = None
+    model: str | None = None
+    api_version: str | None = None
+    deployment: str | None = None
+    extra_header_names: list[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class RuntimeProviderOverride(BaseModel):
+    provider_type: RuntimeProviderOverrideType
+    endpoint: str | None = None
+    api_key: SecretStr | None = Field(default=None, exclude=True)
+    model: str | None = None
+    api_version: str | None = None
+    deployment: str | None = None
+    extra_headers: dict[str, SecretStr] = Field(default_factory=dict, exclude=True)
+
+    model_config = ConfigDict(extra="forbid")
+
+    def safe_metadata(self) -> RuntimeProviderOverrideMetadata:
+        return RuntimeProviderOverrideMetadata(
+            provider_type=self.provider_type,
+            endpoint_redacted=_redact_endpoint(self.endpoint),
+            model=self.model,
+            api_version=self.api_version,
+            deployment=self.deployment,
+            extra_header_names=sorted(self.extra_headers.keys()),
+        )
+
+
+def _redact_endpoint(endpoint: str | None) -> str | None:
+    if endpoint is None:
+        return None
+    candidate = endpoint.strip()
+    if not candidate:
+        return None
+
+    parsed = urlsplit(candidate)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}"
+    return "[redacted]"
 
 
 class ProviderValidationRequest(BaseModel):

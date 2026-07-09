@@ -1,9 +1,16 @@
 import time
 from dataclasses import dataclass, field
 
-from attack_flow_api.providers.contracts import ProviderValidationRequest
+from attack_flow_api.providers.contracts import ProviderValidationRequest, RuntimeProviderOverride
 from attack_flow_api.providers.adapter import ProviderAdapterInvocationError
-from attack_flow_api.providers.registry import ProviderDisabledError, ProviderNotFoundError, ProviderRegistry
+from attack_flow_api.providers.registry import (
+    ProviderDisabledError,
+    ProviderNotFoundError,
+    ProviderRegistry,
+    RuntimeProviderExtraHeadersNotAllowedError,
+    RuntimeProviderOverrideDisabledError,
+    RuntimeProviderTypeNotAllowedError,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +73,84 @@ class ProviderValidationService:
                 error_code="provider_disabled",
                 error_category="configuration_error",
                 error_message="provider is disabled",
+                retryable=False,
+            )
+        except ProviderAdapterInvocationError as exc:
+            normalized_error = exc.error
+            return self._failure(
+                provider_id=provider_id,
+                provider_type=provider_type or normalized_error.provider_type,
+                started=started,
+                error_code=normalized_error.code,
+                error_category=normalized_error.category.value,
+                error_message=normalized_error.message,
+                retryable=normalized_error.retryable,
+                status_code=normalized_error.status_code,
+                error_details=normalized_error.details,
+            )
+
+    def validate_runtime_provider(
+        self,
+        *,
+        runtime_override: RuntimeProviderOverride,
+        allow_runtime_provider_override: bool,
+        allowed_provider_types: set[str],
+        allow_extra_headers: bool = False,
+    ) -> ProviderValidationServiceResult:
+        started = time.perf_counter()
+        provider_id = f"runtime-{runtime_override.provider_type}"
+        provider_type: str | None = runtime_override.provider_type
+
+        try:
+            adapter = self.provider_registry.resolve_runtime_adapter(
+                runtime_override=runtime_override,
+                allow_runtime_provider_override=allow_runtime_provider_override,
+                allowed_provider_types=allowed_provider_types,
+                allow_extra_headers=allow_extra_headers,
+            )
+            result = adapter.validate(
+                request=self._build_validation_request(
+                    provider_id=adapter.provider_id,
+                    provider_type=adapter.provider_type,
+                    model=runtime_override.deployment or runtime_override.model,
+                )
+            )
+            latency_ms = max(0, int(round((time.perf_counter() - started) * 1000)))
+            return ProviderValidationServiceResult(
+                valid=bool(result.is_valid),
+                provider_id=result.provider_id,
+                provider_type=result.provider_type,
+                model=result.checked_model,
+                latency_ms=latency_ms,
+            )
+        except RuntimeProviderOverrideDisabledError:
+            return self._failure(
+                provider_id=provider_id,
+                provider_type=provider_type,
+                started=started,
+                error_code="runtime_provider_override_disabled",
+                error_category="configuration_error",
+                error_message="runtime provider override is disabled",
+                retryable=False,
+            )
+        except RuntimeProviderTypeNotAllowedError:
+            return self._failure(
+                provider_id=provider_id,
+                provider_type=provider_type,
+                started=started,
+                error_code="runtime_provider_type_not_allowed",
+                error_category="configuration_error",
+                error_message="runtime provider type is not allowed",
+                retryable=False,
+            )
+        except RuntimeProviderExtraHeadersNotAllowedError:
+            return self._failure(
+                provider_id=provider_id,
+                provider_type=provider_type,
+                started=started,
+                error_code="runtime_provider_extra_headers_not_allowed",
+                error_category="configuration_error",
+                error_message="runtime provider extra headers are disabled",
                 retryable=False,
             )
         except ProviderAdapterInvocationError as exc:

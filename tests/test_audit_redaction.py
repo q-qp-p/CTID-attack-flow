@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from attack_flow_api.audit.audit_contracts import job_audit_response
+from attack_flow_api.audit.audit_redaction import sanitize_audit_details
 from attack_flow_api.services.persistence_service import PersistenceService
 from attack_flow_api.storage.database import initialize_database
 from attack_flow_api.storage.models import AuditEvent
@@ -88,3 +89,28 @@ def test_audit_response_sanitizes_unsafe_persisted_details():
     assert payload["events"][0]["details"]["provider_id"] == "provider-a"
     assert payload["events"][0]["details"]["raw_text"] == "[redacted]"
     assert payload["events"][0]["details"]["provider_payload"] == "[redacted]"
+
+
+def test_runtime_provider_override_audit_metadata_is_safe_and_deterministic():
+    sanitized, redacted = sanitize_audit_details(
+        {
+            "provider_source": "runtime_override",
+            "provider_type": "openai_compatible",
+            "endpoint_redacted": "https://compatible.example",
+            "model": "model-a",
+            "api_key": "runtime-secret",
+            "extra_headers": {"X-Test": "header-secret"},
+        }
+    )
+
+    assert sanitized == {
+        "provider_source": "runtime_override",
+        "provider_type": "openai_compatible",
+        "endpoint_redacted": "https://compatible.example",
+        "model": "model-a",
+        "api_key": "[redacted]",
+        "extra_headers": "[redacted]",
+    }
+    assert redacted is True
+    assert "runtime-secret" not in json.dumps(sanitized)
+    assert "header-secret" not in json.dumps(sanitized)

@@ -4,11 +4,15 @@ from attack_flow_api.config import ProviderConfig, ProvidersConfig
 from attack_flow_api.providers.adapter import ProviderAdapter, ProviderAdapterInvocationError
 from attack_flow_api.providers.contracts import ProviderInvocationMode
 from attack_flow_api.providers.contracts import ProviderValidationRequest
+from attack_flow_api.providers.contracts import RuntimeProviderOverride
 from attack_flow_api.providers.openai_adapter import OpenAIProviderAdapter
 from attack_flow_api.providers.registry import (
     ProviderDisabledError,
     ProviderNotFoundError,
     ProviderRegistry,
+    RuntimeProviderExtraHeadersNotAllowedError,
+    RuntimeProviderOverrideDisabledError,
+    RuntimeProviderTypeNotAllowedError,
 )
 
 
@@ -156,4 +160,64 @@ def test_registry_openai_adapter_requires_runtime_credentials() -> None:
                 provider_id="default-openai",
                 provider_type="openai",
             )
+        )
+
+
+def test_registry_resolves_ephemeral_runtime_openai_adapter() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    adapter = registry.resolve_runtime_adapter(
+        runtime_override=RuntimeProviderOverride(
+            provider_type="openai_compatible",
+            endpoint="https://compatible.example/v1",
+            api_key="runtime-secret",
+            model="model-a",
+        ),
+        allow_runtime_provider_override=True,
+        allowed_provider_types={"openai", "openai_compatible", "azure_openai"},
+    )
+
+    assert isinstance(adapter, OpenAIProviderAdapter)
+    assert adapter.provider_id == "runtime-openai_compatible"
+    assert adapter.provider_type == "openai_compatible"
+    assert registry.get_default_enabled_provider_id() == "default-openai"
+
+
+def test_registry_rejects_runtime_override_when_disabled() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    with pytest.raises(RuntimeProviderOverrideDisabledError):
+        registry.resolve_runtime_adapter(
+            runtime_override=RuntimeProviderOverride(provider_type="openai", api_key="runtime-secret"),
+            allow_runtime_provider_override=False,
+            allowed_provider_types={"openai"},
+        )
+
+
+def test_registry_rejects_disallowed_runtime_provider_type() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    with pytest.raises(RuntimeProviderTypeNotAllowedError) as exc:
+        registry.resolve_runtime_adapter(
+            runtime_override=RuntimeProviderOverride(provider_type="azure_openai", api_key="runtime-secret"),
+            allow_runtime_provider_override=True,
+            allowed_provider_types={"openai"},
+        )
+
+    assert exc.value.provider_type == "azure_openai"
+
+
+def test_registry_rejects_runtime_extra_headers_when_disabled() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    with pytest.raises(RuntimeProviderExtraHeadersNotAllowedError):
+        registry.resolve_runtime_adapter(
+            runtime_override=RuntimeProviderOverride(
+                provider_type="openai",
+                api_key="runtime-secret",
+                extra_headers={"X-Test": "secret-header"},
+            ),
+            allow_runtime_provider_override=True,
+            allowed_provider_types={"openai"},
+            allow_extra_headers=False,
         )

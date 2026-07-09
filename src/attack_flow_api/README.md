@@ -162,7 +162,10 @@ Current limitations:
 This stage adds the first concrete provider adapter implementation: OpenAI.
 
 - `POST /api/v1/providers/validate` validates a configured provider by `provider_id`.
+- The same endpoint may validate an ephemeral `provider_override` instead of `provider_id`.
+- Requests must include exactly one of `provider_id` or `provider_override`.
 - Validation executes through the provider abstraction/registry layer and then the concrete OpenAI adapter for `openai` and `azure_openai` provider types.
+- Runtime provider override supports `openai`, `openai_compatible`, and `azure_openai` when enabled by configuration.
 - OpenAI adapter runtime behavior includes:
   - model selection (explicit request model, then provider default, then first allowed model),
   - bounded timeout handling,
@@ -171,11 +174,65 @@ This stage adds the first concrete provider adapter implementation: OpenAI.
   - practical fields include `valid`, `provider_id`, `provider_type`, optional `model`, `latency_ms`, and `request_id`,
   - failure details are normalized (error code/category/retryable/status),
   - secret-bearing values are never returned.
+- Runtime override secrets are used only for the current validation request. API keys and secret-bearing headers are not persisted or returned.
+
+Runtime validation example:
+
+```json
+{
+  "provider_override": {
+    "provider_type": "openai_compatible",
+    "endpoint": "https://compatible.example/v1",
+    "api_key": "<runtime-api-key>",
+    "model": "model-a"
+  }
+}
+```
 
 Practical limitations:
 
-- OpenAI and Azure OpenAI are implemented through the shared OpenAI adapter.
-- Other provider types remain registry-configurable but adapter behavior is not implemented yet.
+- OpenAI, OpenAI-compatible, and Azure OpenAI runtime overrides are implemented through the shared OpenAI adapter.
+- Runtime overrides do not create or save provider records.
+
+Runtime override configuration:
+
+- `ALLOW_RUNTIME_PROVIDER_OVERRIDE` enables or disables runtime overrides. Default: `false`.
+- `ALLOW_RUNTIME_PROVIDER_TYPES` controls allowed runtime provider types. Default: `openai,openai_compatible,azure_openai`.
+- `ALLOW_RUNTIME_PROVIDER_EXTRA_HEADERS` controls whether runtime `extra_headers` are accepted. Default: `false`.
+
+## Per-Job Runtime Provider Override
+
+`POST /api/v1/jobs` may include provider selection under `options`.
+
+- `options.provider_id` selects a configured provider for the job.
+- `options.provider_override` supplies runtime provider details for that job.
+- `provider_id` and `provider_override` are mutually exclusive.
+- Submission remains non-blocking and returns `202 Accepted` after queueing.
+- Runtime API keys and secret-bearing header values are never persisted.
+- Persisted/audited runtime metadata is redacted to safe fields only:
+  - `provider_source = runtime_override`,
+  - `provider_type`,
+  - `endpoint_redacted` as scheme and host only,
+  - `model`, `api_version`, and `deployment`,
+  - `extra_header_names` only, not header values.
+
+Job submission example:
+
+```json
+{
+  "input_type": "text",
+  "text": "investigation content",
+  "options": {
+    "provider_override": {
+      "provider_type": "azure_openai",
+      "endpoint": "https://example.openai.azure.com/openai",
+      "api_key": "<runtime-api-key>",
+      "api_version": "2024-10-21",
+      "deployment": "deployment-a"
+    }
+  }
+}
+```
 
 ## Orchestration and Intermediate Extraction
 
