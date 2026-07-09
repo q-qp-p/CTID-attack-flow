@@ -234,6 +234,116 @@ def test_submit_job_options_provider_override_persists_safe_metadata(monkeypatch
         assert "header-secret" not in runtime_event["details_json"]
 
 
+def test_submit_job_options_anthropic_provider_override_persists_safe_metadata(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            json={
+                "input_type": "text",
+                "text": "investigation content",
+                "options": {
+                    "provider_override": {
+                        "provider_type": "anthropic",
+                        "endpoint": "https://api.anthropic.com/v1",
+                        "api_key": "runtime-secret",
+                        "model": "claude-3-5-haiku-latest",
+                    }
+                },
+            },
+        )
+
+        payload = response.json()
+        assert response.status_code == 202
+        sqlite_path = client.app.state.sqlite_path
+
+    with sqlite3.connect(sqlite_path) as connection:
+        connection.row_factory = sqlite3.Row
+        job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (payload["job_id"],)).fetchone()
+        assert job_row is not None
+        assert job_row["provider_id"] == "runtime-anthropic"
+        assert job_row["model"] == "claude-3-5-haiku-latest"
+
+        input_row = connection.execute(
+            "SELECT * FROM input_sources WHERE id = ?", (job_row["input_source_id"],)
+        ).fetchone()
+        assert input_row is not None
+        provider_override = json.loads(input_row["options_json"])["provider_override"]
+        assert provider_override == {
+            "provider_source": "runtime_override",
+            "provider_type": "anthropic",
+            "endpoint_redacted": "https://api.anthropic.com",
+            "model": "claude-3-5-haiku-latest",
+            "api_version": None,
+            "deployment": None,
+            "extra_header_names": [],
+        }
+        assert "runtime-secret" not in input_row["options_json"]
+        assert "api_key" not in input_row["options_json"]
+
+        runtime_event = connection.execute(
+            "SELECT details_json FROM audit_events WHERE job_id = ? AND event_type = ?",
+            (payload["job_id"], "runtime_provider_override_received"),
+        ).fetchone()
+        assert runtime_event is not None
+        assert "runtime-secret" not in runtime_event["details_json"]
+        assert json.loads(runtime_event["details_json"])["provider_type"] == "anthropic"
+
+
+def test_submit_job_options_gemini_provider_override_persists_safe_metadata(monkeypatch, tmp_path: Path):
+    with _build_client(monkeypatch, tmp_path) as client:
+        response = client.post(
+            "/api/v1/jobs",
+            json={
+                "input_type": "text",
+                "text": "investigation content",
+                "options": {
+                    "provider_override": {
+                        "provider_type": "gemini",
+                        "endpoint": "https://generativelanguage.googleapis.com/v1beta",
+                        "api_key": "runtime-secret",
+                        "model": "gemini-1.5-flash",
+                    }
+                },
+            },
+        )
+
+        payload = response.json()
+        assert response.status_code == 202
+        sqlite_path = client.app.state.sqlite_path
+
+    with sqlite3.connect(sqlite_path) as connection:
+        connection.row_factory = sqlite3.Row
+        job_row = connection.execute("SELECT * FROM jobs WHERE id = ?", (payload["job_id"],)).fetchone()
+        assert job_row is not None
+        assert job_row["provider_id"] == "runtime-gemini"
+        assert job_row["model"] == "gemini-1.5-flash"
+
+        input_row = connection.execute(
+            "SELECT * FROM input_sources WHERE id = ?", (job_row["input_source_id"],)
+        ).fetchone()
+        assert input_row is not None
+        provider_override = json.loads(input_row["options_json"])["provider_override"]
+        assert provider_override == {
+            "provider_source": "runtime_override",
+            "provider_type": "gemini",
+            "endpoint_redacted": "https://generativelanguage.googleapis.com",
+            "model": "gemini-1.5-flash",
+            "api_version": None,
+            "deployment": None,
+            "extra_header_names": [],
+        }
+        assert "runtime-secret" not in input_row["options_json"]
+        assert "api_key" not in input_row["options_json"]
+
+        runtime_event = connection.execute(
+            "SELECT details_json FROM audit_events WHERE job_id = ? AND event_type = ?",
+            (payload["job_id"], "runtime_provider_override_received"),
+        ).fetchone()
+        assert runtime_event is not None
+        assert "runtime-secret" not in runtime_event["details_json"]
+        assert json.loads(runtime_event["details_json"])["provider_type"] == "gemini"
+
+
 def test_submit_job_options_rejects_provider_id_and_override(monkeypatch, tmp_path: Path):
     with _build_client(monkeypatch, tmp_path) as client:
         response = client.post(

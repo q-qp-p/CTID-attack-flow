@@ -38,6 +38,18 @@ from attack_flow_api.providers.openai_adapter import (
     OpenAIHttpResponse,
     OpenAIProviderAdapter,
 )
+from attack_flow_api.providers.anthropic_adapter import (
+    AnthropicHttpError,
+    AnthropicHttpRequest,
+    AnthropicHttpResponse,
+    AnthropicProviderAdapter,
+)
+from attack_flow_api.providers.gemini_adapter import (
+    GeminiHttpError,
+    GeminiHttpRequest,
+    GeminiHttpResponse,
+    GeminiProviderAdapter,
+)
 
 __all__ = [
     "ProviderAdapter",
@@ -56,6 +68,14 @@ __all__ = [
     "OpenAIHttpRequest",
     "OpenAIHttpResponse",
     "OpenAIHttpError",
+    "AnthropicProviderAdapter",
+    "AnthropicHttpRequest",
+    "AnthropicHttpResponse",
+    "AnthropicHttpError",
+    "GeminiProviderAdapter",
+    "GeminiHttpRequest",
+    "GeminiHttpResponse",
+    "GeminiHttpError",
     "DEFAULT_ERROR_RETRYABLE",
     "NormalizedProviderError",
     "ProviderErrorCategory",

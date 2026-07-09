@@ -135,10 +135,29 @@ def test_runtime_provider_override_model_preserves_only_safe_metadata() -> None:
     assert "header-secret" not in str(safe_metadata)
 
 
+def test_runtime_provider_override_model_accepts_anthropic_and_gemini() -> None:
+    anthropic = RuntimeProviderOverride(
+        provider_type="anthropic",
+        api_key="runtime-secret",
+        model="claude-3-5-haiku-latest",
+    )
+    gemini = RuntimeProviderOverride(
+        provider_type="gemini",
+        endpoint="https://generativelanguage.googleapis.com/v1beta",
+        api_key="runtime-secret",
+        model="gemini-1.5-flash",
+    )
+
+    assert anthropic.safe_metadata().provider_type == "anthropic"
+    assert anthropic.safe_metadata().model == "claude-3-5-haiku-latest"
+    assert gemini.safe_metadata().provider_type == "gemini"
+    assert gemini.safe_metadata().endpoint_redacted == "https://generativelanguage.googleapis.com"
+
+
 def test_runtime_provider_override_model_rejects_unsupported_provider_type() -> None:
     with pytest.raises(ValidationError):
         RuntimeProviderOverride(
-            provider_type="anthropic",
+            provider_type="unsupported",
             api_key="runtime-secret",
-            model="claude-3-5-haiku-latest",
+            model="model-a",
         )

@@ -5,7 +5,13 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 
-RuntimeProviderOverrideType = Literal["openai", "openai_compatible", "azure_openai"]
+RuntimeProviderOverrideType = Literal[
+    "openai",
+    "openai_compatible",
+    "azure_openai",
+    "anthropic",
+    "gemini",
+]
 
 
 class ProviderOperation(str, Enum):

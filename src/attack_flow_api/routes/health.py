@@ -70,8 +70,8 @@ class ProviderValidateRequest(BaseModel):
         default=None,
         description=(
             "Ephemeral runtime provider override for validation. Supports openai, "
-            "openai_compatible, and azure_openai. Secrets are used only for this request "
-            "and are not returned or persisted."
+            "openai_compatible, azure_openai, anthropic, and gemini. Secrets are used only for this request "
+            "and are not returned or persisted. Gemini uses API-key-based endpoint mode only."
         ),
     )
 
@@ -162,10 +162,11 @@ def validate_provider(request: Request, payload: ProviderValidateRequest) -> Pro
     """Validate a configured provider or an ephemeral runtime provider override.
 
     Requests must include exactly one of `provider_id` or `provider_override`.
-    Runtime overrides support `openai`, `openai_compatible`, and `azure_openai`
-    when enabled by configuration. Runtime API keys and secret-bearing headers are
-    not persisted or returned. Responses are normalized and intentionally exclude
-    secret-bearing fields.
+    Runtime overrides support `openai`, `openai_compatible`, `azure_openai`,
+    `anthropic`, and `gemini` when enabled by configuration. Runtime API keys
+    and secret-bearing headers are not persisted or returned. Responses are
+    normalized and intentionally exclude secret-bearing fields. Gemini runtime
+    validation uses API-key-based endpoint mode only.
     """
     provider_registry = request.app.state.provider_registry
     validation_service = ProviderValidationService(provider_registry)

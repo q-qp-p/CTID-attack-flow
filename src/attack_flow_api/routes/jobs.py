@@ -196,7 +196,9 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
     - `options.provider_id` selects a configured provider for the job.
     - `options.provider_override` supplies safe runtime provider metadata for per-job use.
     - `provider_id` and `provider_override` are mutually exclusive.
-    - Supported runtime provider types are `openai`, `openai_compatible`, and `azure_openai`.
+    - Supported runtime provider types are `openai`, `openai_compatible`, `azure_openai`,
+      `anthropic`, and `gemini`.
+    - Gemini runtime overrides use API-key-based endpoint mode only.
     - Runtime API keys and secret-bearing header values are not persisted.
     - Persisted runtime metadata is redacted to provider source/type, redacted endpoint,
       model/deployment, API version, and header names only.
@@ -689,6 +691,36 @@ submit_job.openapi_extra = {
                                     "endpoint": "https://compatible.example/v1",
                                     "api_key": "<runtime-api-key>",
                                     "model": "model-a",
+                                }
+                            },
+                        },
+                    },
+                    "runtime_anthropic_override": {
+                        "summary": "Text submission with Anthropic runtime provider override",
+                        "value": {
+                            "input_type": "text",
+                            "text": "investigation content",
+                            "options": {
+                                "provider_override": {
+                                    "provider_type": "anthropic",
+                                    "endpoint": "https://api.anthropic.com/v1",
+                                    "api_key": "<runtime-api-key>",
+                                    "model": "claude-3-5-haiku-latest",
+                                }
+                            },
+                        },
+                    },
+                    "runtime_gemini_override": {
+                        "summary": "Text submission with Gemini runtime provider override",
+                        "value": {
+                            "input_type": "text",
+                            "text": "investigation content",
+                            "options": {
+                                "provider_override": {
+                                    "provider_type": "gemini",
+                                    "endpoint": "https://generativelanguage.googleapis.com/v1beta",
+                                    "api_key": "<runtime-api-key>",
+                                    "model": "gemini-1.5-flash",
                                 }
                             },
                         },

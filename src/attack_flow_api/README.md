@@ -152,21 +152,17 @@ The API now treats AI providers through a shared provider abstraction and a regi
   - provider requested but skipped when deterministic structured input is sufficient,
   - provider requested and resolved.
 
-Current limitations:
-
-- Concrete provider vendor behavior is intentionally placeholder-only.
-- Registry/adapters are for abstraction and wiring; provider validation execution and orchestration logic are handled elsewhere in the worker pipeline.
+Supported provider types include `openai`, `azure_openai`, `openai_compatible`, `anthropic`, and `gemini`.
+Gemini support is API-key-based endpoint mode only; Vertex-specific and enterprise authentication flows are not included.
 
 ## Provider Validation
-
-This stage adds the first concrete provider adapter implementation: OpenAI.
 
 - `POST /api/v1/providers/validate` validates a configured provider by `provider_id`.
 - The same endpoint may validate an ephemeral `provider_override` instead of `provider_id`.
 - Requests must include exactly one of `provider_id` or `provider_override`.
-- Validation executes through the provider abstraction/registry layer and then the concrete OpenAI adapter for `openai` and `azure_openai` provider types.
-- Runtime provider override supports `openai`, `openai_compatible`, and `azure_openai` when enabled by configuration.
-- OpenAI adapter runtime behavior includes:
+- Validation executes through the provider abstraction/registry layer for configured `openai`, `azure_openai`, `anthropic`, and `gemini` providers.
+- Runtime provider override supports `openai`, `openai_compatible`, `azure_openai`, `anthropic`, and `gemini` when enabled by configuration.
+- Provider adapter runtime behavior includes:
   - model selection (explicit request model, then provider default, then first allowed model),
   - bounded timeout handling,
   - bounded retry/backoff for transient failures only.
@@ -191,13 +187,13 @@ Runtime validation example:
 
 Practical limitations:
 
-- OpenAI, OpenAI-compatible, and Azure OpenAI runtime overrides are implemented through the shared OpenAI adapter.
+- Gemini runtime overrides use API-key-based endpoint mode only.
 - Runtime overrides do not create or save provider records.
 
 Runtime override configuration:
 
 - `ALLOW_RUNTIME_PROVIDER_OVERRIDE` enables or disables runtime overrides. Default: `false`.
-- `ALLOW_RUNTIME_PROVIDER_TYPES` controls allowed runtime provider types. Default: `openai,openai_compatible,azure_openai`.
+- `ALLOW_RUNTIME_PROVIDER_TYPES` controls allowed runtime provider types. Default: `openai,openai_compatible,azure_openai,anthropic,gemini`.
 - `ALLOW_RUNTIME_PROVIDER_EXTRA_HEADERS` controls whether runtime `extra_headers` are accepted. Default: `false`.
 
 ## Per-Job Runtime Provider Override
@@ -208,6 +204,8 @@ Runtime override configuration:
 - `options.provider_override` supplies runtime provider details for that job.
 - `provider_id` and `provider_override` are mutually exclusive.
 - Submission remains non-blocking and returns `202 Accepted` after queueing.
+- Runtime provider overrides support `openai`, `openai_compatible`, `azure_openai`, `anthropic`, and `gemini` when enabled by configuration.
+- Gemini runtime overrides use API-key-based endpoint mode only.
 - Runtime API keys and secret-bearing header values are never persisted.
 - Persisted/audited runtime metadata is redacted to safe fields only:
   - `provider_source = runtime_override`,

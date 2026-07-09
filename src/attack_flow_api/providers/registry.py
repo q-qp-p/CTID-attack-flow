@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from attack_flow_api.config import ProviderConfig, ProviderPublicMetadata, ProvidersConfig
 from attack_flow_api.providers.adapter import ProviderAdapter, ProviderNotImplementedAdapter
 from attack_flow_api.providers.contracts import ProviderInvocationMode, RuntimeProviderOverride
+from attack_flow_api.providers.anthropic_adapter import AnthropicProviderAdapter
+from attack_flow_api.providers.gemini_adapter import GeminiProviderAdapter
 from attack_flow_api.providers.openai_adapter import OpenAIProviderAdapter
 
 
@@ -204,6 +206,16 @@ class ProviderRegistry:
                 runtime_api_key=runtime_api_key,
                 runtime_extra_headers=runtime_extra_headers,
             )
+        if provider.provider_type == "anthropic":
+            if runtime_override is None:
+                return AnthropicProviderAdapter(provider)
+            runtime_api_key = runtime_override.api_key.get_secret_value() if runtime_override.api_key else None
+            return AnthropicProviderAdapter(provider, runtime_api_key=runtime_api_key)
+        if provider.provider_type == "gemini":
+            if runtime_override is None:
+                return GeminiProviderAdapter(provider)
+            runtime_api_key = runtime_override.api_key.get_secret_value() if runtime_override.api_key else None
+            return GeminiProviderAdapter(provider, runtime_api_key=runtime_api_key)
         return ProviderNotImplementedAdapter(
             provider_id=provider.provider_id,
             provider_type=provider.provider_type,

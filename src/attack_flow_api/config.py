@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-ProviderType = Literal["openai", "azure_openai", "anthropic", "openai_compatible"]
+ProviderType = Literal["openai", "azure_openai", "anthropic", "gemini", "openai_compatible"]
 
 
 class ProviderConfig(BaseModel):
@@ -90,10 +90,22 @@ class ProvidersConfig(BaseModel):
             return None
         return provider
 
-    def validate_openai_provider_config(self, provider_id: str) -> list[str]:
-        provider = self.get_openai_provider_by_id(provider_id)
+    def get_provider_by_id_and_type(
+        self,
+        provider_id: str,
+        provider_types: set[ProviderType],
+    ) -> ProviderConfig | None:
+        provider = self.get_provider_by_id(provider_id)
         if provider is None:
-            return ["provider_not_found_or_not_openai"]
+            return None
+        if provider.provider_type not in provider_types:
+            return None
+        return provider
+
+    def validate_provider_config(self, provider_id: str) -> list[str]:
+        provider = self.get_provider_by_id(provider_id)
+        if provider is None:
+            return ["provider_not_found"]
 
         errors: list[str] = []
         if not provider.enabled:
@@ -119,6 +131,12 @@ class ProvidersConfig(BaseModel):
         if provider.base_url is not None and not provider.base_url.strip():
             errors.append("base_url_invalid")
         return errors
+
+    def validate_openai_provider_config(self, provider_id: str) -> list[str]:
+        provider = self.get_openai_provider_by_id(provider_id)
+        if provider is None:
+            return ["provider_not_found_or_not_openai"]
+        return self.validate_provider_config(provider_id)
 
 
 class AppSettings(BaseSettings):
@@ -206,7 +224,7 @@ class AppSettings(BaseSettings):
         default=False, validation_alias="ALLOW_RUNTIME_PROVIDER_OVERRIDE"
     )
     allow_runtime_provider_types: str = Field(
-        default="openai,openai_compatible,azure_openai",
+        default="openai,openai_compatible,azure_openai,anthropic,gemini",
         validation_alias="ALLOW_RUNTIME_PROVIDER_TYPES",
     )
     allow_runtime_provider_extra_headers: bool = Field(
