@@ -7,6 +7,9 @@
   >
     <div class="title-bar">
       {{ visTitle }}
+      <div style="position: relative;">
+        <ClassificationMarking />
+      </div>
       <div class="controls">
         <button
           type="button"
@@ -82,6 +85,7 @@ import CopyIcon from "../Icons/CopyIcon.vue";
 import DownloadIcon from "../Icons/DownloadIcon.vue";
 import ExitFullscreenIcon from "../Icons/ExitFullscreenIcon.vue";
 import FullscreenIcon from "../Icons/FullscreenIcon.vue";
+import ClassificationMarking from "./ClassificationMarking.vue";
 
 const dialog = useTemplateRef('dialog');
 const visContainer = useTemplateRef('vis-container');

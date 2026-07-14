@@ -1,5 +1,16 @@
+import {
+    createSvgClassificationMarking,
+    drawClassificationMarking,
+    formatClassificationText,
+    getClassificationTextColor
+} from "@/assets/scripts/Application/Classification";
 import { Device } from "@/assets/scripts/Browser";
-import { toBlob, toSvg } from "html-to-image";
+import {
+    EnumProperty,
+    StringProperty,
+    TupleProperty
+} from "@/assets/scripts/OpenChart/DiagramModel";
+import { toCanvas, toSvg } from "html-to-image";
 import type { Options } from "html-to-image/lib/types";
 import type { Component } from "vue";
 import type { ApplicationStore } from "@/stores/ApplicationStore";
@@ -95,6 +106,11 @@ export type VisualizationExporter = (
 /**
  * Exports a visualization with either its custom exporter or the default SVG
  * exporter.
+ *
+ * This path prefers higher-fidelity export output, with SVG used by default
+ * when available. Unlike {@link copyVisualizationToClipboard}, which
+ * optimizes for clipboard compatibility, export/download favors a more
+ * complete representation of the visualization.
  * @param context
  *  The visualization export context.
  */
@@ -115,6 +131,24 @@ export async function exportVisualization(
  */
 const MAX_CLIPBOARD_IMAGE_WIDTH = 1200;
 
+/** XML namespace used when creating SVG export nodes. */
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** Font size for exported classification marking text. */
+const CLASSIFICATION_FONT_SIZE = 16;
+
+/** Horizontal padding inside the classification marking banner. */
+const CLASSIFICATION_PADDING_X = 5;
+
+/** Vertical padding inside the classification marking banner. */
+const CLASSIFICATION_PADDING_Y = 2;
+
+/** Estimated width multiplier used to size the classification banner. */
+const CLASSIFICATION_TEXT_WIDTH_FACTOR = 0.62;
+
+/** Gap between the classification banner and the exported visualization. */
+const CLASSIFICATION_CONTENT_GAP = 4;
+
 /**
  * Applied to visualization toolbars and controls that should be excluded from
  * clipboard captures. New visualizations should add this class to any UI
@@ -131,6 +165,100 @@ function getClipboardExportRoot(context: VisualizationExportContext): Element {
 }
 
 /**
+ * Resolves the element to capture for visualization export.
+ */
+function getVisualizationExportRoot(context: VisualizationExportContext): Element {
+    return context.visualization.getExportRoot?.(context.root)
+        ?? context.root;
+}
+
+/** Classification marking text and styling derived from the active file. */
+interface ClassificationMarkingData {
+    /** Fully formatted marking text to display in the export banner. */
+    fullText: string;
+
+    /** Text color used for the formatted marking text. */
+    textColor: string;
+}
+
+/** Resolved SVG viewport dimensions used for export layout. */
+interface SvgViewport {
+    /** Left edge of the SVG viewport. */
+    x: number;
+
+    /** Top edge of the SVG viewport. */
+    y: number;
+
+    /** Width of the SVG viewport. */
+    width: number;
+
+    /** Height of the SVG viewport. */
+    height: number;
+}
+
+/** SVG viewport dimensions after top padding has been reserved. */
+interface PaddedSvgViewport {
+    /** Left edge of the padded SVG viewport. */
+    x: number;
+
+    /** Top edge of the padded SVG viewport. */
+    y: number;
+
+    /** Width of the padded SVG viewport. */
+    width: number;
+
+    /** Height of the padded SVG viewport. */
+    height: number;
+
+    /** Vertical offset applied to the original SVG content. */
+    contentOffsetY: number;
+}
+
+/**
+ * Decorates an SVG export with the active file's classification marking.
+ * Returns the provided SVG so exporters can compose the helper inline.
+ * @param svg
+ *  The SVG to decorate.
+ * @param app
+ *  The application store containing the active file classification.
+ * @returns
+ *  The decorated SVG.
+ */
+export function addClassificationMarking(
+    svg: SVGSVGElement,
+    app: ApplicationStore
+): SVGSVGElement {
+    // Resolve the formatted marking text and exit early when none is set.
+    const markingData = getClassificationMarkingData(app);
+    if (!markingData) {
+        return svg;
+    }
+
+    svg.querySelector("[data-classification-marking='true']")?.remove();
+
+    // Reserve space for the banner before positioning the new SVG elements.
+    const estimatedTextWidth = Math.ceil(
+        markingData.fullText.length
+        * CLASSIFICATION_FONT_SIZE
+        * CLASSIFICATION_TEXT_WIDTH_FACTOR
+    );
+    const rectWidth = estimatedTextWidth + (CLASSIFICATION_PADDING_X * 2);
+    const rectHeight = CLASSIFICATION_FONT_SIZE + (CLASSIFICATION_PADDING_Y * 2);
+    const topPadding = rectHeight + CLASSIFICATION_CONTENT_GAP;
+    const paddedViewport = ensureSvgTopPadding(svg, topPadding);
+    const rectX = paddedViewport.x + ((paddedViewport.width - rectWidth) / 2);
+    const rectY = paddedViewport.y;
+
+    // Append the completed banner as the last SVG layer in the export.
+    svg.append(createSvgClassificationMarking(svg, markingData.fullText, {
+        textColor: markingData.textColor,
+        x: rectX,
+        y: rectY
+    }));
+    return svg;
+}
+
+/**
  * Resolves a single SVG element from an export root when present.
  */
 function resolveExportSvg(exportRoot: Element): SVGSVGElement | null {
@@ -140,6 +268,141 @@ function resolveExportSvg(exportRoot: Element): SVGSVGElement | null {
 
     const svg = exportRoot.querySelector("svg");
     return svg instanceof SVGSVGElement ? svg : null;
+}
+
+/** Resolves formatted classification marking data from the active file. */
+function getClassificationMarkingData(
+    app: ApplicationStore
+): ClassificationMarkingData | null {
+    const classification = app.activeEditor.file.canvas.properties
+        .get<TupleProperty>("classification");
+    const marking = classification?.get<EnumProperty>("marking");
+    const group = classification?.get<StringProperty>("group");
+    if (!marking?.value) {
+        return null;
+    }
+
+    const markingText = marking.toString();
+    const groupText = group?.value ?? null;
+    return {
+        fullText: formatClassificationText(markingText, groupText),
+        textColor: getClassificationTextColor(markingText)
+    };
+}
+
+/** Resolves the SVG viewport origin and dimensions used for banner layout. */
+function getSvgViewport(svg: SVGSVGElement): SvgViewport {
+    const viewBox = svg.getAttribute("viewBox");
+    if (viewBox) {
+        const [x, y, width, height] = viewBox.split(/[\s,]+/).map(Number);
+        if ([x, y, width, height].every(Number.isFinite)) {
+            return { x, y, width, height };
+        }
+    }
+
+    const { width, height } = resolveSvgDimensions(svg);
+    return {
+        x: 0,
+        y: 0,
+        width,
+        height
+    };
+}
+
+/** Expands the SVG to reserve top padding for the classification banner. */
+function ensureSvgTopPadding(svg: SVGSVGElement, topPadding: number): PaddedSvgViewport {
+    const paddingKey = "data-classification-padding-top";
+    const existingPadding = Number(svg.getAttribute(paddingKey) ?? "0");
+    if (existingPadding > 0) {
+        const viewport = getSvgViewport(svg);
+        return {
+            ...viewport,
+            contentOffsetY: existingPadding
+        };
+    }
+
+    const viewport = getSvgViewport(svg);
+    wrapSvgContent(svg, topPadding);
+    const paddedViewport = {
+        x: viewport.x,
+        y: viewport.y,
+        width: viewport.width,
+        height: viewport.height + topPadding,
+        contentOffsetY: topPadding
+    };
+    svg.setAttribute(
+        "viewBox",
+        `${paddedViewport.x} ${paddedViewport.y} ${paddedViewport.width} ${paddedViewport.height}`
+    );
+    updateSvgLengthAttribute(svg, "height", topPadding);
+    svg.setAttribute(paddingKey, String(topPadding));
+    return paddedViewport;
+}
+
+/** Wraps existing SVG content so it can be shifted below the banner area. */
+function wrapSvgContent(svg: SVGSVGElement, topPadding: number): void {
+    const contentGroupKey = "data-classification-content";
+    const existingGroup = svg.querySelector(`:scope > g[${contentGroupKey}='true']`);
+    if (existingGroup?.tagName?.toLowerCase() === "g") {
+        return;
+    }
+
+    const documentRoot = svg.ownerDocument ?? document;
+    const contentGroup = documentRoot.createElementNS(SVG_NS, "g");
+    contentGroup.setAttribute(contentGroupKey, "true");
+    contentGroup.setAttribute("transform", `translate(0 ${topPadding})`);
+
+    const nodesToMove = Array.from(svg.childNodes).filter(node => {
+        if (!(node instanceof Element)) {
+            return false;
+        }
+
+        const tagName = node.tagName.toLowerCase();
+        return ![
+            "defs",
+            "title",
+            "desc",
+            "metadata",
+            "style",
+            "script"
+        ].includes(tagName)
+            && node.getAttribute("data-classification-marking") !== "true";
+    });
+
+    if (!nodesToMove.length) {
+        return;
+    }
+
+    for (const node of nodesToMove) {
+        contentGroup.append(node);
+    }
+
+    svg.append(contentGroup);
+}
+
+/** Adjusts a numeric SVG length attribute by the provided delta. */
+function updateSvgLengthAttribute(
+    svg: SVGSVGElement,
+    attribute: "height" | "width",
+    delta: number
+): void {
+    const rawValue = svg.getAttribute(attribute);
+    if (!rawValue) {
+        return;
+    }
+
+    const match = rawValue.trim().match(/^([+-]?\d*\.?\d+)([a-z%]*)$/i);
+    if (!match) {
+        return;
+    }
+
+    const [, valueText, unit] = match;
+    const value = Number(valueText);
+    if (!Number.isFinite(value)) {
+        return;
+    }
+
+    svg.setAttribute(attribute, `${value + delta}${unit}`);
 }
 
 /**
@@ -176,12 +439,23 @@ function buildClipboardCaptureOptions(
 /**
  * Resolves the intrinsic size of an SVG element for clipboard rasterization.
  */
-function getSvgExportDimensions(svg: SVGSVGElement): { width: number, height: number } {
-    const width = svg.width.baseVal.value;
-    const height = svg.height.baseVal.value;
+function resolveSvgDimensions(svg: SVGSVGElement): { width: number, height: number } {
+    const widthMatch = svg.getAttribute("width")?.trim().match(/^([+-]?\d*\.?\d+)([%a-z]*)$/i);
+    const heightMatch = svg.getAttribute("height")?.trim().match(/^([+-]?\d*\.?\d+)([%a-z]*)$/i);
+    if (widthMatch && heightMatch && widthMatch[2] !== "%" && heightMatch[2] !== "%") {
+        const width = Number(widthMatch[1]);
+        const height = Number(heightMatch[1]);
+        if (width > 0 && height > 0) {
+            return { width, height };
+        }
+    }
 
-    if (width > 0 && height > 0) {
-        return { width, height };
+    const viewBox = svg.getAttribute("viewBox");
+    if (viewBox) {
+        const [, , width, height] = viewBox.split(/[\s,]+/).map(Number);
+        if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+            return { width, height };
+        }
     }
 
     try {
@@ -199,7 +473,8 @@ function getSvgExportDimensions(svg: SVGSVGElement): { width: number, height: nu
 }
 
 /**
- * Resolves clipboard capture dimensions for an HTML export root.
+ * Resolves the intrinsic clipboard capture dimensions for an HTML export
+ * root before any clipboard downscaling is applied.
  */
 function getClipboardImageDimensions(element: HTMLElement): { width: number, height: number } {
     const width = element.scrollWidth || element.clientWidth;
@@ -209,7 +484,7 @@ function getClipboardImageDimensions(element: HTMLElement): { width: number, hei
         throw new Error("Unable to determine visualization size.");
     }
 
-    return scaleDimensionsForClipboard(width, height);
+    return { width, height };
 }
 
 /**
@@ -270,13 +545,53 @@ function prepareSvgForRasterExport(
     return clone;
 }
 
+/** Returns the extra top space reserved for raster clipboard markings. */
+function getClipboardClassificationOffset(): number {
+    return CLASSIFICATION_FONT_SIZE
+        + (CLASSIFICATION_PADDING_Y * 2)
+        + CLASSIFICATION_CONTENT_GAP;
+}
+
+/**
+ * Adds the classification marking to a raster clipboard canvas when present.
+ */
+function decorateCanvasForClipboardExport(
+    canvas: HTMLCanvasElement,
+    app: ApplicationStore
+): HTMLCanvasElement {
+    const markingData = getClassificationMarkingData(app);
+    if (!markingData) {
+        return canvas;
+    }
+
+    const classificationOffset = getClipboardClassificationOffset();
+    const outputCanvas = document.createElement("canvas");
+    outputCanvas.width = canvas.width;
+    outputCanvas.height = canvas.height + classificationOffset;
+    const context = outputCanvas.getContext("2d");
+    if (!context) {
+        throw new Error("Unable to render visualization image.");
+    }
+
+    context.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+    context.drawImage(canvas, 0, classificationOffset);
+    context.font = `600 ${CLASSIFICATION_FONT_SIZE}px sans-serif`;
+    drawClassificationMarking(context, markingData.fullText, {
+        textColor: markingData.textColor
+    });
+    return outputCanvas;
+}
+
 /**
  * Rasterizes an SVG element to a transparent PNG blob at clipboard-friendly
  * dimensions. Uses native SVG serialization so the full graphic is captured
  * instead of the visible scroll viewport.
  */
-async function rasterizeSvgElementToPngBlob(svg: SVGSVGElement): Promise<Blob> {
-    const sourceDimensions = getSvgExportDimensions(svg);
+async function rasterizeSvgElementToPngBlob(
+    svg: SVGSVGElement,
+    app: ApplicationStore
+): Promise<Blob> {
+    const sourceDimensions = resolveSvgDimensions(svg);
     const outputDimensions = scaleDimensionsForClipboard(
         sourceDimensions.width,
         sourceDimensions.height
@@ -308,12 +623,15 @@ async function rasterizeSvgElementToPngBlob(svg: SVGSVGElement): Promise<Blob> {
             outputDimensions.width,
             outputDimensions.height
         );
-        return await canvasToPngBlob(canvas);
+        return await canvasToPngBlob(
+            decorateCanvasForClipboardExport(canvas, app)
+        );
     } finally {
         URL.revokeObjectURL(svgUrl);
     }
 }
 
+/** Loads an image element from a blob or data URL. */
 function loadImage(url: string): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
         const image = new Image();
@@ -323,6 +641,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     });
 }
 
+/** Converts a canvas into a PNG blob for clipboard export. */
 function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
     return new Promise((resolve, reject) => {
         canvas.toBlob(
@@ -333,27 +652,79 @@ function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 }
 
 /**
- * Rasterizes an HTML export root with html-to-image for clipboard copy.
+ * Rasterizes an HTML export root to a clipboard-friendly PNG blob.
  */
-async function rasterizeHtmlElementToPngBlob(element: Element): Promise<Blob> {
-    if (!(element instanceof HTMLElement)) {
+async function rasterizeHtmlElementToPngBlob(
+    element: HTMLElement,
+    app: ApplicationStore
+): Promise<Blob> {
+    const sourceDimensions = getClipboardImageDimensions(element);
+    const outputDimensions = scaleDimensionsForClipboard(
+        sourceDimensions.width,
+        sourceDimensions.height
+    );
+    const captureOptions = buildClipboardCaptureOptions(sourceDimensions);
+    const canvas = await toCanvas(element, {
+        ...captureOptions,
+        width: sourceDimensions.width,
+        height: sourceDimensions.height,
+        canvasWidth: outputDimensions.width,
+        canvasHeight: outputDimensions.height,
+        style: {
+            ...captureOptions.style,
+            width: `${sourceDimensions.width}px`,
+            height: `${sourceDimensions.height}px`
+        }
+    });
+    return await canvasToPngBlob(
+        decorateCanvasForClipboardExport(canvas, app)
+    );
+}
+
+/**
+ * Resolves a decorated SVG representation for visualization export or copy.
+ */
+async function resolveVisualizationExportSvg(
+    context: VisualizationExportContext
+): Promise<SVGSVGElement> {
+    const exportRoot = getVisualizationExportRoot(context);
+    const svg = resolveExportSvg(exportRoot);
+    if (svg) {
+        return addClassificationMarking(
+            svg.cloneNode(true) as SVGSVGElement,
+            context.app
+        );
+    }
+
+    if (!(exportRoot instanceof HTMLElement)) {
         throw new Error("Unable to render visualization image.");
     }
 
-    const dimensions = getClipboardImageDimensions(element);
-    const pngBlob = await toBlob(element, buildClipboardCaptureOptions(dimensions));
-    if (!pngBlob) {
+    const svgDataUrl = await toSvg(exportRoot, {
+        cacheBust: true,
+        filter: shouldIncludeClipboardCaptureNode
+    });
+    const svgText = svgDataUrlToText(svgDataUrl);
+    const documentRoot = new DOMParser().parseFromString(svgText, "image/svg+xml");
+    const generatedSvg = documentRoot.documentElement;
+    if (generatedSvg.tagName.toLowerCase() !== "svg") {
         throw new Error("Unable to render visualization image.");
     }
-    return pngBlob;
+
+    return addClassificationMarking(
+        generatedSvg as unknown as SVGSVGElement,
+        context.app
+    );
 }
 
 /**
  * Copies a visualization to the device's clipboard as a transparent PNG image.
  *
- * Download still uses SVG via {@link exportVisualizationAsSvg}. Clipboard copy
- * uses a scaled PNG because Teams, PowerPoint, and similar apps handle
- * `image/png` more reliably than large SVG markup.
+ * This path prioritizes compatibility and convenience for quick paste
+ * workflows. Unlike {@link exportVisualization}, which prefers SVG output
+ * for fidelity, clipboard copy uses a scaled PNG because Teams, PowerPoint,
+ * and similar apps tend to handle pasted `image/png` content more reliably
+ * than large SVG clipboard payloads.
  * @param context
  *  The visualization export context.
  */
@@ -363,8 +734,12 @@ export async function copyVisualizationToClipboard(
     const exportRoot = getClipboardExportRoot(context);
     const svg = resolveExportSvg(exportRoot);
     const pngBlob = svg
-        ? await rasterizeSvgElementToPngBlob(svg)
-        : await rasterizeHtmlElementToPngBlob(exportRoot);
+        ? await rasterizeSvgElementToPngBlob(svg, context.app)
+        : exportRoot instanceof HTMLElement
+            ? await rasterizeHtmlElementToPngBlob(exportRoot, context.app)
+            : (() => {
+                throw new Error("Unable to render visualization image.");
+            })();
     try {
         await navigator.clipboard.write([
             new ClipboardItem({ "image/png": pngBlob })
@@ -385,12 +760,11 @@ export async function copyVisualizationToClipboard(
 export async function exportVisualizationAsSvg(
     context: VisualizationExportContext
 ): Promise<void> {
-    const exportRoot = context.visualization.getExportRoot?.(context.root)
-        ?? context.root;
-    const svgDataUrl = await toSvg(exportRoot, { cacheBust: true });
+    const svg = await resolveVisualizationExportSvg(context);
+
     Device.downloadTextFile(
         getVisualizationExportName(context),
-        svgDataUrlToText(svgDataUrl),
+        new XMLSerializer().serializeToString(svg),
         "svg"
     );
 }
@@ -417,7 +791,8 @@ export async function liteSvgExporter(
         throw new Error("Multiple svg elements found. Cannot export.");
     }
 
-    const svg = svgCandidates[0];
+    const svg = svgCandidates[0].cloneNode(true) as SVGSVGElement;
+    addClassificationMarking(svg, context.app);
 
     const svgText = new XMLSerializer().serializeToString(svg);
     const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
