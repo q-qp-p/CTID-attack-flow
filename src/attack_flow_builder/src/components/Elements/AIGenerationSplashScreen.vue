@@ -150,6 +150,7 @@
       class="generate-button"
       type="button"
       :disabled="!canGenerate"
+      @click="onClickGenerate"
     >
       GENERATE
     </button>
@@ -161,6 +162,7 @@ import { defineComponent } from "vue";
 import LinkIcon from "@/components/Icons/LinkIcon.vue";
 import FolderIcon from "@/components/Icons/FolderIcon.vue";
 import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
+import { pollJob, submitFileJob, submitPlaintextJob, submitUrlJob } from "@/api/jobs";
 
 type SourceType = "upload" | "url" | "text" | null;
 
@@ -267,6 +269,43 @@ export default defineComponent({
       this.sourceFileName = "";
       this.sourceUrl = "";
       this.sourceText = "";
+    },
+
+    async onClickGenerate() {
+        let pollUrl = "";
+
+        switch (this.sourceType) {
+            case "text": {
+                if (this.sourceText) {
+                    const res = await submitPlaintextJob(this.sourceText);
+                    console.log(res);
+                    pollUrl = res.poll_url;
+                }
+                break;
+            }
+            case "upload": {
+                if (this.sourceFile) {
+                    const res = await submitFileJob(this.sourceFile);
+                    console.log(res);
+                    pollUrl = res.poll_url;
+                }
+                break;
+            }
+            case "url": {
+                if (this.sourceUrl) {
+                    const res = await submitUrlJob(this.sourceUrl);
+                    console.log(res);
+                    pollUrl = res.poll_url;
+                }
+                break;
+            }
+        }
+
+        if (pollUrl) {
+            // TODO: Loop here
+            const pollRes = await pollJob(pollUrl);
+            console.log(pollRes);
+        }
     }
 
   },
