@@ -31,6 +31,36 @@ def test_provider_config_model_validates_canonical_fields() -> None:
     assert config.retry_max_attempts == 3
 
 
+def test_provider_config_model_accepts_anthropic_and_gemini_fields() -> None:
+    anthropic = ProviderConfig(
+        provider_id="anthropic-primary",
+        provider_type="anthropic",
+        enabled=True,
+        api_key_env="ANTHROPIC_API_KEY",
+        base_url="https://api.anthropic.com/v1",
+        default_model="claude-3-5-haiku-latest",
+        allowed_models=["claude-3-5-haiku-latest"],
+        timeout_seconds=30,
+        retry_max_attempts=2,
+    )
+    gemini = ProviderConfig(
+        provider_id="gemini-primary",
+        provider_type="gemini",
+        enabled=True,
+        api_key_env="GEMINI_API_KEY",
+        base_url="https://generativelanguage.googleapis.com/v1beta",
+        default_model="gemini-1.5-flash",
+        allowed_models=["gemini-1.5-flash"],
+        timeout_seconds=30,
+        retry_max_attempts=2,
+    )
+
+    assert anthropic.provider_type == "anthropic"
+    assert anthropic.api_key_env == "ANTHROPIC_API_KEY"
+    assert gemini.provider_type == "gemini"
+    assert gemini.api_key_env == "GEMINI_API_KEY"
+
+
 def test_provider_config_model_rejects_invalid_provider_type() -> None:
     with pytest.raises(ValidationError):
         ProviderConfig(
@@ -64,6 +94,26 @@ def test_public_provider_metadata_excludes_secret_fields() -> None:
     assert "azure_api_key_env" not in payload
     assert "azure_ad_token_env" not in payload
     assert "provider_config" not in payload
+
+
+def test_public_provider_metadata_supports_gemini_without_secret_fields() -> None:
+    config = ProviderConfig(
+        provider_id="gemini-primary",
+        provider_type="gemini",
+        enabled=True,
+        api_key_env="GEMINI_API_KEY",
+        default_model="gemini-1.5-flash",
+        allowed_models=["gemini-1.5-flash"],
+        base_url="https://generativelanguage.googleapis.com/v1beta",
+    )
+
+    payload = config.to_public_metadata().model_dump()
+
+    assert payload["provider_id"] == "gemini-primary"
+    assert payload["provider_type"] == "gemini"
+    assert payload["default_model"] == "gemini-1.5-flash"
+    assert payload["base_url"] == "https://generativelanguage.googleapis.com/v1beta"
+    assert "api_key_env" not in payload
 
 
 def test_providers_config_lookup_and_lists() -> None:
@@ -146,6 +196,45 @@ def test_validate_openai_provider_config_reports_usable_and_error_states() -> No
         "provider_disabled",
         "base_url_missing",
         "api_version_missing",
+        "api_key_env_missing",
+        "model_configuration_missing",
+        "base_url_invalid",
+    ]
+
+
+def test_validate_provider_config_reports_anthropic_and_gemini_states() -> None:
+    providers = ProvidersConfig(
+        providers=[
+            ProviderConfig(
+                provider_id="anthropic-usable",
+                provider_type="anthropic",
+                enabled=True,
+                api_key_env="ANTHROPIC_API_KEY",
+                default_model="claude-3-5-haiku-latest",
+            ),
+            ProviderConfig(
+                provider_id="gemini-usable",
+                provider_type="gemini",
+                enabled=True,
+                api_key_env="GEMINI_API_KEY",
+                default_model="gemini-1.5-flash",
+            ),
+            ProviderConfig(
+                provider_id="gemini-invalid",
+                provider_type="gemini",
+                enabled=False,
+                api_key_env="",
+                allowed_models=[],
+                base_url="   ",
+            ),
+        ]
+    )
+
+    assert providers.validate_provider_config("anthropic-usable") == []
+    assert providers.validate_provider_config("gemini-usable") == []
+    assert providers.validate_provider_config("missing") == ["provider_not_found"]
+    assert providers.validate_provider_config("gemini-invalid") == [
+        "provider_disabled",
         "api_key_env_missing",
         "model_configuration_missing",
         "base_url_invalid",

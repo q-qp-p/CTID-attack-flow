@@ -2,7 +2,9 @@ from dataclasses import dataclass
 
 from attack_flow_api.config import ProviderConfig, ProviderPublicMetadata, ProvidersConfig
 from attack_flow_api.providers.adapter import ProviderAdapter, ProviderNotImplementedAdapter
-from attack_flow_api.providers.contracts import ProviderInvocationMode
+from attack_flow_api.providers.contracts import ProviderInvocationMode, RuntimeProviderOverride
+from attack_flow_api.providers.anthropic_adapter import AnthropicProviderAdapter
+from attack_flow_api.providers.gemini_adapter import GeminiProviderAdapter
 from attack_flow_api.providers.openai_adapter import OpenAIProviderAdapter
 
 
@@ -20,6 +22,20 @@ class ProviderDisabledError(ProviderRegistryError):
     def __init__(self, provider_id: str):
         super().__init__(f"provider is disabled: {provider_id}")
         self.provider_id = provider_id
+
+
+class RuntimeProviderOverrideDisabledError(ProviderRegistryError):
+    pass
+
+
+class RuntimeProviderTypeNotAllowedError(ProviderRegistryError):
+    def __init__(self, provider_type: str):
+        super().__init__(f"runtime provider type is not allowed: {provider_type}")
+        self.provider_type = provider_type
+
+
+class RuntimeProviderExtraHeadersNotAllowedError(ProviderRegistryError):
+    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +115,29 @@ class ProviderRegistry:
     def resolve_adapter(self, provider_id: str) -> ProviderAdapter:
         return self._require_enabled_registration(provider_id).adapter
 
+    def resolve_runtime_adapter(
+        self,
+        *,
+        runtime_override: RuntimeProviderOverride,
+        allow_runtime_provider_override: bool,
+        allowed_provider_types: set[str],
+        allow_extra_headers: bool = False,
+    ) -> ProviderAdapter:
+        if not allow_runtime_provider_override:
+            raise RuntimeProviderOverrideDisabledError("runtime provider override is disabled")
+
+        provider_type = runtime_override.provider_type
+        if provider_type not in allowed_provider_types:
+            raise RuntimeProviderTypeNotAllowedError(provider_type)
+
+        if runtime_override.extra_headers and not allow_extra_headers:
+            raise RuntimeProviderExtraHeadersNotAllowedError("runtime provider extra headers are disabled")
+
+        return self._build_adapter(
+            self._build_runtime_provider_config(runtime_override),
+            runtime_override=runtime_override,
+        )
+
     def plan_optional_invocation(
         self,
         *,
@@ -137,9 +176,46 @@ class ProviderRegistry:
             raise ProviderDisabledError(registration.config.provider_id)
         return registration
 
-    def _build_adapter(self, provider: ProviderConfig) -> ProviderAdapter:
-        if provider.provider_type in {"openai", "azure_openai"}:
-            return OpenAIProviderAdapter(provider)
+    def _build_runtime_provider_config(self, runtime_override: RuntimeProviderOverride) -> ProviderConfig:
+        selected_model = runtime_override.deployment or runtime_override.model
+        return ProviderConfig(
+            provider_id=f"runtime-{runtime_override.provider_type}",
+            provider_type=runtime_override.provider_type,
+            enabled=True,
+            default_model=selected_model,
+            base_url=runtime_override.endpoint,
+            api_version=runtime_override.api_version,
+        )
+
+    def _build_adapter(
+        self,
+        provider: ProviderConfig,
+        *,
+        runtime_override: RuntimeProviderOverride | None = None,
+    ) -> ProviderAdapter:
+        if provider.provider_type in {"openai", "openai_compatible", "azure_openai"}:
+            if runtime_override is None:
+                return OpenAIProviderAdapter(provider)
+            runtime_api_key = runtime_override.api_key.get_secret_value() if runtime_override.api_key else None
+            runtime_extra_headers = {
+                key: value.get_secret_value()
+                for key, value in runtime_override.extra_headers.items()
+            }
+            return OpenAIProviderAdapter(
+                provider,
+                runtime_api_key=runtime_api_key,
+                runtime_extra_headers=runtime_extra_headers,
+            )
+        if provider.provider_type == "anthropic":
+            if runtime_override is None:
+                return AnthropicProviderAdapter(provider)
+            runtime_api_key = runtime_override.api_key.get_secret_value() if runtime_override.api_key else None
+            return AnthropicProviderAdapter(provider, runtime_api_key=runtime_api_key)
+        if provider.provider_type == "gemini":
+            if runtime_override is None:
+                return GeminiProviderAdapter(provider)
+            runtime_api_key = runtime_override.api_key.get_secret_value() if runtime_override.api_key else None
+            return GeminiProviderAdapter(provider, runtime_api_key=runtime_api_key)
         return ProviderNotImplementedAdapter(
             provider_id=provider.provider_id,
             provider_type=provider.provider_type,

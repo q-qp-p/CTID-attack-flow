@@ -4,11 +4,17 @@ from attack_flow_api.config import ProviderConfig, ProvidersConfig
 from attack_flow_api.providers.adapter import ProviderAdapter, ProviderAdapterInvocationError
 from attack_flow_api.providers.contracts import ProviderInvocationMode
 from attack_flow_api.providers.contracts import ProviderValidationRequest
+from attack_flow_api.providers.contracts import RuntimeProviderOverride
+from attack_flow_api.providers.anthropic_adapter import AnthropicProviderAdapter
+from attack_flow_api.providers.gemini_adapter import GeminiProviderAdapter
 from attack_flow_api.providers.openai_adapter import OpenAIProviderAdapter
 from attack_flow_api.providers.registry import (
     ProviderDisabledError,
     ProviderNotFoundError,
     ProviderRegistry,
+    RuntimeProviderExtraHeadersNotAllowedError,
+    RuntimeProviderOverrideDisabledError,
+    RuntimeProviderTypeNotAllowedError,
 )
 
 
@@ -27,6 +33,22 @@ def _build_providers_config() -> ProvidersConfig:
                 provider_type="anthropic",
                 enabled=False,
                 default_model="claude-3-5-haiku-latest",
+            ),
+            ProviderConfig(
+                provider_id="anthropic-primary",
+                provider_type="anthropic",
+                enabled=True,
+                api_key_env="ANTHROPIC_API_KEY",
+                default_model="claude-3-5-haiku-latest",
+                allowed_models=["claude-3-5-haiku-latest"],
+            ),
+            ProviderConfig(
+                provider_id="gemini-primary",
+                provider_type="gemini",
+                enabled=True,
+                api_key_env="GEMINI_API_KEY",
+                default_model="gemini-1.5-flash",
+                allowed_models=["gemini-1.5-flash"],
             ),
             ProviderConfig(
                 provider_id="azure-openai",
@@ -62,6 +84,28 @@ def test_registry_resolves_azure_provider_adapter() -> None:
     assert isinstance(adapter, OpenAIProviderAdapter)
     assert adapter.provider_id == "azure-openai"
     assert adapter.provider_type == "azure_openai"
+
+
+def test_registry_resolves_anthropic_provider_adapter() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    adapter = registry.resolve_adapter("anthropic-primary")
+
+    assert isinstance(adapter, ProviderAdapter)
+    assert isinstance(adapter, AnthropicProviderAdapter)
+    assert adapter.provider_id == "anthropic-primary"
+    assert adapter.provider_type == "anthropic"
+
+
+def test_registry_resolves_gemini_provider_adapter() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    adapter = registry.resolve_adapter("gemini-primary")
+
+    assert isinstance(adapter, ProviderAdapter)
+    assert isinstance(adapter, GeminiProviderAdapter)
+    assert adapter.provider_id == "gemini-primary"
+    assert adapter.provider_type == "gemini"
 
 
 def test_registry_raises_for_missing_provider() -> None:
@@ -102,6 +146,8 @@ def test_registry_lists_public_metadata_for_all_configured_providers() -> None:
     assert [item.provider_id for item in providers] == [
         "default-openai",
         "disabled-anthropic",
+        "anthropic-primary",
+        "gemini-primary",
         "azure-openai",
     ]
 
@@ -156,4 +202,102 @@ def test_registry_openai_adapter_requires_runtime_credentials() -> None:
                 provider_id="default-openai",
                 provider_type="openai",
             )
+        )
+
+
+def test_registry_resolves_ephemeral_runtime_openai_adapter() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    adapter = registry.resolve_runtime_adapter(
+        runtime_override=RuntimeProviderOverride(
+            provider_type="openai_compatible",
+            endpoint="https://compatible.example/v1",
+            api_key="runtime-secret",
+            model="model-a",
+        ),
+        allow_runtime_provider_override=True,
+        allowed_provider_types={"openai", "openai_compatible", "azure_openai"},
+    )
+
+    assert isinstance(adapter, OpenAIProviderAdapter)
+    assert adapter.provider_id == "runtime-openai_compatible"
+    assert adapter.provider_type == "openai_compatible"
+    assert registry.get_default_enabled_provider_id() == "default-openai"
+
+
+def test_registry_resolves_ephemeral_runtime_anthropic_adapter() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    adapter = registry.resolve_runtime_adapter(
+        runtime_override=RuntimeProviderOverride(
+            provider_type="anthropic",
+            endpoint="https://api.anthropic.com/v1",
+            api_key="runtime-secret",
+            model="claude-3-5-haiku-latest",
+        ),
+        allow_runtime_provider_override=True,
+        allowed_provider_types={"anthropic"},
+    )
+
+    assert isinstance(adapter, AnthropicProviderAdapter)
+    assert adapter.provider_id == "runtime-anthropic"
+    assert adapter.provider_type == "anthropic"
+
+
+def test_registry_resolves_ephemeral_runtime_gemini_adapter() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    adapter = registry.resolve_runtime_adapter(
+        runtime_override=RuntimeProviderOverride(
+            provider_type="gemini",
+            endpoint="https://generativelanguage.googleapis.com/v1beta",
+            api_key="runtime-secret",
+            model="gemini-1.5-flash",
+        ),
+        allow_runtime_provider_override=True,
+        allowed_provider_types={"gemini"},
+    )
+
+    assert isinstance(adapter, GeminiProviderAdapter)
+    assert adapter.provider_id == "runtime-gemini"
+    assert adapter.provider_type == "gemini"
+
+
+def test_registry_rejects_runtime_override_when_disabled() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    with pytest.raises(RuntimeProviderOverrideDisabledError):
+        registry.resolve_runtime_adapter(
+            runtime_override=RuntimeProviderOverride(provider_type="openai", api_key="runtime-secret"),
+            allow_runtime_provider_override=False,
+            allowed_provider_types={"openai"},
+        )
+
+
+def test_registry_rejects_disallowed_runtime_provider_type() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    with pytest.raises(RuntimeProviderTypeNotAllowedError) as exc:
+        registry.resolve_runtime_adapter(
+            runtime_override=RuntimeProviderOverride(provider_type="azure_openai", api_key="runtime-secret"),
+            allow_runtime_provider_override=True,
+            allowed_provider_types={"openai"},
+        )
+
+    assert exc.value.provider_type == "azure_openai"
+
+
+def test_registry_rejects_runtime_extra_headers_when_disabled() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    with pytest.raises(RuntimeProviderExtraHeadersNotAllowedError):
+        registry.resolve_runtime_adapter(
+            runtime_override=RuntimeProviderOverride(
+                provider_type="openai",
+                api_key="runtime-secret",
+                extra_headers={"X-Test": "secret-header"},
+            ),
+            allow_runtime_provider_override=True,
+            allowed_provider_types={"openai"},
+            allow_extra_headers=False,
         )

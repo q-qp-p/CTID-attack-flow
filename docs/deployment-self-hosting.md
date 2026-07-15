@@ -32,7 +32,7 @@ Proxy certificate support:
 
 Provider configuration is loaded from `PROVIDERS_CONFIG_PATH` into a registry-backed abstraction layer.
 
-- Providers are configured by `provider_id` and `provider_type` (for example `openai`, `azure_openai`, `anthropic`, `openai_compatible`).
+- Providers are configured by `provider_id` and `provider_type` (for example `openai`, `azure_openai`, `anthropic`, `gemini`, `openai_compatible`).
 - Runtime provider access is registry-driven by `provider_id`, not hardcoded to a vendor client.
 - Public provider metadata is intentionally separate from secret-bearing configuration.
   - `/api/v1/providers` exposes safe metadata only.
@@ -46,14 +46,16 @@ Keep provider secrets in environment variables or your secret manager. Do not st
 Provider validation is available through the API:
 
 - `POST /api/v1/providers/validate` validates a configured provider by `provider_id`.
-- Validation runs through the provider abstraction/registry layer and currently uses the OpenAI concrete adapter for `provider_type=openai` and `provider_type=azure_openai`.
-- OpenAI adapter behavior for validation supports practical runtime controls:
+- Configured provider validation runs through the provider abstraction/registry layer for `openai`, `azure_openai`, `anthropic`, and `gemini`.
+- Runtime provider override validation is supported for `openai`, `openai_compatible`, `azure_openai`, `anthropic`, and `gemini` when runtime overrides are enabled.
+- Provider validation supports practical runtime controls:
   - model selection from request/default/allowed models,
   - bounded timeout behavior,
   - bounded retry/backoff for transient failures.
 - Validation output is normalized and safe for API clients:
   - includes result/status metadata and `request_id`,
   - does not expose provider secrets or secret-bearing config fields.
+- Gemini support uses one simple API-key-based endpoint mode for this version. Vertex-specific or enterprise authentication flows are not included.
 
 ## Orchestration Behavior
 

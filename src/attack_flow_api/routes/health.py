@@ -1,11 +1,14 @@
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
+from attack_flow_api.errors import BadRequestError
 from attack_flow_api.config import ProviderPublicMetadata
 from attack_flow_api.providers.adapter import ProviderAdapterInvocationError
+from attack_flow_api.providers.contracts import RuntimeProviderOverride
 from attack_flow_api.providers.openai_adapter import OpenAIProviderAdapter
 from attack_flow_api.services.provider_validation_service import (
     ProviderValidationService,
@@ -58,8 +61,19 @@ class ProvidersResponse(BaseModel):
 
 
 class ProviderValidateRequest(BaseModel):
-    provider_id: str
-    model: str | None = None
+    provider_id: str | None = Field(
+        default=None,
+        description="Configured provider id to validate. Mutually exclusive with provider_override.",
+    )
+    model: str | None = Field(default=None, description="Optional model/deployment to validate.")
+    provider_override: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Ephemeral runtime provider override for validation. Supports openai, "
+            "openai_compatible, azure_openai, anthropic, and gemini. Secrets are used only for this request "
+            "and are not returned or persisted. Gemini uses API-key-based endpoint mode only."
+        ),
+    )
 
 
 class ProviderValidateResponse(BaseModel):
@@ -145,17 +159,50 @@ def list_providers(request: Request) -> ProvidersResponse:
 
 @router.post("/providers/validate", response_model=ProviderValidateResponse)
 def validate_provider(request: Request, payload: ProviderValidateRequest) -> ProviderValidateResponse:
-    """Validate a configured provider by provider_id.
+    """Validate a configured provider or an ephemeral runtime provider override.
 
-    Validation executes through the provider registry and adapter abstraction.
-    Responses are normalized and intentionally exclude secret-bearing fields.
+    Requests must include exactly one of `provider_id` or `provider_override`.
+    Runtime overrides support `openai`, `openai_compatible`, `azure_openai`,
+    `anthropic`, and `gemini` when enabled by configuration. Runtime API keys
+    and secret-bearing headers are not persisted or returned. Responses are
+    normalized and intentionally exclude secret-bearing fields. Gemini runtime
+    validation uses API-key-based endpoint mode only.
     """
     provider_registry = request.app.state.provider_registry
     validation_service = ProviderValidationService(provider_registry)
-    result = validation_service.validate_provider(
-        provider_id=payload.provider_id,
-        model=payload.model,
-    )
+
+    provider_id = payload.provider_id.strip() if isinstance(payload.provider_id, str) else None
+    has_provider_id = bool(provider_id)
+    has_provider_override = payload.provider_override is not None
+    if has_provider_id == has_provider_override:
+        raise BadRequestError(
+            code="invalid_provider_selection",
+            message="exactly one of provider_id or provider_override must be provided",
+            details=[],
+        )
+
+    if payload.provider_override is not None:
+        try:
+            runtime_override = RuntimeProviderOverride.model_validate(payload.provider_override)
+        except ValidationError:
+            raise BadRequestError(
+                code="invalid_provider_override",
+                message="provider_override is invalid",
+                details=[],
+            ) from None
+
+        settings = request.app.state.settings
+        result = validation_service.validate_runtime_provider(
+            runtime_override=runtime_override,
+            allow_runtime_provider_override=settings.allow_runtime_provider_override,
+            allowed_provider_types=settings.allowed_runtime_provider_type_set(),
+            allow_extra_headers=settings.allow_runtime_provider_extra_headers,
+        )
+    else:
+        result = validation_service.validate_provider(
+            provider_id=provider_id or "",
+            model=payload.model,
+        )
     return _to_provider_validate_response(result, request_id=request.state.request_id)
 
 
