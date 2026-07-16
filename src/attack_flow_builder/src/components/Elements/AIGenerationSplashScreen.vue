@@ -1,159 +1,172 @@
 <template>
-  <div class="ai-generation">
-    <h2 class="generation-title">
-      Generate Attack Flow
-    </h2>
-    <div class="section source-type">
-      <p class="section-title">
-        SOURCE TYPE
-      </p>
-      <div
-        class="button-grid source-type-grid"
-        role="radiogroup"
-        aria-label="Source type"
-      >
-        <div
-          :class="['button', 'source-type-button', { selected: sourceType === 'upload' }]"
-          role="radio"
-          :aria-checked="sourceType === 'upload'"
-          tabindex="0"
-          @click="selectSourceType('upload')"
-          @keydown.enter="selectSourceType('upload')"
-          @keydown.space.prevent="selectSourceType('upload')"
-        >
-          <div class="button-header">
-            <span class="button-icon"><EmptyPageIcon /></span>
-            <p class="button-title">
-              Upload Report PDF
-            </p>
-          </div>
-          <p class="button-description">
-            Create a flow from a security incident report PDF.
-          </p>
-        </div>
-        <div
-          :class="['button', 'source-type-button', { selected: sourceType === 'url' }]"
-          role="radio"
-          :aria-checked="sourceType === 'url'"
-          tabindex="0"
-          @click="selectSourceType('url')"
-          @keydown.enter="selectSourceType('url')"
-          @keydown.space.prevent="selectSourceType('url')"
-        >
-          <div class="button-header">
-            <span class="button-icon"><LinkIcon /></span>
-            <p class="button-title">
-              Link to Report
-            </p>
-          </div>
-          <p class="button-description">
-            Paste a link to an incident report blog.
-          </p>
-        </div>
-        <div
-          :class="['button', 'source-type-button', { selected: sourceType === 'text' }]"
-          role="radio"
-          :aria-checked="sourceType === 'text'"
-          tabindex="0"
-          @click="selectSourceType('text')"
-          @keydown.enter="selectSourceType('text')"
-          @keydown.space.prevent="selectSourceType('text')"
-        >
-          <div class="button-header">
-            <span class="button-icon"><FolderIcon /></span>
-            <p class="button-title">
-              Paste Text
-            </p>
-          </div>
-          <p class="button-description">
-            Paste an incident report as plain text.
-          </p>
-        </div>
-      </div>
-    </div>
-    <div class="form-field source-data-field">
-      <span class="section-title">SOURCE DATA</span>
-      <div
-        v-if="sourceType === 'upload'"
-        class="source-upload-control"
-      >
-        <input
-          :value="sourceFileName"
-          type="text"
-          placeholder="Select a PDF report."
-          aria-label="Selected PDF report"
-          disabled
-        >
-        <button
-          class="source-upload-button"
-          type="button"
-          @click="openSourceFileDialog"
-        >
-          {{ sourceFile ? "Change PDF" : "Choose PDF" }}
-        </button>
-      </div>
-      <input
-        v-else-if="sourceType === 'url'"
-        v-model="sourceUrl"
-        type="url"
-        placeholder="https://example.com/report"
-        aria-label="Report URL"
-        :aria-invalid="!!sourceUrl.trim() && !isSourceUrlValid"
-        @keydown.stop
-      >
-      <textarea
-        v-else-if="sourceType === 'text'"
-        v-model="sourceText"
-        rows="3"
-        placeholder="Paste incident report text."
-        aria-label="Report text"
-        @keydown.stop
-      />
-      <input
-        v-else
-        type="text"
-        aria-label="Source data"
-        disabled
-      >
-      <input
-        ref="sourceFileInput"
-        class="file-input"
-        type="file"
-        accept=".pdf,application/pdf"
-        @change="onSourceFileSelected"
-      >
-    </div>
-    <div class="section llm-information">
-      <p class="section-title">
-        LLM INFORMATION
-      </p>
-      <div class="llm-grid">
-        <label class="form-field">
-          <span>ENDPOINT:</span>
-          <input
-            v-model="llmEndpoint"
-            type="text"
-            @keydown.stop
-          >
-        </label>
-        <label class="form-field">
-          <span>TOKEN:</span>
-          <input
-            v-model="llmToken"
-            type="password"
-            @keydown.stop
-          >
-        </label>
-      </div>
-    </div>
-    <button
-      class="generate-button"
-      type="button"
-      :disabled="!canGenerate"
-      @click="onClickGenerate"
+  <div
+    class="ai-generation"
     >
-      GENERATE
-    </button>
+    <div :style="apiHealthCheckInProgress ? 'visibility: hidden' : ''">
+        <h2 class="generation-title">
+        Generate Attack Flow
+        </h2>
+        <div class="section source-type">
+        <p class="section-title">
+            SOURCE TYPE
+        </p>
+        <div
+            class="button-grid source-type-grid"
+            role="radiogroup"
+            aria-label="Source type"
+        >
+            <div
+            :class="['button', 'source-type-button', { selected: sourceType === 'upload' }]"
+            role="radio"
+            :aria-checked="sourceType === 'upload'"
+            tabindex="0"
+            @click="selectSourceType('upload')"
+            @keydown.enter="selectSourceType('upload')"
+            @keydown.space.prevent="selectSourceType('upload')"
+            >
+            <div class="button-header">
+                <span class="button-icon"><EmptyPageIcon /></span>
+                <p class="button-title">
+                Upload Report PDF
+                </p>
+            </div>
+            <p class="button-description">
+                Create a flow from a security incident report PDF.
+            </p>
+            </div>
+            <div
+            :class="['button', 'source-type-button', { selected: sourceType === 'url' }]"
+            role="radio"
+            :aria-checked="sourceType === 'url'"
+            tabindex="0"
+            @click="selectSourceType('url')"
+            @keydown.enter="selectSourceType('url')"
+            @keydown.space.prevent="selectSourceType('url')"
+            >
+            <div class="button-header">
+                <span class="button-icon"><LinkIcon /></span>
+                <p class="button-title">
+                Link to Report
+                </p>
+            </div>
+            <p class="button-description">
+                Paste a link to an incident report blog.
+            </p>
+            </div>
+            <div
+            :class="['button', 'source-type-button', { selected: sourceType === 'text' }]"
+            role="radio"
+            :aria-checked="sourceType === 'text'"
+            tabindex="0"
+            @click="selectSourceType('text')"
+            @keydown.enter="selectSourceType('text')"
+            @keydown.space.prevent="selectSourceType('text')"
+            >
+            <div class="button-header">
+                <span class="button-icon"><FolderIcon /></span>
+                <p class="button-title">
+                Paste Text
+                </p>
+            </div>
+            <p class="button-description">
+                Paste an incident report as plain text.
+            </p>
+            </div>
+        </div>
+        </div>
+        <div class="form-field source-data-field">
+        <span class="section-title">SOURCE DATA</span>
+        <div
+            v-if="sourceType === 'upload'"
+            class="source-upload-control"
+        >
+            <input
+            :value="sourceFileName"
+            type="text"
+            placeholder="Select a PDF report."
+            aria-label="Selected PDF report"
+            disabled
+            >
+            <button
+            class="source-upload-button"
+            type="button"
+            @click="openSourceFileDialog"
+            >
+            {{ sourceFile ? "Change PDF" : "Choose PDF" }}
+            </button>
+        </div>
+        <input
+            v-else-if="sourceType === 'url'"
+            v-model="sourceUrl"
+            type="url"
+            placeholder="https://example.com/report"
+            aria-label="Report URL"
+            :aria-invalid="!!sourceUrl.trim() && !isSourceUrlValid"
+            @keydown.stop
+        >
+        <textarea
+            v-else-if="sourceType === 'text'"
+            v-model="sourceText"
+            rows="3"
+            placeholder="Paste incident report text."
+            aria-label="Report text"
+            @keydown.stop
+        />
+        <input
+            v-else
+            type="text"
+            aria-label="Source data"
+            disabled
+        >
+        <input
+            ref="sourceFileInput"
+            class="file-input"
+            type="file"
+            accept=".pdf,application/pdf"
+            @change="onSourceFileSelected"
+        >
+        </div>
+        <div class="section llm-information">
+        <p class="section-title">
+            LLM INFORMATION
+        </p>
+        <div class="llm-grid">
+            <label class="form-field">
+            <span>ENDPOINT:</span>
+            <input
+                v-model="llmEndpoint"
+                type="text"
+                @keydown.stop
+            >
+            </label>
+            <label class="form-field">
+            <span>TOKEN:</span>
+            <input
+                v-model="llmToken"
+                type="password"
+                @keydown.stop
+            >
+            </label>
+        </div>
+        </div>
+        <button
+        class="generate-button"
+        type="button"
+        :disabled="!canGenerate"
+        @click="onClickGenerate"
+        >
+        GENERATE
+        </button>
+    </div>
+
+    <div
+        v-if="apiHealthCheckInProgress"
+        class="health-check-loading-indicator"
+    >
+        <LoadingSpinner></LoadingSpinner>
+        <small>Detecting API...</small>
+    </div>
+    
   </div>
 </template>
 
@@ -163,6 +176,7 @@ import LinkIcon from "@/components/Icons/LinkIcon.vue";
 import FolderIcon from "@/components/Icons/FolderIcon.vue";
 import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
 import { pollJob, submitFileJob, submitPlaintextJob, submitUrlJob } from "@/api/jobs";
+import LoadingSpinner from "./LoadingSpinner.vue";
 
 type SourceType = "upload" | "url" | "text" | null;
 
@@ -176,7 +190,8 @@ export default defineComponent({
       sourceUrl: "",
       sourceText: "",
       llmEndpoint: "",
-      llmToken: ""
+      llmToken: "",
+      apiHealthCheckInProgress: true
     }
   },
   computed: {
@@ -221,6 +236,9 @@ export default defineComponent({
       );
     }
 
+  },
+  mounted() {
+    
   },
   methods: {
 
@@ -312,12 +330,30 @@ export default defineComponent({
   components: {
     EmptyPageIcon,
     FolderIcon,
-    LinkIcon
+    LinkIcon,
+    LoadingSpinner
   }
 });
 </script>
 
 <style scoped>
+.ai-generation {
+    position: relative;
+}
+
+.health-check-loading-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    text-align: center;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
 .generation-title {
   color: var(--af-text-color-primary);
   font-size: 13.5pt;

@@ -6,14 +6,11 @@
     @keydown="onKeyDown"
   >
     <div class="menu-body">
-      <div
+      <LoadingSpinner
         v-if="loading"
         class="loading"
-        role="status"
-        aria-label="Loading recommendations"
-      >
-        <div class="loading-icon" />
-      </div>
+        label="Loading recommendations"
+      />
       <ScrollListBox
         v-else
         ref="scrollbox"
@@ -60,6 +57,7 @@
 import { defineComponent, type PropType } from 'vue';
 import type { ObjectRecommendation, ObjectRecommender } from "@OpenChart/DiagramEditor";
 // Components
+import LoadingSpinner from "@/components/Elements/LoadingSpinner.vue";
 import ScrollListBox from '@/components/Containers/ScrollListBox.vue';
 
 export default defineComponent({
@@ -161,7 +159,7 @@ export default defineComponent({
     // Update recommendations
     this.updateRecommendations();
   },
-  components: { ScrollListBox }
+  components: { LoadingSpinner, ScrollListBox }
 });
 </script>
 
@@ -198,21 +196,6 @@ export default defineComponent({
   align-items: center;
   min-width: 180px;
   min-height: 56px;
-}
-
-.loading-icon {
-  width: 18px;
-  height: 18px;
-  border: solid 2px var(--af-border-color-secondary);
-  border-top-color: var(--af-text-color-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .recommendations {
