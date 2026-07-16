@@ -2,6 +2,7 @@
   <div
     class="ai-generation"
     >
+    <!-- Hide via visibility: hidden to preserve content size. -->
     <div :style="apiHealthCheckInProgress ? 'visibility: hidden' : ''">
         <h2 class="generation-title">
         Generate Attack Flow
@@ -155,7 +156,13 @@
         :disabled="!canGenerate"
         @click="onClickGenerate"
         >
-        GENERATE
+            <div class="generate-button-inner">
+                GENERATE
+                <LoadingSpinner
+                    v-if="flowGenerationInProgress"
+                    label="Generating flow"
+                />
+            </div>
         </button>
     </div>
 
@@ -163,7 +170,9 @@
         v-if="apiHealthCheckInProgress"
         class="health-check-loading-indicator"
     >
-        <LoadingSpinner></LoadingSpinner>
+        <LoadingSpinner
+            label="Detecting API"
+        ></LoadingSpinner>
         <small>Detecting API...</small>
     </div>
     
@@ -175,8 +184,9 @@ import { defineComponent } from "vue";
 import LinkIcon from "@/components/Icons/LinkIcon.vue";
 import FolderIcon from "@/components/Icons/FolderIcon.vue";
 import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
-import { pollJob, submitFileJob, submitPlaintextJob, submitUrlJob } from "@/api/jobs";
+import { fetchJobResult, pollJob, submitFileJob, submitPlaintextJob, submitUrlJob, type SubmittedJob } from "@/api/jobs";
 import LoadingSpinner from "./LoadingSpinner.vue";
+import { fetchHealthCheck } from "@/api/health.ts";
 
 type SourceType = "upload" | "url" | "text" | null;
 
@@ -191,7 +201,9 @@ export default defineComponent({
       sourceText: "",
       llmEndpoint: "",
       llmToken: "",
-      apiHealthCheckInProgress: true
+      apiHealthCheckInProgress: false,
+      apiHealthCheckSucceeded: false,
+      flowGenerationInProgress: false,
     }
   },
   computed: {
@@ -233,12 +245,29 @@ export default defineComponent({
         this.hasSourceData
         && this.llmEndpoint.trim()
         && this.llmToken.trim()
+        && !this.flowGenerationInProgress
       );
     }
 
   },
-  mounted() {
-    
+  async mounted() {
+    this.apiHealthCheckInProgress = true;
+    try {
+        const res = await fetchHealthCheck();
+
+        if (res.status === "ok") {
+            this.apiHealthCheckSucceeded = true;
+        }
+    } catch (e) {
+        console.error(e);
+    }
+    this.apiHealthCheckInProgress = false;
+
+    if (this.apiHealthCheckSucceeded) {
+        console.log("API health check succeeded. Using AFB API.");
+    } else {
+        console.log("API health check failed. Using LLM API.")
+    }
   },
   methods: {
 
@@ -290,40 +319,64 @@ export default defineComponent({
     },
 
     async onClickGenerate() {
-        let pollUrl = "";
+        this.flowGenerationInProgress = true;
+        let submissionResponse : SubmittedJob | null = null;
 
-        switch (this.sourceType) {
-            case "text": {
-                if (this.sourceText) {
-                    const res = await submitPlaintextJob(this.sourceText);
-                    console.log(res);
-                    pollUrl = res.poll_url;
+
+        try {
+            switch (this.sourceType) {
+                case "text": {
+                    if (this.sourceText) {
+                        submissionResponse = await submitPlaintextJob(this.sourceText);
+                    }
+                    break;
                 }
-                break;
-            }
-            case "upload": {
-                if (this.sourceFile) {
-                    const res = await submitFileJob(this.sourceFile);
-                    console.log(res);
-                    pollUrl = res.poll_url;
+                case "upload": {
+                    if (this.sourceFile) {
+                        submissionResponse = await submitFileJob(this.sourceFile);
+                    }
+                    break;
                 }
-                break;
-            }
-            case "url": {
-                if (this.sourceUrl) {
-                    const res = await submitUrlJob(this.sourceUrl);
-                    console.log(res);
-                    pollUrl = res.poll_url;
+                case "url": {
+                    if (this.sourceUrl) {
+                        submissionResponse = await submitUrlJob(this.sourceUrl);
+                    }
+                    break;
                 }
-                break;
             }
+
+            if (submissionResponse) {
+                // First, wait until the job is complete.
+                const cooldownMs = 500;
+                const maxRetries = 5;
+
+                let currentTry = 1;
+
+                let jobComplete = false;
+
+                while (currentTry <= maxRetries) {
+                    console.debug(`Polling attempt ${currentTry}.`);
+                    const pollRes = await pollJob(submissionResponse.poll_url);
+                    if (pollRes.status === 'completed') {
+                        jobComplete = true;
+                        console.debug('Job completed.');
+                        break;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, cooldownMs));
+                    currentTry += 1;
+                }
+
+                // Then, fetch the job result.
+                if (jobComplete) {
+                    const result = await fetchJobResult(submissionResponse.job_id);
+                    console.log(result);
+                }
+            }
+        } catch(e) {
+            console.error(e);
         }
 
-        if (pollUrl) {
-            // TODO: Loop here
-            const pollRes = await pollJob(pollUrl);
-            console.log(pollRes);
-        }
+        this.flowGenerationInProgress = false;
     }
 
   },
@@ -519,6 +572,13 @@ export default defineComponent({
   height: 34px;
   margin: 24px auto 0px;
   min-width: 210px;
+}
+
+.generate-button .generate-button-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
 }
 
 .generate-button:disabled {
