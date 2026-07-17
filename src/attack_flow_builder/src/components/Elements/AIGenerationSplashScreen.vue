@@ -156,14 +156,36 @@
         :disabled="!canGenerate"
         @click="onClickGenerate"
         >
-            <div class="generate-button-inner">
-                GENERATE
-                <LoadingSpinner
-                    v-if="flowGenerationInProgress"
-                    label="Generating flow"
-                />
-            </div>
+            GENERATE
         </button>
+        <div class="results-section">
+            <div v-if="!flowGenerationRan">
+                Flow generation results will appear here.
+            </div>
+            <div v-else-if="flowGenerationInProgress">
+                Flow generation queued...
+            </div>
+            <div v-else-if="flowGenerationSucceeded">
+                <div>Flow generation complete. Artifacts ready for download.</div>
+                <div class="artifact-download-buttons-container">
+                    <button
+                        @click="() => downloadJobResultArtifact(flowGenerationCompletedJobId, 'afb', 'generated_flow.afb')"
+                    >
+                        AFB
+                        <DownloadIcon></DownloadIcon>
+                    </button>
+                    <button
+                        @click="downloadJobResultArtifact(flowGenerationCompletedJobId, 'stix', 'generated_flow_stix.json')"
+                    >
+                        STIX
+                        <DownloadIcon></DownloadIcon>
+                    </button>
+                </div>
+            </div>
+            <div v-else>
+                <div class="generation-error">Flow generation failed. Please try again.</div>
+            </div>
+        </div>
     </div>
 
     <div
@@ -184,9 +206,19 @@ import { defineComponent } from "vue";
 import LinkIcon from "@/components/Icons/LinkIcon.vue";
 import FolderIcon from "@/components/Icons/FolderIcon.vue";
 import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
-import { fetchJobResult, pollJob, submitFileJob, submitPlaintextJob, submitUrlJob, type SubmittedJob } from "@/api/jobs";
+import {
+    downloadJobResultArtifact,
+    fetchJobResult,
+    pollJob,
+    submitFileJob,
+    submitPlaintextJob,
+    submitUrlJob,
+    type JobResultResponse,
+    type SubmittedJob
+} from "@/api/jobs";
 import LoadingSpinner from "./LoadingSpinner.vue";
 import { fetchHealthCheck } from "@/api/health.ts";
+import DownloadIcon from "../Icons/DownloadIcon.vue";
 
 type SourceType = "upload" | "url" | "text" | null;
 
@@ -203,7 +235,10 @@ export default defineComponent({
       llmToken: "",
       apiHealthCheckInProgress: false,
       apiHealthCheckSucceeded: false,
+      flowGenerationRan: false,
       flowGenerationInProgress: false,
+      flowGenerationSucceeded: false,
+      flowGenerationCompletedJobId: ""
     }
   },
   computed: {
@@ -318,10 +353,8 @@ export default defineComponent({
       this.sourceText = "";
     },
 
-    async onClickGenerate() {
-        this.flowGenerationInProgress = true;
+    async generateWithAfbApi() : Promise<JobResultResponse | null> {
         let submissionResponse : SubmittedJob | null = null;
-
 
         try {
             switch (this.sourceType) {
@@ -346,17 +379,17 @@ export default defineComponent({
             }
 
             if (submissionResponse) {
-                // First, wait until the job is complete.
-                const cooldownMs = 500;
-                const maxRetries = 5;
+                // First, poll until the job is complete.
+                const cooldownMs = 1000;
+                const maxRetries = 10;
 
                 let currentTry = 1;
 
                 let jobComplete = false;
 
                 while (currentTry <= maxRetries) {
-                    console.debug(`Polling attempt ${currentTry}.`);
                     const pollRes = await pollJob(submissionResponse.poll_url);
+                    console.debug(`Polling attempt ${currentTry}.`, pollRes);
                     if (pollRes.status === 'completed') {
                         jobComplete = true;
                         console.debug('Job completed.');
@@ -369,22 +402,46 @@ export default defineComponent({
                 // Then, fetch the job result.
                 if (jobComplete) {
                     const result = await fetchJobResult(submissionResponse.job_id);
-                    console.log(result);
+                    return result;
+                } else {
+                    throw new Error("Job did not complete.")
                 }
             }
         } catch(e) {
             console.error(e);
         }
 
+        return null;
+    },
+
+    async onClickGenerate() {
+        this.flowGenerationRan = true;
+        this.flowGenerationSucceeded = false;
+        this.flowGenerationCompletedJobId = "";
+        this.flowGenerationInProgress = true;
+        
+        if (this.apiHealthCheckSucceeded) {
+            const result = await this.generateWithAfbApi();
+            console.debug("Job result: ", result);
+            if (result && result.status === "completed") {
+                this.flowGenerationSucceeded = true;
+                this.flowGenerationCompletedJobId = result.job_id
+            }
+        } else {
+            console.log("TODO: Add LLM Typescript here.")
+        }
+
         this.flowGenerationInProgress = false;
-    }
+    },
+    downloadJobResultArtifact
 
   },
   components: {
     EmptyPageIcon,
     FolderIcon,
     LinkIcon,
-    LoadingSpinner
+    LoadingSpinner,
+    DownloadIcon
   }
 });
 </script>
@@ -416,6 +473,35 @@ export default defineComponent({
 
 .ai-generation .section {
   margin-bottom: 20px;
+}
+
+.ai-generation .results-section {
+    text-align: center;
+    color: var(--af-text-color-secondary);
+}
+
+.artifact-download-buttons-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    gap: 10px;
+}
+
+.artifact-download-buttons-container button {
+    border: 1px solid var(--af-border-color-primary);
+    border-radius: 5px;
+    background: none;
+    padding: 3px 8px;
+    color: var(--af-color-info);
+}
+
+.artifact-download-buttons-container button svg {
+    fill: var(--af-color-info);
+}
+
+.generation-error {
+    color: var(--af-color-error);
 }
 
 .source-type-grid {
@@ -570,15 +656,8 @@ export default defineComponent({
   font-size: 9.5pt;
   font-weight: 700;
   height: 34px;
-  margin: 24px auto 0px;
+  margin: 24px auto 24px;
   min-width: 210px;
-}
-
-.generate-button .generate-button-inner {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
 }
 
 .generate-button:disabled {

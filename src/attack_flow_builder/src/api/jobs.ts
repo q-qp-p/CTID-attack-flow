@@ -209,6 +209,38 @@ export async function fetchJobResult(
 }
 
 /**
+ * Download the artifact result of a successful job.
+ * @param jobId the job id
+ * @param artifactType stix or afb
+ * @param fileName name of file to download, including extension
+ */
+export async function downloadJobResultArtifact(
+    jobId: string,
+    artifactType: "afb" | "stix",
+    fileName: string = "artifact.json"
+) {
+    const endpoint = `${API_BASE_URL}/jobs/${jobId}/artifacts/${artifactType}`;
+
+    const response = await fetch(endpoint);
+
+    if (!response.ok) {
+        throw new Error("The job result artifact could not be downloaded.")
+    }
+
+    const json = await response.json();
+
+    const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.click();
+
+    URL.revokeObjectURL(url);
+}
+
+/**
  * Submits a JSON-backed text or URL job request.
  * @param body
  *  The JSON payload required by the jobs endpoint.
