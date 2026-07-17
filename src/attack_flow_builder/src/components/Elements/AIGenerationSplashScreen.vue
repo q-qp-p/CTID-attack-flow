@@ -137,6 +137,7 @@
             <input
                 v-model="llmEndpoint"
                 type="text"
+                placeholder="Optional LLM endpoint override"
                 @keydown.stop
             >
             </label>
@@ -145,6 +146,7 @@
             <input
                 v-model="llmToken"
                 type="password"
+                placeholder="Optional LLM token override"
                 @keydown.stop
             >
             </label>
@@ -278,8 +280,6 @@ export default defineComponent({
     canGenerate(): boolean {
       return !!(
         this.hasSourceData
-        && this.llmEndpoint.trim()
-        && this.llmToken.trim()
         && !this.flowGenerationInProgress
       );
     }
