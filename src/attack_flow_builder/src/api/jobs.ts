@@ -1,7 +1,32 @@
 import { API_BASE_URL } from "@/config/api";
 
 export type JobSubmissionMetadata = Record<string, unknown>;
-export type JobSubmissionOptionsPayload = Record<string, unknown>;
+export const RUNTIME_PROVIDER_OVERRIDE_TYPES = [
+  "openai",
+  "openai_compatible",
+  "azure_openai",
+  "anthropic",
+  "gemini"
+] as const;
+
+export type RuntimeProviderOverrideType =
+  typeof RUNTIME_PROVIDER_OVERRIDE_TYPES[number];
+
+export interface JobProviderOverridePayload {
+  provider_type: RuntimeProviderOverrideType;
+  endpoint?: string;
+  api_key?: string;
+  model?: string;
+  api_version?: string;
+  deployment?: string;
+  extra_headers?: Record<string, string>;
+}
+
+export interface JobSubmissionOptionsPayload extends Record<string, unknown> {
+  provider_id?: string;
+  provider_override?: JobProviderOverridePayload;
+  model?: string;
+}
 
 export interface JobSubmissionRequestOptions {
   metadata?: JobSubmissionMetadata;

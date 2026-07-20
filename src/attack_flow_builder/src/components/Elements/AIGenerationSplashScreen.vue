@@ -129,26 +129,39 @@
         </div>
         <div class="section llm-information">
         <p class="section-title">
-            LLM INFORMATION
+            LLM INFORMATION <small>(optional)</small>
         </p>
-        <div class="llm-grid">
-            <label class="form-field">
-            <span>ENDPOINT:</span>
-            <input
-                v-model="llmEndpoint"
-                type="text"
-                placeholder="Optional LLM endpoint override"
-                @keydown.stop
-            >
+        <div class="llm-container">
+            <label class="form-field" style="flex: 1;">
+                <span>TYPE:</span>
+                <select
+                    name="llm-provider-type"
+                    v-model="llmType"
+                    :class="llmType === '' ? 'empty' : ''"
+                >
+                    <option disabled selected hidden value="" key="none">Provider type</option>
+                    <option v-for="providerType in RUNTIME_PROVIDER_OVERRIDE_TYPES" :key="providerType" :value="providerType">
+                        {{ providerType }}
+                    </option>
+                </select>
             </label>
-            <label class="form-field">
-            <span>TOKEN:</span>
-            <input
-                v-model="llmToken"
-                type="password"
-                placeholder="Optional LLM token override"
-                @keydown.stop
-            >
+            <label class="form-field" style="flex: 2;">
+                <span>ENDPOINT:</span>
+                <input
+                    v-model="llmEndpoint"
+                    type="text"
+                    placeholder="LLM endpoint override"
+                    @keydown.stop
+                >
+            </label>
+            <label class="form-field" style="flex: 2;">
+                <span>TOKEN:</span>
+                <input
+                    v-model="llmToken"
+                    type="password"
+                    placeholder="LLM token override"
+                    @keydown.stop
+                >
             </label>
         </div>
         </div>
@@ -212,10 +225,13 @@ import {
     downloadJobResultArtifact,
     fetchJobResult,
     pollJob,
+    RUNTIME_PROVIDER_OVERRIDE_TYPES,
     submitFileJob,
     submitPlaintextJob,
     submitUrlJob,
     type JobResultResponse,
+    type JobSubmissionRequestOptions,
+    type RuntimeProviderOverrideType,
     type SubmittedJob
 } from "@/api/jobs";
 import LoadingSpinner from "./LoadingSpinner.vue";
@@ -226,6 +242,11 @@ type SourceType = "upload" | "url" | "text" | null;
 
 export default defineComponent({
   name: "AIGenerationSplashScreen",
+  setup() {
+    return {
+        RUNTIME_PROVIDER_OVERRIDE_TYPES
+    }
+  },
   data() {
     return {
       sourceType: null as SourceType,
@@ -233,6 +254,7 @@ export default defineComponent({
       sourceFileName: "",
       sourceUrl: "",
       sourceText: "",
+      llmType: "" as RuntimeProviderOverrideType | "",
       llmEndpoint: "",
       llmToken: "",
       apiHealthCheckInProgress: false,
@@ -356,23 +378,37 @@ export default defineComponent({
     async generateWithAfbApi() : Promise<JobResultResponse | null> {
         let submissionResponse : SubmittedJob | null = null;
 
+        let requestOptions : JobSubmissionRequestOptions = {};
+
+        if (this.llmType && this.llmEndpoint && this.llmToken) {
+            requestOptions = {
+                options: {
+                    provider_override: {
+                        provider_type: this.llmType,
+                        endpoint: this.llmEndpoint,
+                        api_key: this.llmToken
+                    }
+                }
+            }
+        }
+
         try {
             switch (this.sourceType) {
                 case "text": {
                     if (this.sourceText) {
-                        submissionResponse = await submitPlaintextJob(this.sourceText);
+                        submissionResponse = await submitPlaintextJob(this.sourceText, requestOptions);
                     }
                     break;
                 }
                 case "upload": {
                     if (this.sourceFile) {
-                        submissionResponse = await submitFileJob(this.sourceFile);
+                        submissionResponse = await submitFileJob(this.sourceFile, requestOptions);
                     }
                     break;
                 }
                 case "url": {
                     if (this.sourceUrl) {
-                        submissionResponse = await submitUrlJob(this.sourceUrl);
+                        submissionResponse = await submitUrlJob(this.sourceUrl, requestOptions);
                     }
                     break;
                 }
@@ -393,6 +429,9 @@ export default defineComponent({
                     if (pollRes.status === 'completed') {
                         jobComplete = true;
                         console.debug('Job completed.');
+                        break;
+                    } else if (pollRes.status === 'failed') {
+                        console.debug('Job failed.');
                         break;
                     }
                     await new Promise(resolve => setTimeout(resolve, cooldownMs));
@@ -605,6 +644,19 @@ export default defineComponent({
   resize: none;
 }
 
+.form-field select {
+    background: none;
+    border: 1px solid var(--af-border-color-primary);
+    border-radius: 5px;
+    padding: 5px;
+}
+
+.form-field input::placeholder,
+.form-field textarea::placeholder,
+.form-field select.empty {
+    color: var(--af-text-color-placeholder)
+}
+
 .source-upload-control {
   display: flex;
   gap: 8px;
@@ -641,9 +693,8 @@ export default defineComponent({
   margin-bottom: 0px;
 }
 
-.llm-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.llm-container {
+  display: flex;
   gap: 28px;
 }
 
