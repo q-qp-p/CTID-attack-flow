@@ -128,42 +128,47 @@
         >
         </div>
         <div class="section llm-information">
-        <p class="section-title">
-            LLM INFORMATION <small>(optional)</small>
-        </p>
-        <div class="llm-container">
-            <label class="form-field" style="flex: 1;">
-                <span>TYPE:</span>
-                <select
-                    name="llm-provider-type"
-                    v-model="llmType"
-                    :class="llmType === '' ? 'empty' : ''"
-                >
-                    <option disabled selected hidden value="" key="none">Provider type</option>
-                    <option v-for="providerType in RUNTIME_PROVIDER_OVERRIDE_TYPES" :key="providerType" :value="providerType">
-                        {{ providerType }}
-                    </option>
-                </select>
-            </label>
-            <label class="form-field" style="flex: 2;">
-                <span>ENDPOINT:</span>
-                <input
-                    v-model="llmEndpoint"
-                    type="text"
-                    placeholder="LLM endpoint override"
-                    @keydown.stop
-                >
-            </label>
-            <label class="form-field" style="flex: 2;">
-                <span>TOKEN:</span>
-                <input
-                    v-model="llmToken"
-                    type="password"
-                    placeholder="LLM token override"
-                    @keydown.stop
-                >
-            </label>
-        </div>
+            <details :open="!apiHealthCheckSucceeded">
+                <summary class="section-title">
+                    <span v-if="apiHealthCheckSucceeded">
+                        LLM OVERRIDES <small>(optional)</small>
+                    </span>
+                    <span v-else>LLM INFORMATION</span>
+                </summary>
+                <div class="llm-container">
+                    <label class="form-field" style="flex: 1;">
+                        <span>TYPE:</span>
+                        <select
+                            name="llm-provider-type"
+                            v-model="llmType"
+                            :class="llmType === '' ? 'empty' : ''"
+                        >
+                            <option disabled selected hidden value="" key="none">Provider type</option>
+                            <option v-for="providerType in RUNTIME_PROVIDER_OVERRIDE_TYPES" :key="providerType" :value="providerType">
+                                {{ providerType }}
+                            </option>
+                        </select>
+                    </label>
+                    <label class="form-field" style="flex: 2;">
+                        <span>ENDPOINT:</span>
+                        <input
+                            v-model="llmEndpoint"
+                            type="text"
+                            placeholder="LLM endpoint override"
+                            @keydown.stop
+                        >
+                    </label>
+                    <label class="form-field" style="flex: 2;">
+                        <span>TOKEN:</span>
+                        <input
+                            v-model="llmToken"
+                            type="password"
+                            placeholder="LLM token override"
+                            @keydown.stop
+                        >
+                    </label>
+                </div>
+            </details>
         </div>
         <button
         class="generate-button"
@@ -300,10 +305,21 @@ export default defineComponent({
      *  True if the required generation inputs are populated.
      */
     canGenerate(): boolean {
-      return !!(
-        this.hasSourceData
-        && !this.flowGenerationInProgress
-      );
+        // If using AFB API, only the source data input is required.
+        if (this.apiHealthCheckSucceeded) {
+            return !!(
+                this.hasSourceData
+                && !this.flowGenerationInProgress
+            );
+        }
+        // If using LLM API, more inputs are required.
+        return !!(
+            this.hasSourceData
+            && this.llmType
+            && this.llmToken
+            && this.llmEndpoint
+            && !this.flowGenerationInProgress
+        );
     }
 
   },
@@ -714,5 +730,9 @@ export default defineComponent({
 .generate-button:disabled {
   cursor: default;
   opacity: 0.7;
+}
+
+details summary {
+    cursor: pointer;
 }
 </style>
