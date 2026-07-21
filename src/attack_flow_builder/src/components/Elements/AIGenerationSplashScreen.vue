@@ -735,4 +735,28 @@ export default defineComponent({
 details summary {
     cursor: pointer;
 }
+
+/* 1. Hide the default arrow */
+summary {
+  list-style: none;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  cursor: pointer;
+}
+summary::-webkit-details-marker {
+  display: none; /* Safari/Chromium fix */
+}
+
+/* 2. Add custom arrow on the right side */
+summary::after {
+  content: "❯";
+  font-size: 0.8rem;
+  transition: transform 0.2s ease;
+}
+
+/* 3. Rotate arrow when open */
+details[open] summary::after {
+  transform: rotate(90deg);
+}
 </style>
