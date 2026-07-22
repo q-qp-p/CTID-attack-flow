@@ -143,7 +143,8 @@
                             v-model="llmType"
                             :class="llmType === '' ? 'empty' : ''"
                         >
-                            <option disabled selected hidden value="" key="none">Provider type</option>
+                            <option disabled selected hidden value="" key="placeholder">Provider type</option>
+                            <option value="" key="none">(none)</option>
                             <option v-for="providerType in RUNTIME_PROVIDER_OVERRIDE_TYPES" :key="providerType" :value="providerType">
                                 {{ providerType }}
                             </option>
@@ -321,19 +322,23 @@ export default defineComponent({
      *  True if the required generation inputs are populated.
      */
     canGenerate(): boolean {
+
+        const llmInfoFullyFull = this.llmType && this.llmEndpoint && this.llmToken;
+        const llmInfoFullyEmpty = !(this.llmType || this.llmEndpoint || this.llmToken);
+
         // If using AFB API, only the source data input is required.
+        // However, if LLM info is given, it must be complete.
         if (this.apiHealthCheckSucceeded) {
             return !!(
                 this.hasSourceData
+                && (llmInfoFullyFull || llmInfoFullyEmpty)
                 && !this.flowGenerationInProgress
             );
         }
-        // If using LLM API, more inputs are required.
+        // If using LLM API, all LLM inputs are required.
         return !!(
             this.hasSourceData
-            && this.llmType
-            && this.llmToken
-            && this.llmEndpoint
+            && llmInfoFullyFull
             && !this.flowGenerationInProgress
         );
     }
