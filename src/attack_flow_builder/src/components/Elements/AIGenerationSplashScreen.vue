@@ -203,7 +203,9 @@
                 </div>
             </div>
             <div v-else>
-                <div class="generation-error">Flow generation failed. Please try again.</div>
+                <div class="generation-error">
+                    {{ flowGenerationErrorMessage }}
+                </div>
             </div>
         </div>
     </div>
@@ -228,22 +230,17 @@ import FolderIcon from "@/components/Icons/FolderIcon.vue";
 import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
 import {
     downloadJobResultArtifact,
-    fetchJobResult,
-    pollJob,
+    runJobToResult,
     RUNTIME_PROVIDER_OVERRIDE_TYPES,
-    submitFileJob,
-    submitPlaintextJob,
-    submitUrlJob,
-    type JobResultResponse,
-    type JobSubmissionRequestOptions,
     type RuntimeProviderOverrideType,
-    type SubmittedJob
 } from "@/api/jobs";
 import LoadingSpinner from "./LoadingSpinner.vue";
 import { fetchHealthCheck } from "@/api/health.ts";
 import DownloadIcon from "../Icons/DownloadIcon.vue";
 
 type SourceType = "upload" | "url" | "text" | null;
+
+const GENERIC_ERROR_MESSAGE = "Flow generation failed. Please try again.";
 
 export default defineComponent({
   name: "AIGenerationSplashScreen",
@@ -267,7 +264,8 @@ export default defineComponent({
       flowGenerationRan: false,
       flowGenerationInProgress: false,
       flowGenerationSucceeded: false,
-      flowGenerationCompletedJobId: ""
+      flowGenerationCompletedJobId: "",
+      flowGenerationErrorMessage: GENERIC_ERROR_MESSAGE
     }
   },
   computed: {
@@ -297,6 +295,24 @@ export default defineComponent({
         default:
           return false;
       }
+    },
+
+    sourceData(): string | File {
+        if (!this.sourceType) {
+            throw new Error("Cannot get source without source type.")
+        }
+
+        switch(this.sourceType) {
+            case "url":
+                return this.sourceUrl;
+            case "text":
+                return this.sourceText;
+            case "upload":
+                if (!this.sourceFile) {
+                    throw new Error("Cannot get source file data.")
+                }
+                return this.sourceFile;
+        }
     },
 
     /**
@@ -391,10 +407,18 @@ export default defineComponent({
       this.sourceText = "";
     },
 
-    async generateWithAfbApi() : Promise<JobResultResponse | null> {
-        let submissionResponse : SubmittedJob | null = null;
 
-        let requestOptions : JobSubmissionRequestOptions = {};
+    /**
+     * Click handler for the "generate" button.
+     */
+    async onClickGenerate() {
+        this.flowGenerationRan = true;
+        this.flowGenerationSucceeded = false;
+        this.flowGenerationCompletedJobId = "";
+        this.flowGenerationInProgress = true;
+        this.flowGenerationErrorMessage = GENERIC_ERROR_MESSAGE;
+
+        let requestOptions = {}
 
         if (this.llmType && this.llmEndpoint && this.llmToken) {
             requestOptions = {
@@ -407,81 +431,31 @@ export default defineComponent({
                 }
             }
         }
-
-        try {
-            switch (this.sourceType) {
-                case "text": {
-                    if (this.sourceText) {
-                        submissionResponse = await submitPlaintextJob(this.sourceText, requestOptions);
-                    }
-                    break;
-                }
-                case "upload": {
-                    if (this.sourceFile) {
-                        submissionResponse = await submitFileJob(this.sourceFile, requestOptions);
-                    }
-                    break;
-                }
-                case "url": {
-                    if (this.sourceUrl) {
-                        submissionResponse = await submitUrlJob(this.sourceUrl, requestOptions);
-                    }
-                    break;
-                }
-            }
-
-            if (submissionResponse) {
-                // First, poll until the job is complete.
-                const cooldownMs = 1000;
-                const maxRetries = 10;
-
-                let currentTry = 1;
-
-                let jobComplete = false;
-
-                while (currentTry <= maxRetries) {
-                    const pollRes = await pollJob(submissionResponse.poll_url);
-                    console.debug(`Polling attempt ${currentTry}.`, pollRes);
-                    if (pollRes.status === 'completed') {
-                        jobComplete = true;
-                        console.debug('Job completed.');
-                        break;
-                    } else if (pollRes.status === 'failed') {
-                        console.debug('Job failed.');
-                        break;
-                    }
-                    await new Promise(resolve => setTimeout(resolve, cooldownMs));
-                    currentTry += 1;
-                }
-
-                // Then, fetch the job result.
-                if (jobComplete) {
-                    const result = await fetchJobResult(submissionResponse.job_id);
-                    return result;
-                } else {
-                    throw new Error("Job did not complete.")
-                }
-            }
-        } catch(e) {
-            console.error(e);
-        }
-
-        return null;
-    },
-
-    async onClickGenerate() {
-        this.flowGenerationRan = true;
-        this.flowGenerationSucceeded = false;
-        this.flowGenerationCompletedJobId = "";
-        this.flowGenerationInProgress = true;
         
         if (this.apiHealthCheckSucceeded) {
-            const result = await this.generateWithAfbApi();
-            console.debug("Job result: ", result);
-            if (result && result.status === "completed") {
-                this.flowGenerationSucceeded = true;
-                this.flowGenerationCompletedJobId = result.job_id
+            if (!this.sourceType) {
+                throw new Error("sourceType should exist.");
             }
+
+            try {
+                const result = await runJobToResult(this.sourceType, this.sourceData, requestOptions)
+                console.debug("Job result: ", result);
+                if (result.status === "completed") {
+                    this.flowGenerationSucceeded = true;
+                    this.flowGenerationCompletedJobId = result.job_id
+                } else {
+                    throw new Error(`Flow result failed: ${result.error_message}`);
+                }
+            } catch (error: unknown) {
+                if (error instanceof Error) {
+                    console.error(error.message, error.stack);
+                    this.flowGenerationErrorMessage = error.message;
+                } else {
+                    console.error(error);
+                    this.flowGenerationErrorMessage = "An unknown error occurred."
+                }
+            }
+            
         } else {
             console.log("TODO: Add LLM Typescript here.")
         }
@@ -557,6 +531,9 @@ export default defineComponent({
 
 .generation-error {
     color: var(--af-color-error);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .source-type-grid {

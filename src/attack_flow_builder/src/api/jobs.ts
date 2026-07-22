@@ -520,3 +520,82 @@ function isJobArtifactOutcomeSummary(payload: unknown): payload is JobArtifactOu
     && (typeof candidate.error_message === "string" || candidate.error_message === null)
   );
 }
+
+/**
+ * Run the flow entire generation request pipeline from job submission to polling to fetching results.
+ * Return the result response.
+ * This function intentionally has many points of failure, so it should be wrapped in a try-catch.
+ * @param sourceType text, upload (for a pdf report), or url
+ * @param sourceData the plantext string, the pdf file, or the url string
+ * @param requestOptions request options object which may include llm provider overrides
+ * @returns The response object from fetching the job result. This response status may not be "complete,"
+ * so it should be checked.
+ */
+export async function runJobToResult(
+    sourceType: "text" | "upload" | "url",
+    sourceData: string | File,
+    requestOptions: JobSubmissionRequestOptions = {},
+) : Promise<JobResultResponse> {
+    let submissionResponse : SubmittedJob | null = null;
+    
+    switch (sourceType) {
+        case "text": {
+            if (typeof sourceData != "string") {
+                throw new TypeError(`Text source requires string data. Got ${typeof sourceData}.`);
+            }
+            
+            submissionResponse = await submitPlaintextJob(sourceData, requestOptions);
+            break;
+        }
+        case "upload": {
+            if (!(sourceData instanceof File)) {
+                throw new TypeError(`File source data requires File instance.`)
+            }
+            
+            submissionResponse = await submitFileJob(sourceData, requestOptions);
+            break;
+        }
+        case "url": {
+            if (typeof sourceData != "string") {
+                throw new TypeError(`URL source requires string. Got ${typeof sourceData}.`);
+            }
+            
+            submissionResponse = await submitUrlJob(sourceData, requestOptions);
+            break;
+        }
+    }
+
+    if (submissionResponse) {
+        // First, poll until the job is complete.
+        const cooldownMs = 1000;
+        const maxRetries = 10;
+
+        let currentTry = 1;
+
+        let jobComplete = false;
+
+        while (currentTry <= maxRetries) {
+            const pollRes = await pollJob(submissionResponse.poll_url);
+            console.debug(`Polling attempt ${currentTry}.`, pollRes);
+            if (pollRes.status === 'completed') {
+                jobComplete = true;
+                console.debug('Job completed.');
+                break;
+            } else if (pollRes.status === 'failed') {
+                throw new Error(`Queued job failed: ${pollRes.error_message}`);
+            }
+            await new Promise(resolve => setTimeout(resolve, cooldownMs));
+            currentTry += 1;
+        }
+
+        // Then, fetch the job result.
+        if (jobComplete) {
+            const result = await fetchJobResult(submissionResponse.job_id);
+            return result;
+        } else {
+            throw new Error("Queued job timed out.")
+        }
+    } else {
+        throw new Error("Job submission failed.")
+    }
+}
