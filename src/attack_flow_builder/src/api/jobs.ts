@@ -2,106 +2,106 @@ import { API_BASE_URL } from "@/config/api";
 
 export type JobSubmissionMetadata = Record<string, unknown>;
 export const RUNTIME_PROVIDER_OVERRIDE_TYPES = [
-  "openai",
-  "openai_compatible",
-  "azure_openai",
-  "anthropic",
-  "gemini"
+    "openai",
+    "openai_compatible",
+    "azure_openai",
+    "anthropic",
+    "gemini"
 ] as const;
 
 export type RuntimeProviderOverrideType =
   typeof RUNTIME_PROVIDER_OVERRIDE_TYPES[number];
 
 export interface JobProviderOverridePayload {
-  provider_type: RuntimeProviderOverrideType;
-  endpoint?: string;
-  api_key?: string;
-  model?: string;
-  api_version?: string;
-  deployment?: string;
-  extra_headers?: Record<string, string>;
+    provider_type: RuntimeProviderOverrideType;
+    endpoint?: string;
+    api_key?: string;
+    model?: string;
+    api_version?: string;
+    deployment?: string;
+    extra_headers?: Record<string, string>;
 }
 
 export interface JobSubmissionOptionsPayload extends Record<string, unknown> {
-  provider_id?: string;
-  provider_override?: JobProviderOverridePayload;
-  model?: string;
+    provider_id?: string;
+    provider_override?: JobProviderOverridePayload;
+    model?: string;
 }
 
 export interface JobSubmissionRequestOptions {
-  metadata?: JobSubmissionMetadata;
-  options?: JobSubmissionOptionsPayload;
-  signal?: AbortSignal;
+    metadata?: JobSubmissionMetadata;
+    options?: JobSubmissionOptionsPayload;
+    signal?: AbortSignal;
 }
 
 export interface JobPollRequestOptions {
-  signal?: AbortSignal;
+    signal?: AbortSignal;
 }
 
 export interface SubmittedJob {
-  job_id: string;
-  status: string;
-  submitted_at: string;
-  poll_url: string;
-  request_id: string;
+    job_id: string;
+    status: string;
+    submitted_at: string;
+    poll_url: string;
+    request_id: string;
 }
 
 export interface JobInputSummary {
-  input_type: string | null;
-  original_filename: string | null;
-  title: string | null;
+    input_type: string | null;
+    original_filename: string | null;
+    title: string | null;
 }
 
 export interface JobArtifactOutcomeSummary {
-  valid: boolean | null;
-  validation_state: string | null;
-  export_status: string | null;
-  validation_error_count: number | null;
-  checksum: string | null;
-  size_bytes: number | null;
-  created_at: string | null;
-  error_code: string | null;
-  error_message: string | null;
+    valid: boolean | null;
+    validation_state: string | null;
+    export_status: string | null;
+    validation_error_count: number | null;
+    checksum: string | null;
+    size_bytes: number | null;
+    created_at: string | null;
+    error_code: string | null;
+    error_message: string | null;
 }
 
 export interface JobArtifactsSummary {
-  has_stix: boolean;
-  has_afb: boolean;
-  stix_url: string | null;
-  afb_url: string | null;
-  stix_outcome: JobArtifactOutcomeSummary | null;
-  afb_outcome: JobArtifactOutcomeSummary | null;
+    has_stix: boolean;
+    has_afb: boolean;
+    stix_url: string | null;
+    afb_url: string | null;
+    stix_outcome: JobArtifactOutcomeSummary | null;
+    afb_outcome: JobArtifactOutcomeSummary | null;
 }
 
 export interface JobStatusResponse {
-  job_id: string;
-  status: string;
-  stage: string;
-  created_at: string;
-  updated_at: string;
-  completed_at: string | null;
-  error_code: string | null;
-  error_message: string | null;
-  input: JobInputSummary;
-  artifacts: JobArtifactsSummary;
-  request_id: string;
+    job_id: string;
+    status: string;
+    stage: string;
+    created_at: string;
+    updated_at: string;
+    completed_at: string | null;
+    error_code: string | null;
+    error_message: string | null;
+    input: JobInputSummary;
+    artifacts: JobArtifactsSummary;
+    request_id: string;
 }
 
 export interface JobResultResponse {
-  job_id: string;
-  status: string;
-  result: Record<string, unknown>;
-  error_code: string | null;
-  error_message: string | null;
-  artifacts: JobArtifactsSummary | null;
-  request_id: string;
+    job_id: string;
+    status: string;
+    result: Record<string, unknown>;
+    error_code: string | null;
+    error_message: string | null;
+    artifacts: JobArtifactsSummary | null;
+    request_id: string;
 }
 
 interface ApiErrorResponse {
-  error?: {
-    code?: string;
-    message?: string;
-  };
+    error?: {
+        code?: string;
+        message?: string;
+    };
 }
 
 /**
@@ -114,16 +114,16 @@ interface ApiErrorResponse {
  *  The queued job response, including the job ID used for polling.
  */
 export async function submitPlaintextJob(
-  text: string,
-  requestOptions: JobSubmissionRequestOptions = {}
+    text: string,
+    requestOptions: JobSubmissionRequestOptions = {}
 ): Promise<SubmittedJob> {
-  return submitJsonJob(
-    {
-      input_type: "text",
-      text
-    },
-    requestOptions
-  );
+    return submitJsonJob(
+        {
+            input_type: "text",
+            text
+        },
+        requestOptions
+    );
 }
 
 /**
@@ -136,16 +136,16 @@ export async function submitPlaintextJob(
  *  The queued job response, including the job ID used for polling.
  */
 export async function submitUrlJob(
-  url: string,
-  requestOptions: JobSubmissionRequestOptions = {}
+    url: string,
+    requestOptions: JobSubmissionRequestOptions = {}
 ): Promise<SubmittedJob> {
-  return submitJsonJob(
-    {
-      input_type: "url",
-      url
-    },
-    requestOptions
-  );
+    return submitJsonJob(
+        {
+            input_type: "url",
+            url
+        },
+        requestOptions
+    );
 }
 
 /**
@@ -158,27 +158,27 @@ export async function submitUrlJob(
  *  The queued job response, including the job ID used for polling.
  */
 export async function submitFileJob(
-  file: File,
-  requestOptions: JobSubmissionRequestOptions = {}
+    file: File,
+    requestOptions: JobSubmissionRequestOptions = {}
 ): Promise<SubmittedJob> {
-  const formData = new FormData();
-  formData.set("file", file);
+    const formData = new FormData();
+    formData.set("file", file);
 
-  if(requestOptions.metadata) {
-    formData.set("metadata", JSON.stringify(requestOptions.metadata));
-  }
+    if (requestOptions.metadata) {
+        formData.set("metadata", JSON.stringify(requestOptions.metadata));
+    }
 
-  if(requestOptions.options) {
-    formData.set("options", JSON.stringify(requestOptions.options));
-  }
+    if (requestOptions.options) {
+        formData.set("options", JSON.stringify(requestOptions.options));
+    }
 
-  const response = await fetch(JOBS_URL, {
-    method: "POST",
-    body: formData,
-    signal: requestOptions.signal
-  });
+    const response = await fetch(JOBS_URL, {
+        method: "POST",
+        body: formData,
+        signal: requestOptions.signal
+    });
 
-  return parseSubmittedJob(response);
+    return parseSubmittedJob(response);
 }
 
 /**
@@ -191,20 +191,20 @@ export async function submitFileJob(
  *  The parsed polling response payload.
  */
 export async function pollJob(
-  pollUrl: string,
-  requestOptions: JobPollRequestOptions = {}
+    pollUrl: string,
+    requestOptions: JobPollRequestOptions = {}
 ): Promise<JobStatusResponse> {
-  const response = await fetch(buildPollUrl(pollUrl), {
-    method: "GET",
-    signal: requestOptions.signal
-  });
+    const response = await fetch(buildPollUrl(pollUrl), {
+        method: "GET",
+        signal: requestOptions.signal
+    });
 
-  const payload = await parseApiResponse(response);
-  if(!isJobStatusResponse(payload)) {
-    throw new Error("job polling response did not match the expected API shape");
-  }
+    const payload = await parseApiResponse(response);
+    if (!isJobStatusResponse(payload)) {
+        throw new Error("job polling response did not match the expected API shape");
+    }
 
-  return payload;
+    return payload;
 }
 
 /**
@@ -217,20 +217,20 @@ export async function pollJob(
  *  The parsed job result response payload.
  */
 export async function fetchJobResult(
-  jobId: string,
-  requestOptions: JobPollRequestOptions = {}
+    jobId: string,
+    requestOptions: JobPollRequestOptions = {}
 ): Promise<JobResultResponse> {
-  const response = await fetch(buildJobResultUrl(jobId), {
-    method: "GET",
-    signal: requestOptions.signal
-  });
+    const response = await fetch(buildJobResultUrl(jobId), {
+        method: "GET",
+        signal: requestOptions.signal
+    });
 
-  const payload = await parseApiResponse(response);
-  if(!isJobResultResponse(payload)) {
-    throw new Error("job result response did not match the expected API shape");
-  }
+    const payload = await parseApiResponse(response);
+    if (!isJobResultResponse(payload)) {
+        throw new Error("job result response did not match the expected API shape");
+    }
 
-  return payload;
+    return payload;
 }
 
 /**
@@ -249,7 +249,7 @@ export async function downloadJobResultArtifact(
     const response = await fetch(endpoint);
 
     if (!response.ok) {
-        throw new Error("The job result artifact could not be downloaded.")
+        throw new Error("The job result artifact could not be downloaded.");
     }
 
     const json = await response.json();
@@ -275,27 +275,27 @@ export async function downloadJobResultArtifact(
  *  The queued job response, including the job ID used for polling.
  */
 async function submitJsonJob(
-  body: {
-    input_type: "text" | "url";
-    text?: string;
-    url?: string;
-  },
-  requestOptions: JobSubmissionRequestOptions
-): Promise<SubmittedJob> {
-  const response = await fetch(JOBS_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
+    body: {
+        input_type: "text" | "url";
+        text?: string;
+        url?: string;
     },
-    body: JSON.stringify({
-      ...body,
-      ...(requestOptions.metadata ? { metadata: requestOptions.metadata } : {}),
-      ...(requestOptions.options ? { options: requestOptions.options } : {})
-    }),
-    signal: requestOptions.signal
-  });
+    requestOptions: JobSubmissionRequestOptions
+): Promise<SubmittedJob> {
+    const response = await fetch(JOBS_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            ...body,
+            ...(requestOptions.metadata ? { metadata: requestOptions.metadata } : {}),
+            ...(requestOptions.options ? { options: requestOptions.options } : {})
+        }),
+        signal: requestOptions.signal
+    });
 
-  return parseSubmittedJob(response);
+    return parseSubmittedJob(response);
 }
 
 const JOBS_URL = `${API_BASE_URL.replace(/\/+$/, "")}/jobs`;
@@ -308,7 +308,7 @@ const JOBS_URL = `${API_BASE_URL.replace(/\/+$/, "")}/jobs`;
  *  The absolute poll URL to request.
  */
 function buildPollUrl(pollUrl: string): string {
-  return new URL(pollUrl, `${API_BASE_URL.replace(/\/+$/, "")}/`).toString();
+    return new URL(pollUrl, `${API_BASE_URL.replace(/\/+$/, "")}/`).toString();
 }
 
 /**
@@ -319,7 +319,7 @@ function buildPollUrl(pollUrl: string): string {
  *  The absolute result URL to request.
  */
 function buildJobResultUrl(jobId: string): string {
-  return `${JOBS_URL}/${encodeURIComponent(jobId)}/result`;
+    return `${JOBS_URL}/${encodeURIComponent(jobId)}/result`;
 }
 
 /**
@@ -330,13 +330,13 @@ function buildJobResultUrl(jobId: string): string {
  *  The validated queued job response payload.
  */
 async function parseSubmittedJob(response: Response): Promise<SubmittedJob> {
-  const payload = await parseApiResponse(response);
+    const payload = await parseApiResponse(response);
 
-  if(!isSubmittedJob(payload)) {
-    throw new Error("jobs submission response did not include a valid job identifier");
-  }
+    if (!isSubmittedJob(payload)) {
+        throw new Error("jobs submission response did not include a valid job identifier");
+    }
 
-  return payload;
+    return payload;
 }
 
 /**
@@ -347,16 +347,16 @@ async function parseSubmittedJob(response: Response): Promise<SubmittedJob> {
  *  The parsed response payload.
  */
 async function parseApiResponse(response: Response): Promise<unknown> {
-  const payload = await parseResponseBody(response);
+    const payload = await parseResponseBody(response);
 
-  if(!response.ok) {
-    const apiError = payload as ApiErrorResponse | null;
-    const errorCode = apiError?.error?.code?.trim();
-    const errorMessage = apiError?.error?.message?.trim();
-    throw new Error(errorCode && errorMessage ? `${errorCode}: ${errorMessage}` : errorMessage || response.statusText);
-  }
+    if (!response.ok) {
+        const apiError = payload as ApiErrorResponse | null;
+        const errorCode = apiError?.error?.code?.trim();
+        const errorMessage = apiError?.error?.message?.trim();
+        throw new Error(errorCode && errorMessage ? `${errorCode}: ${errorMessage}` : errorMessage || response.statusText);
+    }
 
-  return payload;
+    return payload;
 }
 
 /**
@@ -367,13 +367,13 @@ async function parseApiResponse(response: Response): Promise<unknown> {
  *  The parsed response payload, or null when the body is empty.
  */
 async function parseResponseBody(response: Response): Promise<unknown> {
-  const contentType = response.headers.get("content-type") || "";
-  if(contentType.includes("application/json")) {
-    return response.json();
-  }
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+        return response.json();
+    }
 
-  const text = await response.text();
-  return text ? JSON.parse(text) as unknown : null;
+    const text = await response.text();
+    return text ? JSON.parse(text) as unknown : null;
 }
 
 /**
@@ -384,18 +384,18 @@ async function parseResponseBody(response: Response): Promise<unknown> {
  *  True when the payload includes the required submitted job fields.
  */
 function isSubmittedJob(payload: unknown): payload is SubmittedJob {
-  if(!payload || typeof payload !== "object") {
-    return false;
-  }
+    if (!payload || typeof payload !== "object") {
+        return false;
+    }
 
-  const candidate = payload as Record<string, unknown>;
-  return (
-    typeof candidate.job_id === "string"
+    const candidate = payload as Record<string, unknown>;
+    return (
+        typeof candidate.job_id === "string"
     && typeof candidate.status === "string"
     && typeof candidate.submitted_at === "string"
     && typeof candidate.poll_url === "string"
     && typeof candidate.request_id === "string"
-  );
+    );
 }
 
 /**
@@ -406,13 +406,13 @@ function isSubmittedJob(payload: unknown): payload is SubmittedJob {
  *  True when the payload includes the required job status fields.
  */
 function isJobStatusResponse(payload: unknown): payload is JobStatusResponse {
-  if(!payload || typeof payload !== "object") {
-    return false;
-  }
+    if (!payload || typeof payload !== "object") {
+        return false;
+    }
 
-  const candidate = payload as Record<string, unknown>;
-  return (
-    typeof candidate.job_id === "string"
+    const candidate = payload as Record<string, unknown>;
+    return (
+        typeof candidate.job_id === "string"
     && typeof candidate.status === "string"
     && typeof candidate.stage === "string"
     && typeof candidate.created_at === "string"
@@ -423,7 +423,7 @@ function isJobStatusResponse(payload: unknown): payload is JobStatusResponse {
     && isJobInputSummary(candidate.input)
     && isJobArtifactsSummary(candidate.artifacts)
     && typeof candidate.request_id === "string"
-  );
+    );
 }
 
 /**
@@ -434,13 +434,13 @@ function isJobStatusResponse(payload: unknown): payload is JobStatusResponse {
  *  True when the payload includes the required job result fields.
  */
 function isJobResultResponse(payload: unknown): payload is JobResultResponse {
-  if(!payload || typeof payload !== "object") {
-    return false;
-  }
+    if (!payload || typeof payload !== "object") {
+        return false;
+    }
 
-  const candidate = payload as Record<string, unknown>;
-  return (
-    typeof candidate.job_id === "string"
+    const candidate = payload as Record<string, unknown>;
+    return (
+        typeof candidate.job_id === "string"
     && typeof candidate.status === "string"
     && !!candidate.result
     && typeof candidate.result === "object"
@@ -449,7 +449,7 @@ function isJobResultResponse(payload: unknown): payload is JobResultResponse {
     && (typeof candidate.error_message === "string" || candidate.error_message === null)
     && (isJobArtifactsSummary(candidate.artifacts) || candidate.artifacts === null)
     && typeof candidate.request_id === "string"
-  );
+    );
 }
 
 /**
@@ -460,16 +460,16 @@ function isJobResultResponse(payload: unknown): payload is JobResultResponse {
  *  True when the payload includes the required job input summary fields.
  */
 function isJobInputSummary(payload: unknown): payload is JobInputSummary {
-  if(!payload || typeof payload !== "object") {
-    return false;
-  }
+    if (!payload || typeof payload !== "object") {
+        return false;
+    }
 
-  const candidate = payload as Record<string, unknown>;
-  return (
-    (typeof candidate.input_type === "string" || candidate.input_type === null)
+    const candidate = payload as Record<string, unknown>;
+    return (
+        (typeof candidate.input_type === "string" || candidate.input_type === null)
     && (typeof candidate.original_filename === "string" || candidate.original_filename === null)
     && (typeof candidate.title === "string" || candidate.title === null)
-  );
+    );
 }
 
 /**
@@ -480,19 +480,19 @@ function isJobInputSummary(payload: unknown): payload is JobInputSummary {
  *  True when the payload includes the required job artifacts summary fields.
  */
 function isJobArtifactsSummary(payload: unknown): payload is JobArtifactsSummary {
-  if(!payload || typeof payload !== "object") {
-    return false;
-  }
+    if (!payload || typeof payload !== "object") {
+        return false;
+    }
 
-  const candidate = payload as Record<string, unknown>;
-  return (
-    typeof candidate.has_stix === "boolean"
+    const candidate = payload as Record<string, unknown>;
+    return (
+        typeof candidate.has_stix === "boolean"
     && typeof candidate.has_afb === "boolean"
     && (typeof candidate.stix_url === "string" || candidate.stix_url === null)
     && (typeof candidate.afb_url === "string" || candidate.afb_url === null)
     && (isJobArtifactOutcomeSummary(candidate.stix_outcome) || candidate.stix_outcome === null)
     && (isJobArtifactOutcomeSummary(candidate.afb_outcome) || candidate.afb_outcome === null)
-  );
+    );
 }
 
 /**
@@ -503,13 +503,13 @@ function isJobArtifactsSummary(payload: unknown): payload is JobArtifactsSummary
  *  True when the payload includes the required job artifact outcome summary fields.
  */
 function isJobArtifactOutcomeSummary(payload: unknown): payload is JobArtifactOutcomeSummary {
-  if(!payload || typeof payload !== "object") {
-    return false;
-  }
+    if (!payload || typeof payload !== "object") {
+        return false;
+    }
 
-  const candidate = payload as Record<string, unknown>;
-  return (
-    (typeof candidate.valid === "boolean" || candidate.valid === null)
+    const candidate = payload as Record<string, unknown>;
+    return (
+        (typeof candidate.valid === "boolean" || candidate.valid === null)
     && (typeof candidate.validation_state === "string" || candidate.validation_state === null)
     && (typeof candidate.export_status === "string" || candidate.export_status === null)
     && (typeof candidate.validation_error_count === "number" || candidate.validation_error_count === null)
@@ -518,7 +518,7 @@ function isJobArtifactOutcomeSummary(payload: unknown): payload is JobArtifactOu
     && (typeof candidate.created_at === "string" || candidate.created_at === null)
     && (typeof candidate.error_code === "string" || candidate.error_code === null)
     && (typeof candidate.error_message === "string" || candidate.error_message === null)
-  );
+    );
 }
 
 /**
@@ -534,24 +534,24 @@ function isJobArtifactOutcomeSummary(payload: unknown): payload is JobArtifactOu
 export async function runJobToResult(
     sourceType: "text" | "upload" | "url",
     sourceData: string | File,
-    requestOptions: JobSubmissionRequestOptions = {},
+    requestOptions: JobSubmissionRequestOptions = {}
 ) : Promise<JobResultResponse> {
     let submissionResponse : SubmittedJob | null = null;
-    
+
     switch (sourceType) {
         case "text": {
             if (typeof sourceData != "string") {
                 throw new TypeError(`Text source requires string data. Got ${typeof sourceData}.`);
             }
-            
+
             submissionResponse = await submitPlaintextJob(sourceData, requestOptions);
             break;
         }
         case "upload": {
             if (!(sourceData instanceof File)) {
-                throw new TypeError(`File source data requires File instance.`)
+                throw new TypeError("File source data requires File instance.");
             }
-            
+
             submissionResponse = await submitFileJob(sourceData, requestOptions);
             break;
         }
@@ -559,7 +559,7 @@ export async function runJobToResult(
             if (typeof sourceData != "string") {
                 throw new TypeError(`URL source requires string. Got ${typeof sourceData}.`);
             }
-            
+
             submissionResponse = await submitUrlJob(sourceData, requestOptions);
             break;
         }
@@ -577,11 +577,11 @@ export async function runJobToResult(
         while (currentTry <= maxRetries) {
             const pollRes = await pollJob(submissionResponse.poll_url);
             console.debug(`Polling attempt ${currentTry}.`, pollRes);
-            if (pollRes.status === 'completed') {
+            if (pollRes.status === "completed") {
                 jobComplete = true;
-                console.debug('Job completed.');
+                console.debug("Job completed.");
                 break;
-            } else if (pollRes.status === 'failed') {
+            } else if (pollRes.status === "failed") {
                 throw new Error(`Queued job failed: ${pollRes.error_message}`);
             }
             await new Promise(resolve => setTimeout(resolve, cooldownMs));
@@ -593,9 +593,9 @@ export async function runJobToResult(
             const result = await fetchJobResult(submissionResponse.job_id);
             return result;
         } else {
-            throw new Error("Queued job timed out.")
+            throw new Error("Queued job timed out.");
         }
     } else {
-        throw new Error("Job submission failed.")
+        throw new Error("Job submission failed.");
     }
 }

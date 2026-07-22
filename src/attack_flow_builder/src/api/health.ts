@@ -3,22 +3,22 @@ import { API_BASE_URL } from "@/config/api";
 const HEALTH_URL = `${API_BASE_URL.replace(/\/+$/, "")}/health`;
 
 export interface HealthCheckRequestOptions {
-  signal?: AbortSignal;
+    signal?: AbortSignal;
 }
 
 export interface HealthCheckResponse {
-  status: string;
-  service: string;
-  version: string;
-  time: string;
-  request_id: string;
+    status: string;
+    service: string;
+    version: string;
+    time: string;
+    request_id: string;
 }
 
 interface ApiErrorResponse {
-  error?: {
-    code?: string;
-    message?: string;
-  };
+    error?: {
+        code?: string;
+        message?: string;
+    };
 }
 
 /**
@@ -29,19 +29,19 @@ interface ApiErrorResponse {
  *  The parsed health check response payload.
  */
 export async function fetchHealthCheck(
-  requestOptions: HealthCheckRequestOptions = {}
+    requestOptions: HealthCheckRequestOptions = {}
 ): Promise<HealthCheckResponse> {
-  const response = await fetch(HEALTH_URL, {
-    method: "GET",
-    signal: requestOptions.signal
-  });
+    const response = await fetch(HEALTH_URL, {
+        method: "GET",
+        signal: requestOptions.signal
+    });
 
-  const payload = await parseApiResponse(response);
-  if(!isHealthCheckResponse(payload)) {
-    throw new Error("health check response did not match the expected API shape");
-  }
+    const payload = await parseApiResponse(response);
+    if (!isHealthCheckResponse(payload)) {
+        throw new Error("health check response did not match the expected API shape");
+    }
 
-  return payload;
+    return payload;
 }
 
 /**
@@ -52,16 +52,16 @@ export async function fetchHealthCheck(
  *  The parsed response payload.
  */
 async function parseApiResponse(response: Response): Promise<unknown> {
-  const payload = await parseResponseBody(response);
+    const payload = await parseResponseBody(response);
 
-  if(!response.ok) {
-    const apiError = payload as ApiErrorResponse | null;
-    const errorCode = apiError?.error?.code?.trim();
-    const errorMessage = apiError?.error?.message?.trim();
-    throw new Error(errorCode && errorMessage ? `${errorCode}: ${errorMessage}` : errorMessage || response.statusText);
-  }
+    if (!response.ok) {
+        const apiError = payload as ApiErrorResponse | null;
+        const errorCode = apiError?.error?.code?.trim();
+        const errorMessage = apiError?.error?.message?.trim();
+        throw new Error(errorCode && errorMessage ? `${errorCode}: ${errorMessage}` : errorMessage || response.statusText);
+    }
 
-  return payload;
+    return payload;
 }
 
 /**
@@ -72,13 +72,13 @@ async function parseApiResponse(response: Response): Promise<unknown> {
  *  The parsed response payload, or null when the body is empty.
  */
 async function parseResponseBody(response: Response): Promise<unknown> {
-  const contentType = response.headers.get("content-type") || "";
-  if(contentType.includes("application/json")) {
-    return response.json();
-  }
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+        return response.json();
+    }
 
-  const text = await response.text();
-  return text ? JSON.parse(text) as unknown : null;
+    const text = await response.text();
+    return text ? JSON.parse(text) as unknown : null;
 }
 
 /**
@@ -89,16 +89,16 @@ async function parseResponseBody(response: Response): Promise<unknown> {
  *  True when the payload includes the required health response fields.
  */
 function isHealthCheckResponse(payload: unknown): payload is HealthCheckResponse {
-  if(!payload || typeof payload !== "object") {
-    return false;
-  }
+    if (!payload || typeof payload !== "object") {
+        return false;
+    }
 
-  const candidate = payload as Record<string, unknown>;
-  return (
-    typeof candidate.status === "string"
+    const candidate = payload as Record<string, unknown>;
+    return (
+        typeof candidate.status === "string"
     && typeof candidate.service === "string"
     && typeof candidate.version === "string"
     && typeof candidate.time === "string"
     && typeof candidate.request_id === "string"
-  );
+    );
 }

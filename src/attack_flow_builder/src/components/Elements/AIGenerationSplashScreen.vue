@@ -1,22 +1,22 @@
 <template>
   <div
     class="ai-generation"
-    >
+  >
     <!-- Hide via visibility: hidden to preserve content size. -->
     <div :style="apiHealthCheckInProgress ? 'visibility: hidden' : ''">
-        <h2 class="generation-title">
+      <h2 class="generation-title">
         Generate Attack Flow
-        </h2>
-        <div class="section source-type">
+      </h2>
+      <div class="section source-type">
         <p class="section-title">
-            SOURCE TYPE
+          SOURCE TYPE
         </p>
         <div
-            class="button-grid source-type-grid"
-            role="radiogroup"
-            aria-label="Source type"
+          class="button-grid source-type-grid"
+          role="radiogroup"
+          aria-label="Source type"
         >
-            <div
+          <div
             :class="['button', 'source-type-button', { selected: sourceType === 'upload' }]"
             role="radio"
             :aria-checked="sourceType === 'upload'"
@@ -24,18 +24,18 @@
             @click="selectSourceType('upload')"
             @keydown.enter="selectSourceType('upload')"
             @keydown.space.prevent="selectSourceType('upload')"
-            >
+          >
             <div class="button-header">
-                <span class="button-icon"><EmptyPageIcon /></span>
-                <p class="button-title">
+              <span class="button-icon"><EmptyPageIcon /></span>
+              <p class="button-title">
                 Upload Report PDF
-                </p>
+              </p>
             </div>
             <p class="button-description">
-                Create a flow from a security incident report PDF.
+              Create a flow from a security incident report PDF.
             </p>
-            </div>
-            <div
+          </div>
+          <div
             :class="['button', 'source-type-button', { selected: sourceType === 'url' }]"
             role="radio"
             :aria-checked="sourceType === 'url'"
@@ -43,18 +43,18 @@
             @click="selectSourceType('url')"
             @keydown.enter="selectSourceType('url')"
             @keydown.space.prevent="selectSourceType('url')"
-            >
+          >
             <div class="button-header">
-                <span class="button-icon"><LinkIcon /></span>
-                <p class="button-title">
+              <span class="button-icon"><LinkIcon /></span>
+              <p class="button-title">
                 Link to Report
-                </p>
+              </p>
             </div>
             <p class="button-description">
-                Paste a link to an incident report blog.
+              Paste a link to an incident report blog.
             </p>
-            </div>
-            <div
+          </div>
+          <div
             :class="['button', 'source-type-button', { selected: sourceType === 'text' }]"
             role="radio"
             :aria-checked="sourceType === 'text'"
@@ -62,165 +62,186 @@
             @click="selectSourceType('text')"
             @keydown.enter="selectSourceType('text')"
             @keydown.space.prevent="selectSourceType('text')"
-            >
+          >
             <div class="button-header">
-                <span class="button-icon"><FolderIcon /></span>
-                <p class="button-title">
+              <span class="button-icon"><FolderIcon /></span>
+              <p class="button-title">
                 Paste Text
-                </p>
+              </p>
             </div>
             <p class="button-description">
-                Paste an incident report as plain text.
+              Paste an incident report as plain text.
             </p>
-            </div>
+          </div>
         </div>
-        </div>
-        <div class="form-field source-data-field">
+      </div>
+      <div class="form-field source-data-field">
         <span class="section-title">SOURCE DATA</span>
         <div
-            v-if="sourceType === 'upload'"
-            class="source-upload-control"
+          v-if="sourceType === 'upload'"
+          class="source-upload-control"
         >
-            <input
+          <input
             :value="sourceFileName"
             type="text"
             placeholder="Select a PDF report."
             aria-label="Selected PDF report"
             disabled
-            >
-            <button
+          >
+          <button
             class="source-upload-button"
             type="button"
             @click="openSourceFileDialog"
-            >
+          >
             {{ sourceFile ? "Change PDF" : "Choose PDF" }}
-            </button>
+          </button>
         </div>
         <input
-            v-else-if="sourceType === 'url'"
-            v-model="sourceUrl"
-            type="url"
-            placeholder="https://example.com/report"
-            aria-label="Report URL"
-            :aria-invalid="!!sourceUrl.trim() && !isSourceUrlValid"
-            @keydown.stop
+          v-else-if="sourceType === 'url'"
+          v-model="sourceUrl"
+          type="url"
+          placeholder="https://example.com/report"
+          aria-label="Report URL"
+          :aria-invalid="!!sourceUrl.trim() && !isSourceUrlValid"
+          @keydown.stop
         >
         <textarea
-            v-else-if="sourceType === 'text'"
-            v-model="sourceText"
-            rows="3"
-            placeholder="Paste incident report text."
-            aria-label="Report text"
-            @keydown.stop
+          v-else-if="sourceType === 'text'"
+          v-model="sourceText"
+          rows="3"
+          placeholder="Paste incident report text."
+          aria-label="Report text"
+          @keydown.stop
         />
         <input
-            v-else
-            type="text"
-            aria-label="Source data"
-            disabled
+          v-else
+          type="text"
+          aria-label="Source data"
+          disabled
         >
         <input
-            ref="sourceFileInput"
-            class="file-input"
-            type="file"
-            accept=".pdf,application/pdf"
-            @change="onSourceFileSelected"
+          ref="sourceFileInput"
+          class="file-input"
+          type="file"
+          accept=".pdf,application/pdf"
+          @change="onSourceFileSelected"
         >
-        </div>
-        <div class="section llm-information">
-            <details :open="!apiHealthCheckSucceeded">
-                <summary class="section-title">
-                    <span v-if="apiHealthCheckSucceeded">
-                        LLM OVERRIDES <small>(optional)</small>
-                    </span>
-                    <span v-else>LLM INFORMATION</span>
-                </summary>
-                <div class="llm-container">
-                    <label class="form-field" style="flex: 1;">
-                        <span>TYPE:</span>
-                        <select
-                            name="llm-provider-type"
-                            v-model="llmType"
-                            :class="llmType === '' ? 'empty' : ''"
-                        >
-                            <option disabled selected hidden value="" key="placeholder">Provider type</option>
-                            <option value="" key="none">(none)</option>
-                            <option v-for="providerType in RUNTIME_PROVIDER_OVERRIDE_TYPES" :key="providerType" :value="providerType">
-                                {{ providerType }}
-                            </option>
-                        </select>
-                    </label>
-                    <label class="form-field" style="flex: 2;">
-                        <span>ENDPOINT:</span>
-                        <input
-                            v-model="llmEndpoint"
-                            type="text"
-                            placeholder="LLM endpoint override"
-                            @keydown.stop
-                        >
-                    </label>
-                    <label class="form-field" style="flex: 2;">
-                        <span>TOKEN:</span>
-                        <input
-                            v-model="llmToken"
-                            type="password"
-                            placeholder="LLM token override"
-                            @keydown.stop
-                        >
-                    </label>
-                </div>
-            </details>
-        </div>
-        <button
+      </div>
+      <div class="section llm-information">
+        <details :open="!apiHealthCheckSucceeded">
+          <summary class="section-title">
+            <span v-if="apiHealthCheckSucceeded">
+              LLM OVERRIDES <small>(optional)</small>
+            </span>
+            <span v-else>LLM INFORMATION</span>
+          </summary>
+          <div class="llm-container">
+            <label
+              class="form-field"
+              style="flex: 1;"
+            >
+              <span>TYPE:</span>
+              <select
+                name="llm-provider-type"
+                v-model="llmType"
+                :class="llmType === '' ? 'empty' : ''"
+              >
+                <option
+                  disabled
+                  selected
+                  hidden
+                  value=""
+                  key="placeholder"
+                >Provider type</option>
+                <option
+                  value=""
+                  key="none"
+                >(none)</option>
+                <option
+                  v-for="providerType in RUNTIME_PROVIDER_OVERRIDE_TYPES"
+                  :key="providerType"
+                  :value="providerType"
+                >
+                  {{ providerType }}
+                </option>
+              </select>
+            </label>
+            <label
+              class="form-field"
+              style="flex: 2;"
+            >
+              <span>ENDPOINT:</span>
+              <input
+                v-model="llmEndpoint"
+                type="text"
+                placeholder="LLM endpoint override"
+                @keydown.stop
+              >
+            </label>
+            <label
+              class="form-field"
+              style="flex: 2;"
+            >
+              <span>TOKEN:</span>
+              <input
+                v-model="llmToken"
+                type="password"
+                placeholder="LLM token override"
+                @keydown.stop
+              >
+            </label>
+          </div>
+        </details>
+      </div>
+      <button
         class="generate-button"
         type="button"
         :disabled="!canGenerate"
         @click="onClickGenerate"
-        >
-            GENERATE
-        </button>
-        <div class="results-section">
-            <div v-if="!flowGenerationRan">
-                Flow generation results will appear here.
-            </div>
-            <div v-else-if="flowGenerationInProgress">
-                Flow generation queued...
-            </div>
-            <div v-else-if="flowGenerationSucceeded">
-                <div>Flow generation complete. Artifacts ready for download.</div>
-                <div class="artifact-download-buttons-container">
-                    <button
-                        @click="() => downloadJobResultArtifact(flowGenerationCompletedJobId, 'afb', 'generated_flow.afb')"
-                    >
-                        AFB
-                        <DownloadIcon></DownloadIcon>
-                    </button>
-                    <button
-                        @click="downloadJobResultArtifact(flowGenerationCompletedJobId, 'stix', 'generated_flow_stix.json')"
-                    >
-                        STIX
-                        <DownloadIcon></DownloadIcon>
-                    </button>
-                </div>
-            </div>
-            <div v-else>
-                <div class="generation-error">
-                    {{ flowGenerationErrorMessage }}
-                </div>
-            </div>
+      >
+        GENERATE
+      </button>
+      <div class="results-section">
+        <div v-if="!flowGenerationRan">
+          Flow generation results will appear here.
         </div>
+        <div v-else-if="flowGenerationInProgress">
+          Flow generation queued...
+        </div>
+        <div v-else-if="flowGenerationSucceeded">
+          <div>Flow generation complete. Artifacts ready for download.</div>
+          <div class="artifact-download-buttons-container">
+            <button
+              @click="() => downloadJobResultArtifact(flowGenerationCompletedJobId, 'afb', 'generated_flow.afb')"
+            >
+              AFB
+              <DownloadIcon />
+            </button>
+            <button
+              @click="downloadJobResultArtifact(flowGenerationCompletedJobId, 'stix', 'generated_flow_stix.json')"
+            >
+              STIX
+              <DownloadIcon />
+            </button>
+          </div>
+        </div>
+        <div v-else>
+          <div class="generation-error">
+            {{ flowGenerationErrorMessage }}
+          </div>
+        </div>
+      </div>
     </div>
 
     <div
-        v-if="apiHealthCheckInProgress"
-        class="health-check-loading-indicator"
+      v-if="apiHealthCheckInProgress"
+      class="health-check-loading-indicator"
     >
-        <LoadingSpinner
-            label="Detecting API"
-        ></LoadingSpinner>
-        <small>Detecting API...</small>
+      <LoadingSpinner
+        label="Detecting API"
+      />
+      <small>Detecting API...</small>
     </div>
-    
   </div>
 </template>
 
@@ -298,6 +319,7 @@ export default defineComponent({
       }
     },
 
+    // eslint-disable-next-line vue/return-in-computed-property
     sourceData(): string | File {
         if (!this.sourceType) {
             throw new Error("Cannot get source without source type.")
