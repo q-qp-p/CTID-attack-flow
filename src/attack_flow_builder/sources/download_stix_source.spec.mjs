@@ -81,4 +81,63 @@ describe("download_stix_source", () => {
             targetRef: "attack-pattern--phishing"
         });
     });
+
+    // Analytics link to detections via external_reference URL, not STIX relationships.
+    it("aggregates analytic log sources onto detection strategies", () => {
+        const data = {
+            objects: [
+                {
+                    type: "x-mitre-detection-strategy",
+                    id: "x-mitre-detection-strategy--phishing-detection",
+                    name: "Detect Phishing",
+                    description: "A detection strategy.",
+                    external_references: [mitreReference("DET0001")]
+                },
+                {
+                    type: "x-mitre-analytic",
+                    id: "x-mitre-analytic--phishing-windows",
+                    name: "Phishing on Windows",
+                    external_references: [{
+                        source_name: "mitre-attack",
+                        external_id: "AN0001",
+                        url: "https://attack.mitre.org/detectionstrategies/DET0001#AN0001"
+                    }],
+                    x_mitre_log_source_references: [
+                        {
+                            name: "WinEventLog:Security",
+                            channel: "EventCode=4688"
+                        }
+                    ]
+                },
+                {
+                    type: "x-mitre-analytic",
+                    id: "x-mitre-analytic--phishing-linux",
+                    name: "Phishing on Linux",
+                    external_references: [{
+                        source_name: "mitre-attack",
+                        external_id: "AN0002",
+                        url: "https://attack.mitre.org/detectionstrategies/DET0001#AN0002"
+                    }],
+                    x_mitre_log_source_references: [
+                        {
+                            name: "auditd:SYSCALL",
+                            channel: "execve"
+                        },
+                        {
+                            name: "WinEventLog:Security",
+                            channel: "EventCode=4688"
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const detection = parseSourceObjectsFromManifest(data).find(obj => obj.id === "DET0001");
+
+        expect(detection?.log_sources).toEqual([
+            { name: "WinEventLog:Security", channel: "EventCode=4688" },
+            { name: "auditd:SYSCALL", channel: "execve" }
+        ]);
+        expect(detection?.analytics).toBeUndefined();
+    });
 });

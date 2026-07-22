@@ -3,6 +3,12 @@ import AtlasEnums from "../AttackFlowTemplates/MitreAtlas";
 import DefendEnums from "../AttackFlowTemplates/MitreDefend";
 import F3Enums from "../AttackFlowTemplates/MitreF3";
 
+/** A telemetry source referenced by a MITRE analytic (PRE:POST name + channel). */
+export interface LogSource {
+    name: string;
+    channel: string;
+}
+
 export interface SourceObject {
     id: string;
     name: string;
@@ -12,6 +18,8 @@ export interface SourceObject {
     domains?: string[];
     stixId: string;
     url?: string;
+    /** Deduplicated union of log sources from the detection's analytics (detections only). */
+    log_sources?: LogSource[];
 }
 
 export interface SourceRelationships {

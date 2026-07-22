@@ -91,11 +91,15 @@ export const AttackFlowObjects: DiagramObjectTemplate[] = [
             system: {
                 type: PropertyType.String
             },
-            detection_analytic: {
-                type: PropertyType.String
-            },
-            log_source: {
-                type: PropertyType.String
+            log_sources: {
+                name: "Log Sources",
+                type: PropertyType.MultiSelect,
+                options: {
+                    type: PropertyType.List,
+                    form: { type: PropertyType.String },
+                    default: []
+                },
+                default: {}
             },
             tags: TagsProperty
         },

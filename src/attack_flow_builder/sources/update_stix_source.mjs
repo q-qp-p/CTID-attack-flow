@@ -115,7 +115,7 @@ function addSourceObjects(objects, records, sourceIdsByStixId, fileName) {
     for(const obj of objects) {
         const id = getSourceId(obj, fileName);
         const matrix = getMatrix(obj, fileName);
-        records[id] = {
+        const record = {
             id,
             name: obj.name,
             label: `[${matrix}] ${id} ${obj.name}`,
@@ -125,6 +125,12 @@ function addSourceObjects(objects, records, sourceIdsByStixId, fileName) {
             stixId: obj.stixId,
             url: obj.url
         };
+        // Detection strategies include a deduplicated union of all log sources
+        // referenced by their associated MITRE analytics.
+        if (obj.type === "detection") {
+            record.log_sources = obj.log_sources ?? [];
+        }
+        records[id] = record;
         sourceIdsByStixId.set(obj.stixId, id);
     }
 }

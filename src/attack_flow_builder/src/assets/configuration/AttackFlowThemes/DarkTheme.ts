@@ -70,6 +70,7 @@ const AttackObjects = {
     detection: {
         type: FaceType.DictionaryBlock,
         attributes: Alignment.Grid,
+        properties: { include: ["detection_id", "description", "log_sources"] },
         style: DarkStyle.DictionaryBlock({ head: Colors.DarkThemeGray })
     },
     asset: {

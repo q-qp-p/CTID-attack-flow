@@ -8,7 +8,8 @@ import {
     Property,
     TupleProperty,
     type JsonValue,
-    ColorProperty
+    ColorProperty,
+    MultiSelectProperty
 } from "../OpenChart/DiagramModel";
 import type { StixObject } from "./StixTypes";
 
@@ -154,6 +155,27 @@ function populateProperty(property: Property, val: unknown, nodeType?: string, p
     if (property instanceof ColorProperty) {
         if (typeof val === "string") {
             property.setValue(val);
+        }
+        return;
+    }
+
+    // Multi-select properties
+    if (property instanceof MultiSelectProperty) {
+        if (Array.isArray(val)) {
+            // Array of selected values - convert to object format
+            const obj: { [x: string]: boolean } = {};
+            for (const v of val) {
+                if (typeof v === "string") {
+                    obj[v] = true;
+                }
+            }
+            property.setValue(obj as JsonValue);
+        } else if (val && typeof val === "object") {
+            // Object mapping selected keys to boolean (e.g., {"key1": true, "key2": true})
+            property.setValue(val as JsonValue);
+        } else if (typeof val === "string") {
+            // Single selected value
+            property.setValue({ [val]: true } as JsonValue);
         }
         return;
     }

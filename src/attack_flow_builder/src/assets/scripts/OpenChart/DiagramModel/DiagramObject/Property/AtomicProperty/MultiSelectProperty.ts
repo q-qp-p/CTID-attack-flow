@@ -1,6 +1,7 @@
 import { Property } from "..";
 import type { JsonValue, ListProperty } from "..";
 import type { MultiSelectPropertyOptions } from "./MultiSelectPropertyOptions";
+import { formatLogSourceBlockLines } from "@/assets/configuration/AttackFlowTemplates/logSourceUtils";
 
 /**
  * Represents a multi-select of string values from a predefined options list.
@@ -98,6 +99,10 @@ export class MultiSelectProperty extends Property {
      * Returns the property as a string: comma-separated option labels.
      */
     public toString(): string {
+        if (this.id === "log_sources") {
+            return formatLogSourceBlockLines(this._values).join("\n");
+        }
+
         const opts = this.options?.value;
         const labels: string[] = [];
         for (const id of this._values) {

@@ -66,13 +66,13 @@ const AttackObjects = {
     mitigation: {
         type: FaceType.DictionaryBlock,
         attributes: Alignment.Grid,
-        properties: { include: ["id", "description"] },
+        properties: { include: ["mitigation_id", "description"] },
         style: BlogStyle.DictionaryBlock({ head: Colors.SimpleGray })
     },
     detection: {
         type: FaceType.DictionaryBlock,
         attributes: Alignment.Grid,
-        properties: { include: ["id", "description"] },
+        properties: { include: ["detection_id", "description", "log_sources"] },
         style: BlogStyle.DictionaryBlock({ head: Colors.SimpleGray })
     },
     asset: {

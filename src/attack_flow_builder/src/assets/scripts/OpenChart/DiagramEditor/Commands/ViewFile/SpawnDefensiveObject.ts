@@ -1,6 +1,15 @@
 import { SpawnObject } from "./SpawnObject";
-import { StringProperty } from "@OpenChart/DiagramModel";
-import type { SourceObject } from "@/assets/configuration/AttackFlowTemplates/SourceEnumeration";
+import {
+    MultiSelectProperty,
+    StringProperty
+} from "@OpenChart/DiagramModel";
+import type {
+    LogSource,
+    SourceObject
+} from "@/assets/configuration/AttackFlowTemplates/SourceEnumeration";
+import {
+    populateLogSourceOptions
+} from "@/assets/configuration/AttackFlowTemplates/logSourceOptions";
 import type { DiagramViewFile } from "@OpenChart/DiagramView";
 
 export type DefensiveObjectType = "mitigation" | "detection";
@@ -62,6 +71,23 @@ export abstract class SpawnDefensiveObject extends SpawnObject {
         const idProperty = DefensiveObjectIdProperties[sourceObject.type];
         this.object.properties.get(idProperty, StringProperty)?.setValue(sourceObject.id);
         this.object.properties.get("name", StringProperty)?.setValue(sourceObject.name);
+        if (sourceObject.type === "detection") {
+            this.configureDetectionLogSources(sourceObject.log_sources ?? []);
+        }
+    }
+
+    /**
+     * Populates the detection block's log source options from catalog data.
+     * @param logSources
+     *  Log sources associated with the detection strategy.
+     */
+    private configureDetectionLogSources(logSources: LogSource[]): void {
+        const logSourcesProperty = this.object.properties.get("log_sources", MultiSelectProperty);
+        if (!logSourcesProperty || !logSources.length) {
+            return;
+        }
+
+        populateLogSourceOptions(logSourcesProperty, logSources);
     }
 
 }
