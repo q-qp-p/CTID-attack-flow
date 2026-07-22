@@ -62,7 +62,7 @@ describe("ObjectRecommenderMenu", () => {
         const wrapper = mountMenu(recommender);
 
         expect(wrapper.find("[role='status']").exists()).toBe(true);
-        expect(wrapper.find(".loading-icon").exists()).toBe(true);
+        expect(wrapper.find(".loading").exists()).toBe(true);
 
         recommendations.resolve({ items: [ACTION] });
         await flushPromises();

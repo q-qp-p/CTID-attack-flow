@@ -1,158 +1,247 @@
 <template>
-  <div class="ai-generation">
-    <h2 class="generation-title">
-      Generate Attack Flow
-    </h2>
-    <div class="section source-type">
-      <p class="section-title">
-        SOURCE TYPE
-      </p>
-      <div
-        class="button-grid source-type-grid"
-        role="radiogroup"
-        aria-label="Source type"
-      >
+  <div
+    class="ai-generation"
+  >
+    <!-- Hide via visibility: hidden to preserve content size. -->
+    <div :style="apiHealthCheckInProgress ? 'visibility: hidden' : ''">
+      <h2 class="generation-title">
+        Generate Attack Flow
+      </h2>
+      <div class="section source-type">
+        <p class="section-title">
+          SOURCE TYPE
+        </p>
         <div
-          :class="['button', 'source-type-button', { selected: sourceType === 'upload' }]"
-          role="radio"
-          :aria-checked="sourceType === 'upload'"
-          tabindex="0"
-          @click="selectSourceType('upload')"
-          @keydown.enter="selectSourceType('upload')"
-          @keydown.space.prevent="selectSourceType('upload')"
+          class="button-grid source-type-grid"
+          role="radiogroup"
+          aria-label="Source type"
         >
-          <div class="button-header">
-            <span class="button-icon"><EmptyPageIcon /></span>
-            <p class="button-title">
-              Upload Report PDF
+          <div
+            :class="['button', 'source-type-button', { selected: sourceType === 'upload' }]"
+            role="radio"
+            :aria-checked="sourceType === 'upload'"
+            tabindex="0"
+            @click="selectSourceType('upload')"
+            @keydown.enter="selectSourceType('upload')"
+            @keydown.space.prevent="selectSourceType('upload')"
+          >
+            <div class="button-header">
+              <span class="button-icon"><EmptyPageIcon /></span>
+              <p class="button-title">
+                Upload Report PDF
+              </p>
+            </div>
+            <p class="button-description">
+              Create a flow from a security incident report PDF.
             </p>
           </div>
-          <p class="button-description">
-            Create a flow from a security incident report PDF.
-          </p>
-        </div>
-        <div
-          :class="['button', 'source-type-button', { selected: sourceType === 'url' }]"
-          role="radio"
-          :aria-checked="sourceType === 'url'"
-          tabindex="0"
-          @click="selectSourceType('url')"
-          @keydown.enter="selectSourceType('url')"
-          @keydown.space.prevent="selectSourceType('url')"
-        >
-          <div class="button-header">
-            <span class="button-icon"><LinkIcon /></span>
-            <p class="button-title">
-              Link to Report
+          <div
+            :class="['button', 'source-type-button', { selected: sourceType === 'url' }]"
+            role="radio"
+            :aria-checked="sourceType === 'url'"
+            tabindex="0"
+            @click="selectSourceType('url')"
+            @keydown.enter="selectSourceType('url')"
+            @keydown.space.prevent="selectSourceType('url')"
+          >
+            <div class="button-header">
+              <span class="button-icon"><LinkIcon /></span>
+              <p class="button-title">
+                Link to Report
+              </p>
+            </div>
+            <p class="button-description">
+              Paste a link to an incident report blog.
             </p>
           </div>
-          <p class="button-description">
-            Paste a link to an incident report blog.
-          </p>
-        </div>
-        <div
-          :class="['button', 'source-type-button', { selected: sourceType === 'text' }]"
-          role="radio"
-          :aria-checked="sourceType === 'text'"
-          tabindex="0"
-          @click="selectSourceType('text')"
-          @keydown.enter="selectSourceType('text')"
-          @keydown.space.prevent="selectSourceType('text')"
-        >
-          <div class="button-header">
-            <span class="button-icon"><FolderIcon /></span>
-            <p class="button-title">
-              Paste Text
+          <div
+            :class="['button', 'source-type-button', { selected: sourceType === 'text' }]"
+            role="radio"
+            :aria-checked="sourceType === 'text'"
+            tabindex="0"
+            @click="selectSourceType('text')"
+            @keydown.enter="selectSourceType('text')"
+            @keydown.space.prevent="selectSourceType('text')"
+          >
+            <div class="button-header">
+              <span class="button-icon"><FolderIcon /></span>
+              <p class="button-title">
+                Paste Text
+              </p>
+            </div>
+            <p class="button-description">
+              Paste an incident report as plain text.
             </p>
           </div>
-          <p class="button-description">
-            Paste an incident report as plain text.
-          </p>
         </div>
       </div>
-    </div>
-    <div class="form-field source-data-field">
-      <span class="section-title">SOURCE DATA</span>
-      <div
-        v-if="sourceType === 'upload'"
-        class="source-upload-control"
-      >
+      <div class="form-field source-data-field">
+        <span class="section-title">SOURCE DATA</span>
+        <div
+          v-if="sourceType === 'upload'"
+          class="source-upload-control"
+        >
+          <input
+            :value="sourceFileName"
+            type="text"
+            placeholder="Select a PDF report."
+            aria-label="Selected PDF report"
+            disabled
+          >
+          <button
+            class="source-upload-button"
+            type="button"
+            @click="openSourceFileDialog"
+          >
+            {{ sourceFile ? "Change PDF" : "Choose PDF" }}
+          </button>
+        </div>
         <input
-          :value="sourceFileName"
+          v-else-if="sourceType === 'url'"
+          v-model="sourceUrl"
+          type="url"
+          placeholder="https://example.com/report"
+          aria-label="Report URL"
+          :aria-invalid="!!sourceUrl.trim() && !isSourceUrlValid"
+          @keydown.stop
+        >
+        <textarea
+          v-else-if="sourceType === 'text'"
+          v-model="sourceText"
+          rows="3"
+          placeholder="Paste incident report text."
+          aria-label="Report text"
+          @keydown.stop
+        />
+        <input
+          v-else
           type="text"
-          placeholder="Select a PDF report."
-          aria-label="Selected PDF report"
+          aria-label="Source data"
           disabled
         >
-        <button
-          class="source-upload-button"
-          type="button"
-          @click="openSourceFileDialog"
+        <input
+          ref="sourceFileInput"
+          class="file-input"
+          type="file"
+          accept=".pdf,application/pdf"
+          @change="onSourceFileSelected"
         >
-          {{ sourceFile ? "Change PDF" : "Choose PDF" }}
-        </button>
       </div>
-      <input
-        v-else-if="sourceType === 'url'"
-        v-model="sourceUrl"
-        type="url"
-        placeholder="https://example.com/report"
-        aria-label="Report URL"
-        :aria-invalid="!!sourceUrl.trim() && !isSourceUrlValid"
-        @keydown.stop
+      <div class="section llm-information">
+        <details :open="!apiHealthCheckSucceeded">
+          <summary class="section-title">
+            <span v-if="apiHealthCheckSucceeded">
+              LLM OVERRIDES <small>(optional)</small>
+            </span>
+            <span v-else>LLM INFORMATION</span>
+          </summary>
+          <div class="llm-container">
+            <label
+              class="form-field"
+              style="flex: 1;"
+            >
+              <span>TYPE:</span>
+              <select
+                name="llm-provider-type"
+                v-model="llmType"
+                :class="llmType === '' ? 'empty' : ''"
+              >
+                <option
+                  disabled
+                  selected
+                  hidden
+                  value=""
+                  key="placeholder"
+                >Provider type</option>
+                <option
+                  value=""
+                  key="none"
+                >(none)</option>
+                <option
+                  v-for="providerType in RUNTIME_PROVIDER_OVERRIDE_TYPES"
+                  :key="providerType"
+                  :value="providerType"
+                >
+                  {{ providerType }}
+                </option>
+              </select>
+            </label>
+            <label
+              class="form-field"
+              style="flex: 2;"
+            >
+              <span>ENDPOINT:</span>
+              <input
+                v-model="llmEndpoint"
+                type="text"
+                placeholder="LLM endpoint override"
+                @keydown.stop
+              >
+            </label>
+            <label
+              class="form-field"
+              style="flex: 2;"
+            >
+              <span>TOKEN:</span>
+              <input
+                v-model="llmToken"
+                type="password"
+                placeholder="LLM token override"
+                @keydown.stop
+              >
+            </label>
+          </div>
+        </details>
+      </div>
+      <button
+        class="generate-button"
+        type="button"
+        :disabled="!canGenerate"
+        @click="onClickGenerate"
       >
-      <textarea
-        v-else-if="sourceType === 'text'"
-        v-model="sourceText"
-        rows="3"
-        placeholder="Paste incident report text."
-        aria-label="Report text"
-        @keydown.stop
-      />
-      <input
-        v-else
-        type="text"
-        aria-label="Source data"
-        disabled
-      >
-      <input
-        ref="sourceFileInput"
-        class="file-input"
-        type="file"
-        accept=".pdf,application/pdf"
-        @change="onSourceFileSelected"
-      >
-    </div>
-    <div class="section llm-information">
-      <p class="section-title">
-        LLM INFORMATION
-      </p>
-      <div class="llm-grid">
-        <label class="form-field">
-          <span>ENDPOINT:</span>
-          <input
-            v-model="llmEndpoint"
-            type="text"
-            @keydown.stop
-          >
-        </label>
-        <label class="form-field">
-          <span>TOKEN:</span>
-          <input
-            v-model="llmToken"
-            type="password"
-            @keydown.stop
-          >
-        </label>
+        GENERATE
+      </button>
+      <div class="results-section">
+        <div v-if="!flowGenerationRan">
+          Flow generation results will appear here.
+        </div>
+        <div v-else-if="flowGenerationInProgress">
+          Flow generation queued...
+        </div>
+        <div v-else-if="flowGenerationSucceeded">
+          <div>Flow generation complete. Artifacts ready for download.</div>
+          <div class="artifact-download-buttons-container">
+            <button
+              @click="() => downloadJobResultArtifact(flowGenerationCompletedJobId, 'afb', 'generated_flow.afb')"
+            >
+              AFB
+              <DownloadIcon />
+            </button>
+            <button
+              @click="downloadJobResultArtifact(flowGenerationCompletedJobId, 'stix', 'generated_flow_stix.json')"
+            >
+              STIX
+              <DownloadIcon />
+            </button>
+          </div>
+        </div>
+        <div v-else>
+          <div class="generation-error">
+            {{ flowGenerationErrorMessage }}
+          </div>
+        </div>
       </div>
     </div>
-    <button
-      class="generate-button"
-      type="button"
-      :disabled="!canGenerate"
+
+    <div
+      v-if="apiHealthCheckInProgress"
+      class="health-check-loading-indicator"
     >
-      GENERATE
-    </button>
+      <LoadingSpinner
+        label="Detecting API"
+      />
+      <small>Detecting API...</small>
+    </div>
   </div>
 </template>
 
@@ -161,11 +250,27 @@ import { defineComponent } from "vue";
 import LinkIcon from "@/components/Icons/LinkIcon.vue";
 import FolderIcon from "@/components/Icons/FolderIcon.vue";
 import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
+import {
+    downloadJobResultArtifact,
+    runJobToResult,
+    RUNTIME_PROVIDER_OVERRIDE_TYPES,
+    type RuntimeProviderOverrideType,
+} from "@/api/jobs";
+import LoadingSpinner from "./LoadingSpinner.vue";
+import { fetchHealthCheck } from "@/api/health.ts";
+import DownloadIcon from "../Icons/DownloadIcon.vue";
 
 type SourceType = "upload" | "url" | "text" | null;
 
+const GENERIC_ERROR_MESSAGE = "Flow generation failed. Please try again.";
+
 export default defineComponent({
   name: "AIGenerationSplashScreen",
+  setup() {
+    return {
+        RUNTIME_PROVIDER_OVERRIDE_TYPES
+    }
+  },
   data() {
     return {
       sourceType: null as SourceType,
@@ -173,8 +278,16 @@ export default defineComponent({
       sourceFileName: "",
       sourceUrl: "",
       sourceText: "",
+      llmType: "" as RuntimeProviderOverrideType | "",
       llmEndpoint: "",
-      llmToken: ""
+      llmToken: "",
+      apiHealthCheckInProgress: false,
+      apiHealthCheckSucceeded: false,
+      flowGenerationRan: false,
+      flowGenerationInProgress: false,
+      flowGenerationSucceeded: false,
+      flowGenerationCompletedJobId: "",
+      flowGenerationErrorMessage: GENERIC_ERROR_MESSAGE
     }
   },
   computed: {
@@ -206,19 +319,71 @@ export default defineComponent({
       }
     },
 
+    // eslint-disable-next-line vue/return-in-computed-property
+    sourceData(): string | File {
+        if (!this.sourceType) {
+            throw new Error("Cannot get source without source type.")
+        }
+
+        switch(this.sourceType) {
+            case "url":
+                return this.sourceUrl;
+            case "text":
+                return this.sourceText;
+            case "upload":
+                if (!this.sourceFile) {
+                    throw new Error("Cannot get source file data.")
+                }
+                return this.sourceFile;
+        }
+    },
+
     /**
      * Returns whether the AI generation form can be submitted.
      * @returns
      *  True if the required generation inputs are populated.
      */
     canGenerate(): boolean {
-      return !!(
-        this.hasSourceData
-        && this.llmEndpoint.trim()
-        && this.llmToken.trim()
-      );
+
+        const llmInfoFullyFull = this.llmType && this.llmEndpoint && this.llmToken;
+        const llmInfoFullyEmpty = !(this.llmType || this.llmEndpoint || this.llmToken);
+
+        // If using AFB API, only the source data input is required.
+        // However, if LLM info is given, it must be complete.
+        if (this.apiHealthCheckSucceeded) {
+            return !!(
+                this.hasSourceData
+                && (llmInfoFullyFull || llmInfoFullyEmpty)
+                && !this.flowGenerationInProgress
+            );
+        }
+        // If using LLM API, all LLM inputs are required.
+        return !!(
+            this.hasSourceData
+            && llmInfoFullyFull
+            && !this.flowGenerationInProgress
+        );
     }
 
+  },
+  async mounted() {
+    this.apiHealthCheckInProgress = true;
+    try {
+        const res = await fetchHealthCheck();
+
+        if (res.status === "ok") {
+            this.apiHealthCheckSucceeded = true;
+        }
+    } catch (e) {
+        console.error(e);
+    }
+    this.apiHealthCheckInProgress = false;
+
+    if (this.apiHealthCheckSucceeded) {
+        console.log("API health check succeeded. Using AFB API.");
+    } else {
+        console.log("API health check failed. Using LLM API.")
+    }
   },
   methods: {
 
@@ -267,18 +432,94 @@ export default defineComponent({
       this.sourceFileName = "";
       this.sourceUrl = "";
       this.sourceText = "";
-    }
+    },
+
+
+    /**
+     * Click handler for the "generate" button.
+     */
+    async onClickGenerate() {
+        this.flowGenerationRan = true;
+        this.flowGenerationSucceeded = false;
+        this.flowGenerationCompletedJobId = "";
+        this.flowGenerationInProgress = true;
+        this.flowGenerationErrorMessage = GENERIC_ERROR_MESSAGE;
+
+        let requestOptions = {}
+
+        if (this.llmType && this.llmEndpoint && this.llmToken) {
+            requestOptions = {
+                options: {
+                    provider_override: {
+                        provider_type: this.llmType,
+                        endpoint: this.llmEndpoint,
+                        api_key: this.llmToken
+                    }
+                }
+            }
+        }
+        
+        if (this.apiHealthCheckSucceeded) {
+            if (!this.sourceType) {
+                throw new Error("sourceType should exist.");
+            }
+
+            try {
+                const result = await runJobToResult(this.sourceType, this.sourceData, requestOptions)
+                console.debug("Job result: ", result);
+                if (result.status === "completed") {
+                    this.flowGenerationSucceeded = true;
+                    this.flowGenerationCompletedJobId = result.job_id
+                } else {
+                    throw new Error(`Flow result failed: ${result.error_message}`);
+                }
+            } catch (error: unknown) {
+                if (error instanceof Error) {
+                    console.error(error.message, error.stack);
+                    this.flowGenerationErrorMessage = error.message;
+                } else {
+                    console.error(error);
+                    this.flowGenerationErrorMessage = "An unknown error occurred."
+                }
+            }
+            
+        } else {
+            console.log("TODO: Add LLM Typescript here.")
+        }
+
+        this.flowGenerationInProgress = false;
+    },
+    downloadJobResultArtifact
 
   },
   components: {
     EmptyPageIcon,
     FolderIcon,
-    LinkIcon
+    LinkIcon,
+    LoadingSpinner,
+    DownloadIcon
   }
 });
 </script>
 
 <style scoped>
+.ai-generation {
+    position: relative;
+}
+
+.health-check-loading-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    text-align: center;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
 .generation-title {
   color: var(--af-text-color-primary);
   font-size: 13.5pt;
@@ -288,6 +529,38 @@ export default defineComponent({
 
 .ai-generation .section {
   margin-bottom: 20px;
+}
+
+.ai-generation .results-section {
+    text-align: center;
+    color: var(--af-text-color-secondary);
+}
+
+.artifact-download-buttons-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    gap: 10px;
+}
+
+.artifact-download-buttons-container button {
+    border: 1px solid var(--af-border-color-primary);
+    border-radius: 5px;
+    background: none;
+    padding: 3px 8px;
+    color: var(--af-color-info);
+}
+
+.artifact-download-buttons-container button svg {
+    fill: var(--af-color-info);
+}
+
+.generation-error {
+    color: var(--af-color-error);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .source-type-grid {
@@ -391,6 +664,19 @@ export default defineComponent({
   resize: none;
 }
 
+.form-field select {
+    background: none;
+    border: 1px solid var(--af-border-color-primary);
+    border-radius: 5px;
+    padding: 5px;
+}
+
+.form-field input::placeholder,
+.form-field textarea::placeholder,
+.form-field select.empty {
+    color: var(--af-text-color-placeholder)
+}
+
 .source-upload-control {
   display: flex;
   gap: 8px;
@@ -427,9 +713,8 @@ export default defineComponent({
   margin-bottom: 0px;
 }
 
-.llm-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.llm-container {
+  display: flex;
   gap: 28px;
 }
 
@@ -442,12 +727,40 @@ export default defineComponent({
   font-size: 9.5pt;
   font-weight: 700;
   height: 34px;
-  margin: 24px auto 0px;
+  margin: 24px auto 24px;
   min-width: 210px;
 }
 
 .generate-button:disabled {
   cursor: default;
   opacity: 0.7;
+}
+
+details summary {
+    cursor: pointer;
+}
+
+/* 1. Hide the default arrow */
+summary {
+  list-style: none;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  cursor: pointer;
+}
+summary::-webkit-details-marker {
+  display: none; /* Safari/Chromium fix */
+}
+
+/* 2. Add custom arrow on the right side */
+summary::after {
+  content: "❯";
+  font-size: 0.8rem;
+  transition: transform 0.2s ease;
+}
+
+/* 3. Rotate arrow when open */
+details[open] summary::after {
+  transform: rotate(90deg);
 }
 </style>
