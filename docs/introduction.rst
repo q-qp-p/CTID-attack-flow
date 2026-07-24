@@ -211,3 +211,26 @@ used to provide details about how the file discovery technique was executed.
 Now that you are familiar with the central concepts, continue reading to review the
 corpus of example flows and how to use the Attack Flow Builder to start creating your
 own flows.
+
+Detections and Mitigations Objects
+----------------------------------
+
+Actions may also have defensive measures that may be taken in the form of mitigations 
+(steps taken to prevent the action from happening) or detections (steps to alert when 
+the action takes place). The mitigation and detection objects themselves are free text
+fields, but there are also suggested `ATT&CK detections <https://attack.mitre.org/detectionstrategies/>`_, 
+`ATT&CK mitigations <https://attack.mitre.org/mitigations/enterprise/>`_, and `ATLAS mitigations <https://atlas.mitre.org/mitigations>`_.
+
+Detections and Mitigations may be used in a flow to include pseudocode, ATT&CK/ATLAS referenced analytics, or actual commands to implement alerts or changes within an organization to prevent/detect the activity within the flow.
+
+.. figure:: _static/detection-mitigation-equifax.png
+   :scale: 80%
+   :alt: In this example of the Equifax Breach with included Mitigations, Detections, and CAR Splunk analytics, the adversary exploited a public-facing application and executed a web shell to conduct reconnaissance. 
+   :align: center
+
+   A detection or mitigation may showcase defensive measures that may alert or prevent the adversary actions.
+
+In this example of the Equifax Breach with included Mitigations, Detections, and CAR Splunk analytics, the adversary exploited a public-facing application and executed a web shell to conduct reconnaissance. 
+
+
+
