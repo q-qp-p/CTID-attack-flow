@@ -234,35 +234,33 @@ export async function fetchJobResult(
 }
 
 /**
- * Download the artifact result of a successful job.
+ * Fetch job result JSON artifact.
  * @param jobId the job id
  * @param artifactType stix or afb
- * @param fileName name of file to download, including extension
+ * @returns the artifact contents as a JSON string
  */
-export async function downloadJobResultArtifact(
+export async function fetchJobResultArtifact(
     jobId: string,
-    artifactType: "afb" | "stix",
-    fileName: string = "artifact.json"
-) {
+    artifactType: "afb" | "stix"
+): Promise<string> {
     const endpoint = `${API_BASE_URL}/jobs/${jobId}/artifacts/${artifactType}`;
-
     const response = await fetch(endpoint);
 
     if (!response.ok) {
-        throw new Error("The job result artifact could not be downloaded.");
+        throw new Error("An error occurred while fetching the job result artifact.");
     }
 
-    const json = await response.json();
+    const payload = await response.text();
 
-    const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
+    try {
+        //validate json
+        JSON.parse(payload);
+    } catch {
+        throw new Error("The job result artifact was not valid json.");
+    }
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    a.click();
 
-    URL.revokeObjectURL(url);
+    return payload;
 }
 
 /**

@@ -202,30 +202,16 @@
         GENERATE
       </button>
       <div class="results-section">
-        <div v-if="!flowGenerationRan">
-          Flow generation results will appear here.
+        <div
+          v-if="!flowGenerationRan"
+          style="visibility: hidden;"
+        >
+          (waiting for flow generation to begin...)
         </div>
         <div v-else-if="flowGenerationInProgress">
           Flow generation queued...
         </div>
-        <div v-else-if="flowGenerationSucceeded">
-          <div>Flow generation complete. Artifacts ready for download.</div>
-          <div class="artifact-download-buttons-container">
-            <button
-              @click="() => downloadJobResultArtifact(flowGenerationCompletedJobId, 'afb', 'generated_flow.afb')"
-            >
-              AFB
-              <DownloadIcon />
-            </button>
-            <button
-              @click="downloadJobResultArtifact(flowGenerationCompletedJobId, 'stix', 'generated_flow_stix.json')"
-            >
-              STIX
-              <DownloadIcon />
-            </button>
-          </div>
-        </div>
-        <div v-else>
+        <div v-else-if="!flowGenerationSucceeded">
           <div class="generation-error">
             {{ flowGenerationErrorMessage }}
           </div>
@@ -251,14 +237,15 @@ import LinkIcon from "@/components/Icons/LinkIcon.vue";
 import FolderIcon from "@/components/Icons/FolderIcon.vue";
 import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
 import {
-    downloadJobResultArtifact,
+    fetchJobResultArtifact,
     runJobToResult,
     RUNTIME_PROVIDER_OVERRIDE_TYPES,
     type RuntimeProviderOverrideType,
 } from "@/api/jobs";
 import LoadingSpinner from "./LoadingSpinner.vue";
 import { fetchHealthCheck } from "@/api/health.ts";
-import DownloadIcon from "../Icons/DownloadIcon.vue";
+import { prepareEditorFromExistingFile } from "@/assets/scripts/Application/index.ts";
+import { useApplicationStore } from "@/stores/ApplicationStore.ts";
 
 type SourceType = "upload" | "url" | "text" | null;
 
@@ -273,6 +260,7 @@ export default defineComponent({
   },
   data() {
     return {
+        app: useApplicationStore(),
       sourceType: null as SourceType,
       sourceFile: null as File | null,
       sourceFileName: "",
@@ -286,7 +274,6 @@ export default defineComponent({
       flowGenerationRan: false,
       flowGenerationInProgress: false,
       flowGenerationSucceeded: false,
-      flowGenerationCompletedJobId: "",
       flowGenerationErrorMessage: GENERIC_ERROR_MESSAGE
     }
   },
@@ -441,7 +428,6 @@ export default defineComponent({
     async onClickGenerate() {
         this.flowGenerationRan = true;
         this.flowGenerationSucceeded = false;
-        this.flowGenerationCompletedJobId = "";
         this.flowGenerationInProgress = true;
         this.flowGenerationErrorMessage = GENERIC_ERROR_MESSAGE;
 
@@ -468,14 +454,15 @@ export default defineComponent({
                 const result = await runJobToResult(this.sourceType, this.sourceData, requestOptions)
                 console.debug("Job result: ", result);
                 if (result.status === "completed") {
+                    const afbContents = await fetchJobResultArtifact(result.job_id, "afb");
+                    this.app.execute(await prepareEditorFromExistingFile(this.app, afbContents));
                     this.flowGenerationSucceeded = true;
-                    this.flowGenerationCompletedJobId = result.job_id
                 } else {
                     throw new Error(`Flow result failed: ${result.error_message}`);
                 }
             } catch (error: unknown) {
                 if (error instanceof Error) {
-                    console.error(error.message, error.stack);
+                    console.error(error.stack ? error.stack : error.message);
                     this.flowGenerationErrorMessage = error.message;
                 } else {
                     console.error(error);
@@ -488,8 +475,7 @@ export default defineComponent({
         }
 
         this.flowGenerationInProgress = false;
-    },
-    downloadJobResultArtifact
+    }
 
   },
   components: {
@@ -497,7 +483,6 @@ export default defineComponent({
     FolderIcon,
     LinkIcon,
     LoadingSpinner,
-    DownloadIcon
   }
 });
 </script>
@@ -534,26 +519,6 @@ export default defineComponent({
 .ai-generation .results-section {
     text-align: center;
     color: var(--af-text-color-secondary);
-}
-
-.artifact-download-buttons-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 10px;
-    gap: 10px;
-}
-
-.artifact-download-buttons-container button {
-    border: 1px solid var(--af-border-color-primary);
-    border-radius: 5px;
-    background: none;
-    padding: 3px 8px;
-    color: var(--af-color-info);
-}
-
-.artifact-download-buttons-container button svg {
-    fill: var(--af-color-info);
 }
 
 .generation-error {
@@ -669,6 +634,7 @@ export default defineComponent({
     border: 1px solid var(--af-border-color-primary);
     border-radius: 5px;
     padding: 5px;
+    color: var(--af-text-color-primary);
 }
 
 .form-field input::placeholder,
