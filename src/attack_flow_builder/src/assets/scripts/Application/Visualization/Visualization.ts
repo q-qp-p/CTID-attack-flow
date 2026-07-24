@@ -121,7 +121,7 @@ export async function exportVisualization(
     if (visualization.exporter) {
         await visualization.exporter(context);
     } else {
-        await exportVisualizationAsSvg(context);
+        await liteSvgExporter(context);
     }
 }
 
@@ -757,7 +757,7 @@ export async function copyVisualizationToClipboard(
  * @param context
  *  The visualization export context.
  */
-export async function exportVisualizationAsSvg(
+export async function htmlToImageSvgExporter(
     context: VisualizationExportContext
 ): Promise<void> {
     const svg = await resolveVisualizationExportSvg(context);

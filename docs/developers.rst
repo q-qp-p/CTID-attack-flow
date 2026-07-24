@@ -463,6 +463,10 @@ the application store. For example:
    const app = useApplicationStore();
    const blocks = app.activeEditor.file.canvas.blocks;
 
+When creating the template for the actual visualization content, prefer using
+SVG elements rather than relying solely on HTML. This makes the resulting exported
+image more portable across applications. 
+
 Step 2: Create the VisualizationRegistration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -511,8 +515,8 @@ object:
 
 ``exporter``
    Optional. A custom exporter for the visualization. If unspecified, the
-   default exporter uses ``html-to-image`` to convert the visualization to an
-   SVG image.
+   default exporter will search for an `<svg>` element within the export root
+   to save as an SVG image.
 
 Step 3: Register the Visualization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

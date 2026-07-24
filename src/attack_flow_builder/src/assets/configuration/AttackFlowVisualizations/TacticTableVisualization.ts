@@ -1,5 +1,5 @@
 import { defineAsyncComponent, markRaw } from "vue";
-import type { VisualizationRegistration } from "@/assets/scripts/Application/Visualization";
+import { htmlToImageSvgExporter, type VisualizationRegistration } from "@/assets/scripts/Application/Visualization";
 
 export const TacticTableVisualization: VisualizationRegistration = {
     id: "tactic_table",
@@ -7,5 +7,6 @@ export const TacticTableVisualization: VisualizationRegistration = {
     component: markRaw(defineAsyncComponent(
         () => import("@/components/Visualizations/TacticTable.vue")
     )),
-    getExportRoot: (root: HTMLElement) => root.querySelector("#tactic-table-vis")
+    getExportRoot: (root: HTMLElement) => root.querySelector("#tactic-table-vis"),
+    exporter: htmlToImageSvgExporter
 };

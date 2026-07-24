@@ -1,5 +1,5 @@
 import { defineAsyncComponent, markRaw } from "vue";
-import { liteSvgExporter, type VisualizationRegistration } from "@/assets/scripts/Application/Visualization";
+import { type VisualizationRegistration } from "@/assets/scripts/Application/Visualization";
 
 export const MatrixViewVisualization: VisualizationRegistration = {
     id: "matrix_view",
@@ -7,6 +7,5 @@ export const MatrixViewVisualization: VisualizationRegistration = {
     component: markRaw(defineAsyncComponent(
         () => import("@/components/Visualizations/MatrixView.vue")
     )),
-    getExportRoot: (root: HTMLElement) => root.querySelector(".svg-container"),
-    exporter: liteSvgExporter
+    getExportRoot: (root: HTMLElement) => root.querySelector(".svg-container")
 };

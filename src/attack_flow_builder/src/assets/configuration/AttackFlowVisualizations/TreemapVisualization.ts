@@ -1,5 +1,5 @@
 import { defineAsyncComponent, markRaw } from "vue";
-import type { VisualizationRegistration } from "@/assets/scripts/Application/Visualization";
+import { type VisualizationRegistration } from "@/assets/scripts/Application/Visualization";
 
 export const TreemapVisualization: VisualizationRegistration = {
     id: "treemap",

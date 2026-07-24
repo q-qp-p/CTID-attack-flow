@@ -1,5 +1,5 @@
 import { defineAsyncComponent, markRaw } from "vue";
-import { liteSvgExporter, type VisualizationRegistration } from "@/assets/scripts/Application/Visualization";
+import { type VisualizationRegistration } from "@/assets/scripts/Application/Visualization";
 
 export const IOCTableVisualization: VisualizationRegistration = {
     id: "ioc_table",
@@ -7,6 +7,5 @@ export const IOCTableVisualization: VisualizationRegistration = {
     component: markRaw(defineAsyncComponent(
         () => import("@/components/Visualizations/IOCTable.vue")
     )),
-    getExportRoot: (root: HTMLElement) => root.querySelector("#ioc-table-vis"),
-    exporter: liteSvgExporter
+    getExportRoot: (root: HTMLElement) => root.querySelector("#ioc-table-vis")
 };
