@@ -1,78 +1,82 @@
 <template>
-  <div
-    class="ai-generation"
-  >
-    <!-- Hide via visibility: hidden to preserve content size. -->
-    <div :style="apiHealthCheckInProgress ? 'visibility: hidden' : ''">
-      <h2 class="generation-title">
-        Generate Attack Flow
-      </h2>
-      <div class="section source-type">
-        <p class="section-title">
-          SOURCE TYPE
-        </p>
+  <!--
+    Minimal generate-flow shell.
+    Runtime provider state is owned by the session-local runtime provider store,
+    and this shell is the minimal entry surface for Direct Provider Mode.
+    Raw text and PDF-derived text both normalize into the same browser-side
+    package here, without paraphrasing or semantic rewriting.
+  -->
+  <div class="ai-generation">
+    <h2 class="generation-title">
+      Generate Attack Flow
+    </h2>
+    <div class="section source-type">
+      <p class="section-title">
+        SOURCE TYPE
+      </p>
+      <div
+        class="button-grid source-type-grid"
+        role="radiogroup"
+        aria-label="Source type"
+      >
         <div
-          class="button-grid source-type-grid"
-          role="radiogroup"
-          aria-label="Source type"
+          :class="['button', 'source-type-button', { selected: sourceType === 'upload' }]"
+          role="radio"
+          :aria-checked="sourceType === 'upload'"
+          tabindex="0"
+          @click="selectSourceType('upload')"
+          @keydown.enter="selectSourceType('upload')"
+          @keydown.space.prevent="selectSourceType('upload')"
         >
           <div
-            :class="['button', 'source-type-button', { selected: sourceType === 'upload' }]"
-            role="radio"
-            :aria-checked="sourceType === 'upload'"
-            tabindex="0"
-            @click="selectSourceType('upload')"
-            @keydown.enter="selectSourceType('upload')"
-            @keydown.space.prevent="selectSourceType('upload')"
+            class="button-header"
           >
-            <div class="button-header">
-              <span class="button-icon"><EmptyPageIcon /></span>
-              <p class="button-title">
-                Upload Report PDF
-              </p>
-            </div>
-            <p class="button-description">
-              Create a flow from a security incident report PDF.
+            <span class="button-icon"><EmptyPageIcon /></span>
+            <p class="button-title">
+              Upload Report PDF
             </p>
           </div>
-          <div
-            :class="['button', 'source-type-button', { selected: sourceType === 'url' }]"
-            role="radio"
-            :aria-checked="sourceType === 'url'"
-            tabindex="0"
-            @click="selectSourceType('url')"
-            @keydown.enter="selectSourceType('url')"
-            @keydown.space.prevent="selectSourceType('url')"
-          >
-            <div class="button-header">
-              <span class="button-icon"><LinkIcon /></span>
-              <p class="button-title">
-                Link to Report
-              </p>
-            </div>
-            <p class="button-description">
-              Paste a link to an incident report blog.
+          <p class="button-description">
+            Create a flow from a security incident report PDF.
+          </p>
+        </div>
+        <div
+          :class="['button', 'source-type-button', { selected: sourceType === 'url' }]"
+          role="radio"
+          :aria-checked="sourceType === 'url'"
+          tabindex="0"
+          @click="selectSourceType('url')"
+          @keydown.enter="selectSourceType('url')"
+          @keydown.space.prevent="selectSourceType('url')"
+        >
+          <div class="button-header">
+            <span class="button-icon"><LinkIcon /></span>
+            <p class="button-title">
+              Link to Report
             </p>
           </div>
-          <div
-            :class="['button', 'source-type-button', { selected: sourceType === 'text' }]"
-            role="radio"
-            :aria-checked="sourceType === 'text'"
-            tabindex="0"
-            @click="selectSourceType('text')"
-            @keydown.enter="selectSourceType('text')"
-            @keydown.space.prevent="selectSourceType('text')"
-          >
-            <div class="button-header">
-              <span class="button-icon"><FolderIcon /></span>
-              <p class="button-title">
-                Paste Text
-              </p>
-            </div>
-            <p class="button-description">
-              Paste an incident report as plain text.
+          <p class="button-description">
+            Paste a link to an incident report blog.
+          </p>
+        </div>
+        <div
+          :class="['button', 'source-type-button', { selected: sourceType === 'text' }]"
+          role="radio"
+          :aria-checked="sourceType === 'text'"
+          tabindex="0"
+          @click="selectSourceType('text')"
+          @keydown.enter="selectSourceType('text')"
+          @keydown.space.prevent="selectSourceType('text')"
+        >
+          <div class="button-header">
+            <span class="button-icon"><FolderIcon /></span>
+            <p class="button-title">
+              Paste Text
             </p>
           </div>
+          <p class="button-description">
+            Paste an incident report as plain text.
+          </p>
         </div>
       </div>
       <div class="form-field source-data-field">
@@ -127,13 +131,15 @@
           @change="onSourceFileSelected"
         >
       </div>
-      <div class="section llm-information">
-        <details :open="!apiHealthCheckSucceeded">
+      <div
+        v-if="apiHealthCheckSucceeded"
+        class="section llm-information"
+      >
+        <details open>
           <summary class="section-title">
-            <span v-if="apiHealthCheckSucceeded">
+            <span>
               LLM OVERRIDES <small>(optional)</small>
             </span>
-            <span v-else>LLM INFORMATION</span>
           </summary>
           <div class="llm-container">
             <label
@@ -192,15 +198,135 @@
             </label>
           </div>
         </details>
+        <div class="results-section compact-results-section">
+          <div v-if="generationStatus === 'idle'">
+            Flow generation results will appear here.
+          </div>
+          <div v-else-if="generationStatus === 'loading'">
+            Generating flow...
+          </div>
+          <div v-else-if="generationStatus === 'success'">
+            Generated flow opened in the editor.
+          </div>
+          <div v-else>
+            <div class="generation-error">
+              {{ generationMessage }}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        v-else
+        class="section llm-information"
+      >
+        <p class="section-title">
+          LLM INFORMATION
+        </p>
+        <div class="llm-grid">
+          <label class="form-field">
+            <span>PROVIDER TYPE:</span>
+            <select
+              name="llm-provider-type"
+              v-model="llmType"
+              :class="llmType === '' ? 'empty' : ''"
+            >
+              <option
+                disabled
+                selected
+                hidden
+                value=""
+                key="placeholder"
+              >Provider type</option>
+              <option
+                value=""
+                key="none"
+              >(none)</option>
+              <option
+                v-for="providerType in RUNTIME_PROVIDER_OVERRIDE_TYPES"
+                :key="providerType"
+                :value="providerType"
+              >
+                {{ providerType }}
+              </option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span>ENDPOINT:</span>
+            <input
+              v-model="llmEndpoint"
+              type="text"
+              @keydown.stop
+            >
+          </label>
+          <label class="form-field">
+            <span>TOKEN:</span>
+            <input
+              v-model="llmToken"
+              type="password"
+              @keydown.stop
+            >
+          </label>
+          <label class="form-field">
+            <span>MODEL / DEPLOYMENT:</span>
+            <input
+              v-model="llmModel"
+              type="text"
+              placeholder="gpt-4o-mini"
+              @keydown.stop
+            >
+            <small class="field-hint">
+              For Gemini or Azure OpenAI, enter the model name.
+            </small>
+          </label>
+          <div
+            v-if="supportsAzureSettings"
+            class="form-field azure-toggle-field"
+          >
+            <span>AZURE:</span>
+            <label class="switch-row">
+              <span class="switch-label">Use Azure settings</span>
+              <span class="switch-control">
+                <input
+                  v-model="llmUseAzure"
+                  class="switch-input"
+                  type="checkbox"
+                >
+                <span
+                  class="switch-track"
+                  aria-hidden="true"
+                />
+              </span>
+            </label>
+          </div>
+          <label
+            v-if="supportsAzureSettings && llmUseAzure"
+            class="form-field"
+          >
+            <span>AZURE API VERSION:</span>
+            <input
+              v-model="llmAzureApiVersion"
+              type="text"
+              placeholder="2025-04-01-preview"
+              @keydown.stop
+            >
+          </label>
+        </div>
       </div>
       <button
         class="generate-button"
         type="button"
-        :disabled="!canGenerate"
-        @click="onClickGenerate"
+        :disabled="!canGenerate || generationStatus === 'loading'"
+        @click="generateAttackFlow"
       >
         GENERATE
       </button>
+      <p
+        v-if="generationMessage && generationStatus !== 'idle'"
+        class="generation-message"
+        :data-status="generationStatus"
+      >
+        {{ generationMessage }}
+      </p>
       <div class="results-section">
         <div
           v-if="!flowGenerationRan"
@@ -233,6 +359,8 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
+import { useApplicationStore } from "@/stores/ApplicationStore";
+import { useRuntimeProviderStore } from "@/stores/RuntimeProviderStore";
 import LinkIcon from "@/components/Icons/LinkIcon.vue";
 import FolderIcon from "@/components/Icons/FolderIcon.vue";
 import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
@@ -242,12 +370,45 @@ import {
     RUNTIME_PROVIDER_OVERRIDE_TYPES,
     type RuntimeProviderOverrideType,
 } from "@/api/jobs";
-import LoadingSpinner from "./LoadingSpinner.vue";
 import { fetchHealthCheck } from "@/api/health.ts";
+import {
+  BrowserPdfExtractionService,
+  PdfExtractionServiceError,
+  normalizePdfExtractionFailure,
+  type PdfExtractionError,
+  type PdfExtractionResult,
+  type PdfExtractionState
+} from "@/assets/scripts/Application/PdfExtraction";
+import {
+  normalizePdfExtractionInput,
+  normalizeRawTextInput,
+  type NormalizedInputPackage
+} from "@/assets/scripts/Application/InputNormalization";
+import {
+  buildDirectProviderRequestPipeline,
+  type DirectProviderRequestPipelineParams
+} from "@/assets/scripts/Application/PromptOrchestration";
+import {
+  buildStructuredExtractionFailureDisplayState,
+  validateAndRepairStructuredExtractionOutput,
+  type StructuredExtractionFailureDisplayState,
+  type StructuredExtractionRepairResult
+} from "@/assets/scripts/Application/StructuredExtraction";
+import { prepareEditorFromValidatedStructuredExtraction } from "@/assets/scripts/Application/Commands";
+import { OpenAICompatibleProviderAdapter, type StructuredGenerationRequest } from "@/assets/scripts/Application/Providers";
+import type { SupportedRuntimeProviderType } from "@/assets/scripts/Application/Configuration";
 import { prepareEditorFromExistingFile } from "@/assets/scripts/Application/index.ts";
-import { useApplicationStore } from "@/stores/ApplicationStore.ts";
+import LoadingSpinner from "./LoadingSpinner.vue";
 
 type SourceType = "upload" | "url" | "text" | null;
+
+interface DirectProviderStructuredGenerationOutputLite {
+  outputJson?: unknown;
+  outputText?: string;
+  providerId?: string;
+  model?: string;
+  finishReason?: string;
+}
 
 const GENERIC_ERROR_MESSAGE = "Flow generation failed. Please try again.";
 
@@ -255,6 +416,8 @@ export default defineComponent({
   name: "AIGenerationSplashScreen",
   setup() {
     return {
+        applicationStore: useApplicationStore(),
+        runtimeProviderStore: useRuntimeProviderStore(),
         RUNTIME_PROVIDER_OVERRIDE_TYPES
     }
   },
@@ -264,6 +427,13 @@ export default defineComponent({
       sourceType: null as SourceType,
       sourceFile: null as File | null,
       sourceFileName: "",
+      pdfExtractionRequestId: 0,
+      pdfExtractionState: { status: "idle" } as PdfExtractionState,
+      pdfExtractionResult: null as PdfExtractionResult | null,
+      pdfExtractionError: null as PdfExtractionError | null,
+      directProviderStructuredGenerationOutput: null as DirectProviderStructuredGenerationOutputLite | null,
+      generationStatus: "idle" as "idle" | "loading" | "success" | "error",
+      generationMessage: "",
       sourceUrl: "",
       sourceText: "",
       llmType: "" as RuntimeProviderOverrideType | "",
@@ -274,10 +444,137 @@ export default defineComponent({
       flowGenerationRan: false,
       flowGenerationInProgress: false,
       flowGenerationSucceeded: false,
+      flowGenerationCompletedJobId: "",
+      flowGenerationErrorMessage: GENERIC_ERROR_MESSAGE,
+      llmModel: "",
+      llmUseAzure: false,
+      llmAzureApiVersion: "",
       flowGenerationErrorMessage: GENERIC_ERROR_MESSAGE
+
+    }
+  },
+  created() {
+    const model = this.runtimeProviderStore.runtimeProviderConfig?.model.trim();
+    if (model) {
+      this.llmModel = model;
+    }
+
+    const runtimeProviderConfig = this.runtimeProviderStore.runtimeProviderConfig;
+    if (runtimeProviderConfig) {
+      this.llmType = runtimeProviderConfig.providerType;
+      this.llmUseAzure = !!runtimeProviderConfig.useAzure;
+      this.llmAzureApiVersion = runtimeProviderConfig.azureApiVersion?.trim() ?? "";
     }
   },
   computed: {
+
+    /**
+     * Returns the normalized input package for the current direct-provider
+     * source, using deterministic cleanup and preserving practical metadata.
+     * @returns
+     *  The shared normalized input package or null when no usable source text
+     *  is available.
+     */
+    normalizedInputPackage(): NormalizedInputPackage | null {
+      if (this.sourceType === "text") {
+        const text = this.sourceText.trim();
+        if (!text) {
+          return null;
+        }
+
+        return normalizeRawTextInput(this.sourceText, {
+          sourceName: "Pasted Text"
+        });
+      }
+
+      if (this.sourceType === "upload" && this.pdfExtractionResult) {
+        return normalizePdfExtractionInput(this.pdfExtractionResult, {
+          sourceName: "PDF Upload"
+        });
+      }
+
+      return null;
+    },
+
+    /**
+     * Returns the provider-agnostic structured generation request for the
+     * current direct-provider input when the minimal provider context exists.
+     * This exposes the assembled request only; it does not send the request.
+     */
+    directProviderStructuredGenerationRequest(): StructuredGenerationRequest | null {
+      const normalizedInput = this.normalizedInputPackage;
+      const runtimeProviderConfig = this.runtimeProviderStore.runtimeProviderConfig;
+
+      const model = this.llmModel.trim() || runtimeProviderConfig?.model.trim();
+      if (!normalizedInput || !model) {
+        return null;
+      }
+
+      const providerEndpoint = this.llmEndpoint.trim();
+      const providerApiKey = this.llmToken.trim();
+      const azureApiVersion = this.llmAzureApiVersion.trim();
+      if (!providerEndpoint || !providerApiKey) {
+        return null;
+      }
+
+      if (this.llmUseAzure && !azureApiVersion) {
+        return null;
+      }
+
+      const params: DirectProviderRequestPipelineParams = {
+        normalizedInput,
+        provider: {
+          providerType: this.directProviderType,
+          endpoint: providerEndpoint,
+          apiKey: providerApiKey,
+          model,
+          useAzure: this.llmUseAzure,
+          azureApiVersion: azureApiVersion || undefined,
+          extraHeaders: runtimeProviderConfig?.extraHeaders
+        }
+      };
+
+      return buildDirectProviderRequestPipeline(params);
+    },
+
+    /**
+     * Returns the validated Direct Provider result after one bounded repair
+     * pass, if provider output has been supplied.
+     */
+    directProviderStructuredExtractionResult(): StructuredExtractionRepairResult | null {
+      if (!this.directProviderStructuredGenerationOutput) {
+        return null;
+      }
+
+      const generatedOutput = this.directProviderStructuredGenerationOutput;
+
+      const repairInput = {
+        outputJson: generatedOutput.outputJson,
+        outputText: generatedOutput.outputText,
+        providerId: generatedOutput.providerId,
+        model: generatedOutput.model
+      };
+
+      const repair = validateAndRepairStructuredExtractionOutput as (input: unknown) => StructuredExtractionRepairResult;
+      return repair(repairInput as unknown);
+    },
+
+    /**
+     * Returns the compact failure display state for client-side validation
+     * issues.
+     */
+    directProviderStructuredExtractionFailureDisplayState(): StructuredExtractionFailureDisplayState | null {
+      return buildStructuredExtractionFailureDisplayState(this.directProviderStructuredExtractionResult?.validation ?? null);
+    },
+
+    /**
+     * Returns the validated structured extraction payload when available.
+     * The generated editor file is built later from this validated payload.
+     */
+    directProviderValidatedStructuredExtractionOutput() {
+      const validation = this.directProviderStructuredExtractionResult;
+      return validation?.validation.result ?? null;
+    },
 
     /**
      * Returns whether the report URL is valid enough for submission.
@@ -296,11 +593,11 @@ export default defineComponent({
     hasSourceData(): boolean {
       switch(this.sourceType) {
         case "upload":
-          return this.sourceFile !== null;
+          return this.normalizedInputPackage !== null;
         case "url":
           return this.isSourceUrlValid;
         case "text":
-          return !!this.sourceText.trim();
+          return this.normalizedInputPackage !== null;
         default:
           return false;
       }
@@ -331,27 +628,46 @@ export default defineComponent({
      *  True if the required generation inputs are populated.
      */
     canGenerate(): boolean {
-
-        const llmInfoFullyFull = this.llmType && this.llmEndpoint && this.llmToken;
-        const llmInfoFullyEmpty = !(this.llmType || this.llmEndpoint || this.llmToken);
-
-        // If using AFB API, only the source data input is required.
-        // However, if LLM info is given, it must be complete.
-        if (this.apiHealthCheckSucceeded) {
-            return !!(
-                this.hasSourceData
-                && (llmInfoFullyFull || llmInfoFullyEmpty)
-                && !this.flowGenerationInProgress
-            );
-        }
-        // If using LLM API, all LLM inputs are required.
-        return !!(
-            this.hasSourceData
-            && llmInfoFullyFull
-            && !this.flowGenerationInProgress
+      return !!(
+          this.hasSourceData
+          && this.llmEndpoint.trim()
+          && this.llmToken.trim()
+          && (!this.llmUseAzure || this.llmAzureApiVersion.trim())
+          && (this.llmModel.trim() || this.runtimeProviderStore.runtimeProviderConfig?.model.trim())
         );
+    },
+
+    supportsAzureSettings(): boolean {
+      return this.activeProviderType === "openai_compatible";
+    },
+
+    activeProviderType(): SupportedRuntimeProviderType {
+      if (this.llmType === "gemini") {
+        return "gemini";
+      }
+
+      if (this.llmType === "openai_compatible") {
+        return "openai_compatible";
+      }
+
+      return this.runtimeProviderStore.runtimeProviderConfig?.providerType || "openai_compatible";
+    },
+
+    directProviderType(): SupportedRuntimeProviderType {
+      return this.activeProviderType;
     }
 
+  },
+  watch: {
+    llmType: {
+      handler() {
+        if (!this.supportsAzureSettings) {
+          this.llmUseAzure = false;
+          this.llmAzureApiVersion = "";
+        }
+      },
+      immediate: true
+    }
   },
   async mounted() {
     this.apiHealthCheckInProgress = true;
@@ -395,18 +711,68 @@ export default defineComponent({
 
     /**
      * Updates the selected report PDF.
+     *
+     * Text-based PDFs are extracted client-side; PDFs without extractable text
+     * are surfaced as a clear local failure.
      * @param event
      *  The file input change event.
      */
-    onSourceFileSelected(event: Event) {
+    async onSourceFileSelected(event: Event) {
       const input = event.target as HTMLInputElement;
       const file = input.files?.[0] ?? null;
       if(file && (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"))) {
+        const requestId = ++this.pdfExtractionRequestId;
         this.sourceFile = file;
         this.sourceFileName = file.name;
+        this.sourceText = "";
+        this.pdfExtractionResult = null;
+        this.pdfExtractionError = null;
+        this.pdfExtractionState = {
+          status: "selected",
+          sourceType: "pdf",
+          filename: file.name
+        };
+        try {
+          const result = await new BrowserPdfExtractionService().extract(file);
+          if (requestId !== this.pdfExtractionRequestId) {
+            return;
+          }
+          this.pdfExtractionResult = result;
+          this.pdfExtractionState = {
+            status: "success",
+            result
+          };
+          this.sourceText = result.extractedText;
+        } catch (error) {
+          if (requestId !== this.pdfExtractionRequestId) {
+            return;
+          }
+          const normalized = error instanceof PdfExtractionServiceError
+            ? error.error
+            : normalizePdfExtractionFailure(error, {
+              filename: file.name,
+              fallbackCode: "parse_failure",
+              fallbackMessage: "The PDF could not be parsed.",
+              fallbackDetails: {
+                cause: error instanceof Error ? error.name || "Error" : "unknown"
+              }
+            });
+          this.pdfExtractionResult = null;
+          this.pdfExtractionError = normalized;
+          this.pdfExtractionState = {
+            status: "error",
+            error: normalized
+          };
+          this.sourceText = "";
+        }
       } else {
+        this.pdfExtractionRequestId += 1;
         this.sourceFile = null;
         this.sourceFileName = "";
+        this.pdfExtractionResult = null;
+        this.pdfExtractionError = null;
+        this.pdfExtractionState = { status: "idle" };
+        this.sourceText = "";
       }
       input.value = "";
     },
@@ -415,10 +781,39 @@ export default defineComponent({
      * Clears the current source data.
      */
     clearSourceData() {
+      this.pdfExtractionRequestId += 1;
       this.sourceFile = null;
       this.sourceFileName = "";
+      this.pdfExtractionResult = null;
+      this.pdfExtractionError = null;
+      this.directProviderStructuredGenerationOutput = null;
+      this.generationStatus = "idle";
+      this.generationMessage = "";
+      this.pdfExtractionState = { status: "idle" };
       this.sourceUrl = "";
       this.sourceText = "";
+      this.llmModel = "";
+      this.llmUseAzure = false;
+      this.llmAzureApiVersion = "";
+    },
+
+    async buildNormalizedInputPackage(): Promise<NormalizedInputPackage | null> {
+      if (this.sourceType === "text") {
+        const text = this.sourceText.trim();
+        return text ? normalizeRawTextInput(this.sourceText, { sourceName: "Pasted Text" }) : null;
+      }
+
+      if (this.sourceType === "url") {
+        const url = this.sourceUrl.trim();
+        return url ? normalizeRawTextInput(url, { sourceName: "Link to Report" }) : null;
+      }
+
+      if (this.sourceType === "upload" && this.sourceFile) {
+        const extracted = await new BrowserPdfExtractionService().extract(this.sourceFile);
+        return normalizePdfExtractionInput(extracted, { sourceName: "PDF Upload" });
+      }
+
+      return null;
     },
 
 
@@ -444,7 +839,7 @@ export default defineComponent({
                 }
             }
         }
-        
+
         if (this.apiHealthCheckSucceeded) {
             if (!this.sourceType) {
                 throw new Error("sourceType should exist.");
@@ -469,12 +864,120 @@ export default defineComponent({
                     this.flowGenerationErrorMessage = "An unknown error occurred."
                 }
             }
-            
+
         } else {
-            console.log("TODO: Add LLM Typescript here.")
+            if (!this.sourceType) {
+                throw new Error("sourceType should exist.");
+            }
+
+            const runtimeProviderConfig = this.runtimeProviderStore.runtimeProviderConfig;
+            const model = runtimeProviderConfig?.model.trim();
+            if (!runtimeProviderConfig || !model) {
+                throw new Error("Direct provider mode requires a configured model.");
+            }
+
+            const normalizedInput = await this.buildNormalizedInputPackage();
+            if (!normalizedInput) {
+                throw new Error("Direct provider mode requires source input.");
+            }
+
+            const directProviderRequestParams: DirectProviderRequestPipelineParams = {
+                normalizedInput,
+                provider: {
+                    providerType: this.directProviderType,
+                    endpoint: this.llmEndpoint.trim(),
+                    apiKey: this.llmToken.trim(),
+                    model,
+                    extraHeaders: runtimeProviderConfig.extraHeaders
+                }
+            };
+
+            const request = buildDirectProviderRequestPipeline(directProviderRequestParams);
+            const adapter = new OpenAICompatibleProviderAdapter({
+                ...runtimeProviderConfig,
+                providerType: this.directProviderType,
+                endpoint: this.llmEndpoint.trim(),
+                apiKey: this.llmToken.trim(),
+                model
+            });
+            const output = await adapter.generateStructured(request);
+            const repair = validateAndRepairStructuredExtractionOutput as (input: unknown) => StructuredExtractionRepairResult;
+            const repaired = repair({
+              outputJson: output.outputJson,
+              outputText: output.outputText,
+              providerId: output.providerId,
+              model: output.model
+            } as unknown);
+            const extraction = repaired.validation.result;
+            if (!extraction) {
+                throw new Error(repaired.validation.failures[0]?.message || "Validated structured extraction output is not available.");
+            }
+
+            const command = await prepareEditorFromValidatedStructuredExtraction(this.applicationStore, extraction);
+            await this.applicationStore.execute(command);
+            this.flowGenerationSucceeded = true;
         }
 
         this.flowGenerationInProgress = false;
+    },
+    /**
+     * Stores the latest provider output for later validation/repair.
+     */
+    setDirectProviderStructuredGenerationOutput(output: DirectProviderStructuredGenerationOutputLite | null) {
+      this.directProviderStructuredGenerationOutput = output;
+      this.generationMessage = "";
+      this.generationStatus = "idle";
+    },
+
+    /**
+     * Opens the validated direct-provider output in the editor.
+     */
+    async generateAttackFlow() {
+      const request = this.directProviderStructuredGenerationRequest;
+      const runtimeProviderConfig = this.runtimeProviderStore.runtimeProviderConfig;
+      const model = this.llmModel.trim() || runtimeProviderConfig?.model.trim();
+      const providerEndpoint = this.llmEndpoint.trim();
+      const providerApiKey = this.llmToken.trim();
+
+      if (!request || !model) {
+        this.generationStatus = "error";
+        this.generationMessage = this.llmUseAzure && !this.llmAzureApiVersion.trim()
+          ? "Azure API version is required when Azure is enabled."
+          : "Provider model / deployment is required.";
+        return;
+      }
+
+      this.generationStatus = "loading";
+      this.generationMessage = "Generating flow...";
+      try {
+        const adapter = new OpenAICompatibleProviderAdapter({
+          endpoint: providerEndpoint,
+          apiKey: providerApiKey,
+          model,
+          providerType: this.directProviderType,
+          useAzure: this.llmUseAzure,
+          azureApiVersion: this.llmAzureApiVersion.trim() || undefined,
+          extraHeaders: runtimeProviderConfig?.extraHeaders
+        });
+        const output = await adapter.generateStructured(request);
+        this.setDirectProviderStructuredGenerationOutput(output);
+
+        const extraction = this.directProviderValidatedStructuredExtractionOutput;
+        if (!extraction) {
+          this.generationStatus = "error";
+          this.generationMessage = this.directProviderStructuredExtractionFailureDisplayState?.message
+            ?? "Validated structured extraction output is not available.";
+          return;
+        }
+
+        const command = await prepareEditorFromValidatedStructuredExtraction(this.applicationStore, extraction);
+        await this.applicationStore.execute(command);
+        this.generationStatus = "success";
+        this.generationMessage = "Generated flow opened in the editor.";
+      } catch (error) {
+        this.generationStatus = "error";
+        this.generationMessage = error instanceof Error ? error.message : "Failed to open generated flow.";
+      }
     }
 
   },
@@ -489,6 +992,9 @@ export default defineComponent({
 
 <style scoped>
 .ai-generation {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
     position: relative;
 }
 
@@ -593,7 +1099,7 @@ export default defineComponent({
   font-size: 9.5pt;
   font-weight: 500;
   margin-left: 2px;
-  margin-bottom: 15px;
+  margin-bottom: 10px;
 }
 
 .form-field {
@@ -602,7 +1108,7 @@ export default defineComponent({
   flex-direction: column;
   font-size: 9.5pt;
   font-weight: 500;
-  gap: 8px;
+  gap: 6px;
 }
 
 .form-field input,
@@ -630,9 +1136,10 @@ export default defineComponent({
 }
 
 .form-field select {
-    background: none;
+    background: var(--af-bg-color-primary);
     border: 1px solid var(--af-border-color-primary);
     border-radius: 5px;
+    color: var(--af-text-color-primary);
     padding: 5px;
     color: var(--af-text-color-primary);
 }
@@ -641,6 +1148,91 @@ export default defineComponent({
 .form-field textarea::placeholder,
 .form-field select.empty {
     color: var(--af-text-color-placeholder)
+}
+
+.field-hint {
+  color: var(--af-text-color-secondary);
+  font-size: 8.5pt;
+  font-weight: 400;
+}
+
+.azure-toggle-field {
+  grid-column: 1 / -1;
+  gap: 6px;
+}
+
+.switch-row {
+  align-items: center;
+  color: var(--af-text-color-primary);
+  display: flex;
+  justify-content: flex-start;
+  font-size: 10pt;
+  font-weight: 400;
+  gap: 12px;
+  min-height: 28px;
+}
+
+.switch-label {
+  flex: 0 0 auto;
+}
+
+.switch-control {
+  display: inline-flex;
+  flex: 0 0 auto;
+  position: relative;
+  width: 40px;
+  height: 22px;
+}
+
+.switch-input {
+  appearance: none;
+  cursor: pointer;
+  height: 100%;
+  left: 0;
+  margin: 0;
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 1;
+}
+
+.switch-track {
+  background: var(--af-border-color-primary);
+  border: solid 1px var(--af-border-color-primary);
+  border-radius: 999px;
+  box-sizing: border-box;
+  height: 100%;
+  position: relative;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  width: 100%;
+}
+
+.switch-track::after {
+  background: var(--af-text-color-primary);
+  border-radius: 50%;
+  content: "";
+  height: 16px;
+  left: 2px;
+  position: absolute;
+  top: 2px;
+  transition: transform 0.15s ease, background 0.15s ease;
+  width: 16px;
+}
+
+.switch-input:checked + .switch-track {
+  background: var(--af-color-info);
+  border-color: var(--af-color-info);
+}
+
+.switch-input:checked + .switch-track::after {
+  background: #111;
+  transform: translateX(18px);
+}
+
+.switch-input:focus-visible + .switch-track {
+  outline: solid 2px var(--af-color-info);
+  outline-offset: 2px;
 }
 
 .source-upload-control {
@@ -667,21 +1259,43 @@ export default defineComponent({
   background: var(--af-border-color-primary);
 }
 
+.source-upload-error {
+  color: var(--af-color-error);
+  font-size: 10pt;
+  margin-top: 8px;
+}
+
 .file-input {
   display: none;
 }
 
 .source-data-field {
-  margin-bottom: 20px;
+  margin-top: 16px;
+  margin-bottom: 4px;
 }
 
 .source-data-field .section-title {
   margin-bottom: 0px;
 }
 
+.llm-information {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+.llm-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .llm-container {
   display: flex;
   gap: 28px;
+}
+
+.compact-results-section {
+  margin-top: 10px;
 }
 
 .generate-button {
@@ -693,7 +1307,7 @@ export default defineComponent({
   font-size: 9.5pt;
   font-weight: 700;
   height: 34px;
-  margin: 24px auto 24px;
+  margin: 14px auto 0;
   min-width: 210px;
 }
 
@@ -728,5 +1342,17 @@ summary::after {
 /* 3. Rotate arrow when open */
 details[open] summary::after {
   transform: rotate(90deg);
+}
+.generation-message {
+  color: var(--af-text-color-secondary);
+  font-size: 11pt;
+  line-height: 1.4;
+  margin-top: 12px;
+  min-height: 1.4em;
+  text-align: center;
+}
+
+.generation-message[data-status="error"] {
+  color: var(--af-color-error);
 }
 </style>

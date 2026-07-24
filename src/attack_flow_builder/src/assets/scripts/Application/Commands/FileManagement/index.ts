@@ -5,6 +5,7 @@ import { AppCommand } from "../index.commands";
 import { stripExtension } from "@OpenChart/Utilities";
 import { StixToAttackFlowConverter } from "@/assets/scripts/StixToAttackFlow";
 import { TreeContourLayoutEngine, DiagramObjectViewFactory, DiagramViewFile } from "@OpenChart/DiagramView";
+import { buildDirectProviderDiagramFile } from "@/assets/scripts/Application/DirectProviderFlow";
 import {
     ClearFileRecoveryBank,
     ImportFile,
@@ -20,6 +21,7 @@ import type { StixBundle } from "@/assets/scripts/StixToAttackFlow";
 import type { ApplicationStore } from "@/stores/ApplicationStore";
 import type { DiagramLayoutEngine, DiagramViewExport } from "@OpenChart/DiagramView";
 import type { DiagramViewEditor } from "@/assets/scripts/OpenChart/DiagramEditor";
+import type { StructuredExtractionResult } from "@/assets/scripts/Application/StructuredExtraction";
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -431,6 +433,29 @@ export async function prepareEditorFromUrl(
     context: ApplicationStore, url: string
 ): Promise<PrepareEditorWithFile> {
     return new PrepareEditorWithFile(context, await loadFileFromUrl(context, url));
+}
+
+/**
+ * Prepares the editor with a validated direct-provider generated flow.
+ * @param context
+ *  The application context.
+ * @param extraction
+ *  The validated structured extraction payload.
+ * @returns
+ *  A command that represents the action.
+ */
+export async function prepareEditorFromValidatedStructuredExtraction(
+    context: ApplicationStore,
+    extraction: StructuredExtractionResult
+): Promise<PrepareEditorWithFile> {
+    const file = await buildDirectProviderDiagramFile(context, extraction);
+    const name = extraction.attack_flow.name.trim() || "Generated Attack Flow";
+    const exportFile = {
+        ...file.toExport(),
+        layout: {},
+        camera: undefined
+    };
+    return new PrepareEditorWithFile(context, await loadExistingFile(context, JSON.stringify(exportFile), name));
 }
 
 

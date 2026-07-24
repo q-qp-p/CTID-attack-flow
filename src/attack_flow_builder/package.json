@@ -27,6 +27,7 @@
         "flexsearch": "^0.8.167",
         "html-to-image": "^1.11.13",
         "luxon": "3.5",
+        "pdfjs-dist": "4.10.38",
         "pinia": "^2.3.0",
         "tie-inference-web": "file:src/attack_flow_builder/packages/tie-inference-web",
         "vectorious": "6.1.14",
