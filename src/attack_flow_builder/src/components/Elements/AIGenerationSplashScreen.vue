@@ -135,7 +135,7 @@
         v-if="apiHealthCheckSucceeded"
         class="section llm-information"
       >
-        <details open>
+        <details>
           <summary class="section-title">
             <span>
               LLM OVERRIDES <small>(optional)</small>
@@ -147,30 +147,7 @@
               style="flex: 1;"
             >
               <span>TYPE:</span>
-              <select
-                name="llm-provider-type"
-                v-model="llmType"
-                :class="llmType === '' ? 'empty' : ''"
-              >
-                <option
-                  disabled
-                  selected
-                  hidden
-                  value=""
-                  key="placeholder"
-                >Provider type</option>
-                <option
-                  value=""
-                  key="none"
-                >(none)</option>
-                <option
-                  v-for="providerType in RUNTIME_PROVIDER_OVERRIDE_TYPES"
-                  :key="providerType"
-                  :value="providerType"
-                >
-                  {{ providerType }}
-                </option>
-              </select>
+              <AIGenerationProviderType v-model="llmType" />
             </label>
             <label
               class="form-field"
@@ -198,22 +175,6 @@
             </label>
           </div>
         </details>
-        <div class="results-section compact-results-section">
-          <div v-if="generationStatus === 'idle'">
-            Flow generation results will appear here.
-          </div>
-          <div v-else-if="generationStatus === 'loading'">
-            Generating flow...
-          </div>
-          <div v-else-if="generationStatus === 'success'">
-            Generated flow opened in the editor.
-          </div>
-          <div v-else>
-            <div class="generation-error">
-              {{ generationMessage }}
-            </div>
-          </div>
-        </div>
       </div>
       <div
         v-else
@@ -225,30 +186,7 @@
         <div class="llm-grid">
           <label class="form-field">
             <span>PROVIDER TYPE:</span>
-            <select
-              name="llm-provider-type"
-              v-model="llmType"
-              :class="llmType === '' ? 'empty' : ''"
-            >
-              <option
-                disabled
-                selected
-                hidden
-                value=""
-                key="placeholder"
-              >Provider type</option>
-              <option
-                value=""
-                key="none"
-              >(none)</option>
-              <option
-                v-for="providerType in RUNTIME_PROVIDER_OVERRIDE_TYPES"
-                :key="providerType"
-                :value="providerType"
-              >
-                {{ providerType }}
-              </option>
-            </select>
+            <AIGenerationProviderType v-model="llmType" />
           </label>
           <label class="form-field">
             <span>ENDPOINT:</span>
@@ -316,7 +254,7 @@
         class="generate-button"
         type="button"
         :disabled="!canGenerate || generationStatus === 'loading'"
-        @click="generateAttackFlow"
+        @click="onClickGenerate"
       >
         GENERATE
       </button>
@@ -327,22 +265,6 @@
       >
         {{ generationMessage }}
       </p>
-      <div class="results-section">
-        <div
-          v-if="!flowGenerationRan"
-          style="visibility: hidden;"
-        >
-          (waiting for flow generation to begin...)
-        </div>
-        <div v-else-if="flowGenerationInProgress">
-          Flow generation queued...
-        </div>
-        <div v-else-if="!flowGenerationSucceeded">
-          <div class="generation-error">
-            {{ flowGenerationErrorMessage }}
-          </div>
-        </div>
-      </div>
     </div>
 
     <div
@@ -367,7 +289,6 @@ import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
 import {
     fetchJobResultArtifact,
     runJobToResult,
-    RUNTIME_PROVIDER_OVERRIDE_TYPES,
     type RuntimeProviderOverrideType,
 } from "@/api/jobs";
 import { fetchHealthCheck } from "@/api/health.ts";
@@ -399,6 +320,7 @@ import { OpenAICompatibleProviderAdapter, type StructuredGenerationRequest } fro
 import type { SupportedRuntimeProviderType } from "@/assets/scripts/Application/Configuration";
 import { prepareEditorFromExistingFile } from "@/assets/scripts/Application/index.ts";
 import LoadingSpinner from "./LoadingSpinner.vue";
+import AIGenerationProviderType from "./AIGenerationProviderType.vue";
 
 type SourceType = "upload" | "url" | "text" | null;
 
@@ -410,20 +332,16 @@ interface DirectProviderStructuredGenerationOutputLite {
   finishReason?: string;
 }
 
-const GENERIC_ERROR_MESSAGE = "Flow generation failed. Please try again.";
-
 export default defineComponent({
   name: "AIGenerationSplashScreen",
   setup() {
     return {
         applicationStore: useApplicationStore(),
         runtimeProviderStore: useRuntimeProviderStore(),
-        RUNTIME_PROVIDER_OVERRIDE_TYPES
     }
   },
   data() {
     return {
-        app: useApplicationStore(),
       sourceType: null as SourceType,
       sourceFile: null as File | null,
       sourceFileName: "",
@@ -441,15 +359,9 @@ export default defineComponent({
       llmToken: "",
       apiHealthCheckInProgress: false,
       apiHealthCheckSucceeded: false,
-      flowGenerationRan: false,
-      flowGenerationInProgress: false,
-      flowGenerationSucceeded: false,
-      flowGenerationCompletedJobId: "",
-      flowGenerationErrorMessage: GENERIC_ERROR_MESSAGE,
       llmModel: "",
       llmUseAzure: false,
-      llmAzureApiVersion: "",
-      flowGenerationErrorMessage: GENERIC_ERROR_MESSAGE
+      llmAzureApiVersion: ""
 
     }
   },
@@ -628,6 +540,20 @@ export default defineComponent({
      *  True if the required generation inputs are populated.
      */
     canGenerate(): boolean {
+        // If using AFB API, only the source data input is required.
+        // However, if LLM info is given, it must be complete.
+        if (this.apiHealthCheckSucceeded) {
+            const llmInfoFullyFull = this.llmType && this.llmEndpoint && this.llmToken;
+            const llmInfoFullyEmpty = !(this.llmType || this.llmEndpoint || this.llmToken);
+            return !!(
+                this.hasSourceData
+                && (llmInfoFullyFull || llmInfoFullyEmpty)
+                && this.generationStatus !== 'loading'
+            );
+        }
+
+
+        // If using the direct-provider path, the direct-provider fields must be filled out.
       return !!(
           this.hasSourceData
           && this.llmEndpoint.trim()
@@ -821,12 +747,18 @@ export default defineComponent({
      * Click handler for the "generate" button.
      */
     async onClickGenerate() {
-        this.flowGenerationRan = true;
-        this.flowGenerationSucceeded = false;
-        this.flowGenerationInProgress = true;
-        this.flowGenerationErrorMessage = GENERIC_ERROR_MESSAGE;
 
-        let requestOptions = {}
+        if (!this.sourceType) {
+            const msg = `sourceType should exist.`;
+            this.generationStatus = 'error';
+            this.generationMessage = msg;
+            throw new Error(msg);
+        }
+
+        this.generationStatus = 'loading';
+        this.generationMessage = 'Flow generation queued...';
+
+        let requestOptions = {};
 
         if (this.llmType && this.llmEndpoint && this.llmToken) {
             requestOptions = {
@@ -840,85 +772,75 @@ export default defineComponent({
             }
         }
 
-        if (this.apiHealthCheckSucceeded) {
-            if (!this.sourceType) {
-                throw new Error("sourceType should exist.");
-            }
-
-            try {
+        try {
+            if (this.apiHealthCheckSucceeded) {
                 const result = await runJobToResult(this.sourceType, this.sourceData, requestOptions)
                 console.debug("Job result: ", result);
                 if (result.status === "completed") {
                     const afbContents = await fetchJobResultArtifact(result.job_id, "afb");
-                    this.app.execute(await prepareEditorFromExistingFile(this.app, afbContents));
-                    this.flowGenerationSucceeded = true;
+                    this.applicationStore.execute(await prepareEditorFromExistingFile(this.applicationStore, afbContents));
+                    this.generationStatus = 'success';
                 } else {
                     throw new Error(`Flow result failed: ${result.error_message}`);
                 }
-            } catch (error: unknown) {
-                if (error instanceof Error) {
-                    console.error(error.stack ? error.stack : error.message);
-                    this.flowGenerationErrorMessage = error.message;
-                } else {
-                    console.error(error);
-                    this.flowGenerationErrorMessage = "An unknown error occurred."
+            } else {
+                const runtimeProviderConfig = this.runtimeProviderStore.runtimeProviderConfig;
+                const model = runtimeProviderConfig?.model.trim();
+                if (!runtimeProviderConfig || !model) {
+                    throw new Error("Direct provider mode requires a configured model.");
                 }
-            }
 
-        } else {
-            if (!this.sourceType) {
-                throw new Error("sourceType should exist.");
-            }
+                const normalizedInput = await this.buildNormalizedInputPackage();
+                if (!normalizedInput) {
+                    throw new Error("Direct provider mode requires source input.");
+                }
 
-            const runtimeProviderConfig = this.runtimeProviderStore.runtimeProviderConfig;
-            const model = runtimeProviderConfig?.model.trim();
-            if (!runtimeProviderConfig || !model) {
-                throw new Error("Direct provider mode requires a configured model.");
-            }
+                const directProviderRequestParams: DirectProviderRequestPipelineParams = {
+                    normalizedInput,
+                    provider: {
+                        providerType: this.directProviderType,
+                        endpoint: this.llmEndpoint.trim(),
+                        apiKey: this.llmToken.trim(),
+                        model,
+                        extraHeaders: runtimeProviderConfig.extraHeaders
+                    }
+                };
 
-            const normalizedInput = await this.buildNormalizedInputPackage();
-            if (!normalizedInput) {
-                throw new Error("Direct provider mode requires source input.");
-            }
-
-            const directProviderRequestParams: DirectProviderRequestPipelineParams = {
-                normalizedInput,
-                provider: {
+                const request = buildDirectProviderRequestPipeline(directProviderRequestParams);
+                const adapter = new OpenAICompatibleProviderAdapter({
+                    ...runtimeProviderConfig,
                     providerType: this.directProviderType,
                     endpoint: this.llmEndpoint.trim(),
                     apiKey: this.llmToken.trim(),
-                    model,
-                    extraHeaders: runtimeProviderConfig.extraHeaders
+                    model
+                });
+                const output = await adapter.generateStructured(request);
+                const repair = validateAndRepairStructuredExtractionOutput as (input: unknown) => StructuredExtractionRepairResult;
+                const repaired = repair({
+                outputJson: output.outputJson,
+                outputText: output.outputText,
+                providerId: output.providerId,
+                model: output.model
+                } as unknown);
+                const extraction = repaired.validation.result;
+                if (!extraction) {
+                    throw new Error(repaired.validation.failures[0]?.message || "Validated structured extraction output is not available.");
                 }
-            };
 
-            const request = buildDirectProviderRequestPipeline(directProviderRequestParams);
-            const adapter = new OpenAICompatibleProviderAdapter({
-                ...runtimeProviderConfig,
-                providerType: this.directProviderType,
-                endpoint: this.llmEndpoint.trim(),
-                apiKey: this.llmToken.trim(),
-                model
-            });
-            const output = await adapter.generateStructured(request);
-            const repair = validateAndRepairStructuredExtractionOutput as (input: unknown) => StructuredExtractionRepairResult;
-            const repaired = repair({
-              outputJson: output.outputJson,
-              outputText: output.outputText,
-              providerId: output.providerId,
-              model: output.model
-            } as unknown);
-            const extraction = repaired.validation.result;
-            if (!extraction) {
-                throw new Error(repaired.validation.failures[0]?.message || "Validated structured extraction output is not available.");
+                const command = await prepareEditorFromValidatedStructuredExtraction(this.applicationStore, extraction);
+                await this.applicationStore.execute(command);
+                this.generationStatus = 'success'
             }
-
-            const command = await prepareEditorFromValidatedStructuredExtraction(this.applicationStore, extraction);
-            await this.applicationStore.execute(command);
-            this.flowGenerationSucceeded = true;
+        } catch (error: unknown) {
+            this.generationStatus = 'error';
+            if (error instanceof Error) {
+                console.error(error.stack ? error.stack : error.message);
+                this.generationMessage = error.message;
+            } else {
+                console.error(error);
+                this.generationMessage = "An unknown error occurred."
+            }
         }
-
-        this.flowGenerationInProgress = false;
     },
     /**
      * Stores the latest provider output for later validation/repair.
@@ -986,6 +908,7 @@ export default defineComponent({
     FolderIcon,
     LinkIcon,
     LoadingSpinner,
+    AIGenerationProviderType
   }
 });
 </script>
@@ -1025,13 +948,6 @@ export default defineComponent({
 .ai-generation .results-section {
     text-align: center;
     color: var(--af-text-color-secondary);
-}
-
-.generation-error {
-    color: var(--af-color-error);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .source-type-grid {
