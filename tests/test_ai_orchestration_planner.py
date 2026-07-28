@@ -87,8 +87,8 @@ def test_build_provider_input_includes_explicit_constraints() -> None:
         }
     )
 
-    assert packaged.constraints.explicit_attack_refs_only is True
-    assert packaged.constraints.no_missing_technique_inference is True
+    assert packaged.constraints.explicit_attack_refs_only is False
+    assert packaged.constraints.no_missing_technique_inference is False
     assert packaged.constraints.descriptions_must_be_verbatim_excerpts is True
     assert packaged.constraints.conditions_must_be_source_grounded is True
     assert packaged.constraints.operators_must_be_source_grounded is True

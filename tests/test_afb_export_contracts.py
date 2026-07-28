@@ -429,6 +429,7 @@ def test_assemble_afb_export_bundle_builds_builder_diagram_export() -> None:
     diagram_export = bundle.to_diagram_export_ready()
 
     assert diagram_export["schema"] == "attack_flow_v2"
+    assert diagram_export["generated_layout"] == "auto"
     canvas = diagram_export["objects"][0]
     action = next(item for item in diagram_export["objects"] if item["id"] == "action")
     assert canvas["id"] == "flow"
@@ -452,6 +453,259 @@ def test_assemble_afb_export_bundle_builds_builder_diagram_export() -> None:
     assert any(item["id"] == "generic_handle" for item in diagram_export["objects"])
     assert any(item["id"] == "dynamic_line" for item in diagram_export["objects"])
     assert json.loads(bundle.to_diagram_export_bytes().decode("utf-8")) == diagram_export
+
+
+def test_assemble_afb_export_bundle_renders_shared_assets_next_to_each_action() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--shared-asset",
+            name="Example flow",
+            scope="incident",
+            start_refs=["attack-action--1"],
+        ),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Use QBot for access",
+                description="QBot provides access.",
+                object_refs=["attack-asset--qbot"],
+                effect_refs=["attack-action--2"],
+            ),
+            CanonicalFlowActionNode(
+                id="attack-action--2",
+                name="Use QBot for encrypted communications",
+                description="QBot uses an encrypted channel.",
+                object_refs=["attack-asset--qbot"],
+            ),
+            CanonicalFlowAssetNode(
+                id="attack-asset--qbot",
+                name="QBot",
+                object_ref="entity--qbot",
+                stix_properties={"evidence": [{"source": "report", "excerpt": "QBot was observed."}]},
+            ),
+        ],
+        edges=[
+            CanonicalFlowEdge(
+                source_ref="attack-action--1",
+                target_ref="attack-action--2",
+                edge_type=CanonicalFlowEdgeKind.EFFECT,
+            )
+        ],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    diagram_export = assemble_afb_export_bundle(canonical).to_diagram_export_ready()
+    canvas = diagram_export["objects"][0]
+    qbot_blocks = [
+        item
+        for item in diagram_export["objects"]
+        if item["id"] == "asset" and ["name", "QBot"] in item.get("properties", [])
+    ]
+
+    assert "attack-asset--qbot" not in canvas["objects"]
+    assert len(qbot_blocks) == 2
+    assert len({item["instance"] for item in qbot_blocks}) == 2
+    assert {diagram_export["layout"][item["instance"]][1] for item in qbot_blocks} == {
+        diagram_export["layout"]["attack-action--1"][1],
+        diagram_export["layout"]["attack-action--2"][1],
+    }
+    linked_latches = {
+        latch
+        for item in diagram_export["objects"]
+        if "latches" in item
+        for latch in item["latches"]
+    }
+    line_latches = {
+        latch
+        for item in diagram_export["objects"]
+        if item["id"] == "dynamic_line"
+        for latch in [item["source"], item["target"]]
+    }
+    assert line_latches <= linked_latches
+
+
+def test_assemble_afb_export_bundle_renders_typed_stix_entity_cards() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--typed-entity",
+            name="Example flow",
+            scope="incident",
+            start_refs=["attack-action--1"],
+        ),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Run remote tool",
+                description="The adversary ran PsExec.",
+                object_refs=["software--psexec"],
+            ),
+            CanonicalFlowAssetNode(
+                id="software--psexec",
+                name="PsExec",
+                object_ref="software--psexec",
+                stix_properties={"type": "software", "kind": "software", "id": "software--psexec", "name": "PsExec"},
+            ),
+        ],
+        edges=[],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    diagram_export = assemble_afb_export_bundle(canonical).to_diagram_export_ready()
+
+    assert any(item["id"] == "software" and ["name", "PsExec"] in item.get("properties", []) for item in diagram_export["objects"])
+    assert not any(item["id"] == "asset" and ["name", "PsExec"] in item.get("properties", []) for item in diagram_export["objects"])
+
+
+def test_assemble_afb_export_bundle_uses_asset_name_for_typed_card_label() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(flow_id="attack-flow--typed-label", name="Example flow", scope="incident"),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Execute payload",
+                description="The adversary executed the JavaScript payload.",
+                object_refs=["file--payload"],
+            ),
+            CanonicalFlowAssetNode(
+                id="file--payload",
+                name="olympus_plea_agreement.js",
+                object_ref="file--payload",
+                stix_properties={"type": "file", "kind": "file", "id": "file--payload"},
+            ),
+        ],
+        edges=[],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    diagram_export = assemble_afb_export_bundle(canonical).to_diagram_export_ready()
+
+    assert any(
+        item["id"] == "file" and ["name", "olympus_plea_agreement.js"] in item.get("properties", [])
+        for item in diagram_export["objects"]
+    )
+
+
+def test_assemble_afb_export_bundle_serializes_file_hashes_for_builder() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(flow_id="attack-flow--file-hash", name="Example flow", scope="incident"),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Use payload",
+                description="The adversary used the payload.",
+                object_refs=["file--payload"],
+            ),
+            CanonicalFlowAssetNode(
+                id="file--payload",
+                name="payload.js",
+                object_ref="file--payload",
+                stix_properties={
+                    "type": "file",
+                    "kind": "file",
+                    "id": "file--payload",
+                    "hashes": {"MD5": "d7d3e1c76d5e2fa9f7253c8ababd6349"},
+                },
+            )
+        ],
+        edges=[],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    diagram_export = assemble_afb_export_bundle(canonical).to_diagram_export_ready()
+    file = next(item for item in diagram_export["objects"] if item["id"] == "file")
+
+    assert ["hashes", [["item-1", {"hash_type": "md5", "hash_value": "d7d3e1c76d5e2fa9f7253c8ababd6349"}]]] in file["properties"]
+
+
+def test_assemble_afb_export_bundle_stacks_multiple_action_assets_vertically() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--multiple-assets",
+            name="Example flow",
+            scope="incident",
+            start_refs=["attack-action--1"],
+        ),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Create accounts",
+                description="The adversary creates three accounts.",
+                asset_refs=["attack-asset--temp", "attack-asset--r", "attack-asset--admin"],
+                effect_refs=["attack-action--2"],
+            ),
+            CanonicalFlowActionNode(
+                id="attack-action--2",
+                name="Use accounts",
+                description="The accounts are used for access.",
+            ),
+            CanonicalFlowAssetNode(id="attack-asset--temp", name="temp"),
+            CanonicalFlowAssetNode(id="attack-asset--r", name="r"),
+            CanonicalFlowAssetNode(id="attack-asset--admin", name="admin"),
+        ],
+        edges=[
+            CanonicalFlowEdge(
+                source_ref="attack-action--1",
+                target_ref="attack-action--2",
+                edge_type=CanonicalFlowEdgeKind.EFFECT,
+            )
+        ],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    diagram_export = assemble_afb_export_bundle(canonical).to_diagram_export_ready()
+    asset_positions = [
+        diagram_export["layout"][asset_id]
+        for asset_id in ["attack-asset--temp", "attack-asset--r", "attack-asset--admin"]
+    ]
+
+    assert {position[0] for position in asset_positions} == {420.0}
+    assert [position[1] for position in asset_positions] == [-200.0, 0.0, 200.0]
+    assert diagram_export["layout"]["attack-action--2"] == [175.0, 420.0]
+
+
+def test_assemble_afb_export_bundle_keeps_action_technique_without_attack_pattern_block() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--diagram-technique",
+            name="Example flow",
+            scope="incident",
+            start_refs=["attack-action--1"],
+        ),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Observed step",
+                description="Observed command exactly as reported.",
+                technique=CanonicalFlowTechniqueReference(
+                    technique_id="T1059",
+                    technique_name="Command and Scripting Interpreter",
+                ),
+            ),
+        ],
+        edges=[],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    diagram_export = assemble_afb_export_bundle(canonical).to_diagram_export_ready()
+    action = next(item for item in diagram_export["objects"] if item["id"] == "action")
+
+    assert [item for item in action["properties"] if item[0] == "ttp"] == [
+        ["ttp", {"technique": "T1059"}]
+    ]
+    assert not any(item["id"] == "attack_pattern" for item in diagram_export["objects"])
+    assert "T1059" not in diagram_export["objects"][0]["objects"]
 
 
 def test_assemble_afb_export_bundle_renders_action_to_action_connector() -> None:
@@ -488,7 +742,7 @@ def test_assemble_afb_export_bundle_renders_action_to_action_connector() -> None
 
     assert any(item["id"] == "dynamic_line" for item in diagram_export["objects"])
     assert diagram_export["layout"]["attack-action--1"] == [0.0, 0.0]
-    assert diagram_export["layout"]["attack-action--2"][0] == 0.0
+    assert diagram_export["layout"]["attack-action--2"][0] == 175.0
     assert diagram_export["layout"]["attack-action--2"][1] > diagram_export["layout"]["attack-action--1"][1]
 
 
@@ -539,9 +793,12 @@ def test_assemble_afb_export_bundle_renders_condition_branch_connectors() -> Non
     line_exports = [item for item in diagram_export["objects"] if item["id"] == "dynamic_line"]
     condition = next(item for item in diagram_export["objects"] if item.get("id") == "condition")
 
-    assert len(line_exports) >= 3
+    assert len(line_exports) == 3
     assert condition["anchors"]["branch:True"]
     assert condition["anchors"]["branch:False"]
+    assert set(condition["anchors"]) == {
+        "0", "30", "60", "90", "120", "150", "180", "210", "330", "branch:True", "branch:False"
+    }
     assert diagram_export["layout"]["attack-condition--1"] == [0.0, 0.0]
     assert diagram_export["layout"]["attack-action--1"][1] > diagram_export["layout"]["attack-condition--1"][1]
     assert diagram_export["layout"]["attack-action--2"][1] > diagram_export["layout"]["attack-condition--1"][1]
@@ -586,6 +843,8 @@ def test_assemble_afb_export_bundle_falls_back_to_sequential_action_chain() -> N
 
     assert len(line_exports) == 2
     assert len(handle_exports) == 2
+    assert diagram_export["layout"]["attack-action--2"][0] == 175.0
+    assert diagram_export["layout"]["attack-action--3"][0] == 350.0
     assert diagram_export["layout"]["attack-action--2"][1] > diagram_export["layout"]["attack-action--1"][1]
     assert diagram_export["layout"]["attack-action--3"][1] > diagram_export["layout"]["attack-action--2"][1]
 
@@ -625,6 +884,39 @@ def test_assemble_afb_export_bundle_prefers_object_connector_over_sequential_con
     line_exports = [item for item in diagram_export["objects"] if item["id"] == "dynamic_line"]
 
     assert len(line_exports) == 1
+
+
+def test_assemble_afb_export_bundle_preserves_long_action_refs_from_legacy_operator() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--legacy-operator",
+            name="Example flow",
+            scope="incident",
+            start_refs=["attack-action--1"],
+        ),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Example step",
+                description="Observed command exactly as reported.",
+            ),
+            CanonicalFlowOperatorNode(
+                id="op--1",
+                operator="AND",
+                effect_refs=["attack-action--1"],
+            ),
+        ],
+        edges=[],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    bundle = assemble_afb_export_bundle(canonical)
+    operator = next(item for item in bundle.objects.objects if item["type"] == "attack-operator")
+
+    assert operator["effect_refs"] == ["attack-action--1"]
+    assert bundle.validation_errors == []
 
 
 def test_assemble_afb_export_bundle_prunes_invalid_internal_refs_and_reports_errors() -> None:

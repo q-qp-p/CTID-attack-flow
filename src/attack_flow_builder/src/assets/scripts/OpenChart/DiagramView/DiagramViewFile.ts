@@ -3,10 +3,16 @@ import { Canvas, DiagramModelFile, DiagramObjectSerializer } from "@OpenChart/Di
 import type { CameraLocation } from "./CameraLocation";
 import type { DiagramViewExport } from "./DiagramViewExport";
 import type { DiagramLayoutEngine } from "./DiagramLayoutEngine";
+import { BlockView } from "./DiagramObjectView";
 import type { CanvasView, DiagramObjectView } from "./DiagramObjectView";
 import type { DiagramTheme, DiagramObjectViewFactory } from "./DiagramObjectViewFactory";
 
 export class DiagramViewFile extends DiagramModelFile {
+
+    /**
+     * The clear vertical space preserved between assets attached to one action.
+     */
+    private static readonly ACTION_ASSET_CLEARANCE = 50;
 
     /**
      * The file's camera location.
@@ -72,6 +78,64 @@ export class DiagramViewFile extends DiagramModelFile {
      */
     public runLayout(layout: DiagramLayoutEngine) {
         layout.run([this.canvas]);
+    }
+
+    /**
+     * Vertically center direct support-card children of each action using their
+     * rendered dimensions. This includes typed STIX cards (file, software,
+     * process, etc.), not only generic assets.
+     */
+    public compactActionAssetStacks(): void {
+        const assetsByAction = new Map<BlockView, Set<BlockView>>();
+        const actionCountByAsset = new Map<BlockView, number>();
+
+        for (const line of this.canvas.lines) {
+            const source = line.sourceObject;
+            const target = line.targetObject;
+            if (source?.id !== "action" || !(target instanceof BlockView) || !DiagramViewFile.isActionSupportCard(target)) {
+                continue;
+            }
+
+            const action = source as BlockView;
+            const asset = target as BlockView;
+            const assets = assetsByAction.get(action) ?? new Set<BlockView>();
+            assets.add(asset);
+            assetsByAction.set(action, assets);
+            actionCountByAsset.set(asset, (actionCountByAsset.get(asset) ?? 0) + 1);
+        }
+
+        for (const [action, assetSet] of assetsByAction) {
+            const assets = [...assetSet]
+                .filter(asset => actionCountByAsset.get(asset) === 1)
+                .sort((left, right) => left.face.boundingBox.yMid - right.face.boundingBox.yMid);
+            if (assets.length < 2) {
+                continue;
+            }
+
+            const stackHeight = assets.reduce(
+                (total, asset) => total + asset.face.boundingBox.height,
+                0
+            ) + DiagramViewFile.ACTION_ASSET_CLEARANCE * (assets.length - 1);
+            let nextTop = action.face.boundingBox.yMid - stackHeight / 2;
+
+            for (const asset of assets) {
+                const bounds = asset.face.boundingBox;
+                const nextCenter = nextTop + bounds.height / 2;
+                asset.moveBy(0, nextCenter - bounds.yMid);
+                nextTop += bounds.height + DiagramViewFile.ACTION_ASSET_CLEARANCE;
+            }
+        }
+
+        this.canvas.calculateLayout();
+    }
+
+    private static isActionSupportCard(block: BlockView): boolean {
+        return !new Set([
+            "action",
+            "condition",
+            "AND_operator",
+            "OR_operator"
+        ]).has(block.id);
     }
 
     /**

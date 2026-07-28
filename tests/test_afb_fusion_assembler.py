@@ -1,11 +1,13 @@
 from attack_flow_api.services.afb_extraction_contracts import (
     AttackFlowMetadata,
+    AttackActionNode,
     AfbExtractionResult,
     AttackAssetNode,
     AttackOperatorNode,
     OrchestrationMode,
     SourceClassification,
 )
+from attack_flow_api.services.canonical_flow_conversion_service import build_canonical_flow_output
 from attack_flow_api.services.afb_fusion_assembler import (
     FusedOutputCandidate,
     build_fused_output_candidate,
@@ -150,6 +152,51 @@ def test_build_fused_output_candidate_accepts_attack_assets_without_object_type(
 
     payload = candidate.to_json_ready()
     assert payload["attack_assets"][0]["object_type"] == "attack-asset"
+
+
+def test_fusion_preserves_extracted_entity_details_for_action_assets() -> None:
+    attack_flow = AttackFlowMetadata(
+        id="attack-flow--entities",
+        name="Entity example",
+        scope="incident",
+        orchestration_mode=OrchestrationMode.FULL_EXTRACTION,
+        source_classification=SourceClassification.DOCUMENT_EXTRACTED_TEXT,
+    )
+    extraction_result = AfbExtractionResult(
+        validation_state="valid",
+        provider_invoked=True,
+        attack_flow=attack_flow,
+        attack_actions=[
+            AttackActionNode(
+                id="attack-action--1",
+                name="Run PowerShell",
+                description="The actor executed PowerShell.",
+                confidence=0.9,
+                object_refs=["software-1"],
+            )
+        ],
+        deterministic_entities=[
+            {
+                "object_id": "software-1",
+                "object_type": "software",
+                "display_name": "PowerShell",
+                "description": "Microsoft command-line shell used by the actor.",
+            }
+        ],
+    )
+
+    fused = build_fused_output_candidate_from_sources(
+        normalized_package={},
+        extraction_result=extraction_result,
+    )
+    canonical = build_canonical_flow_output(fused_output=fused)
+
+    assert fused.entities[0].object_id == "software-1"
+    assert fused.entities[0].display_name == "PowerShell"
+    assert canonical is not None
+    asset = next(node for node in canonical.nodes if node.id == "software-1")
+    assert asset.name == "PowerShell"
+    assert asset.description == "Microsoft command-line shell used by the actor."
 
 
 def test_fused_output_candidate_remains_compatible_with_constrained_canonical_model() -> None:

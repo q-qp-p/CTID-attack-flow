@@ -123,9 +123,38 @@ def _merge_deterministic_findings(
         list(packaged_input.deterministic_relationships),
     )
     merged = _preserve_authors_and_external_references(merged, packaged_input)
+    merged = _normalize_evidence_citations(merged)
     merged = _tag_ai_generated_additions(merged)
     merged = _drop_invalid_groundings(merged)
     merged = _filter_explicit_object_relationship_attachments(merged)
+    return merged
+
+
+def _normalize_evidence_citations(merged: dict[str, Any]) -> dict[str, Any]:
+    """Supply a neutral source label when a provider returns an otherwise valid excerpt."""
+    for key in ("attack_actions", "attack_conditions", "attack_operators", "attack_assets"):
+        values = merged.get(key)
+        if not isinstance(values, list):
+            continue
+        normalized_items: list[dict[str, Any]] = []
+        for item in values:
+            if not isinstance(item, dict):
+                continue
+            out = dict(item)
+            evidence = out.get("evidence")
+            if isinstance(evidence, list):
+                normalized_evidence: list[object] = []
+                for citation in evidence:
+                    if not isinstance(citation, dict):
+                        normalized_evidence.append(citation)
+                        continue
+                    normalized_citation = dict(citation)
+                    if not _as_str(normalized_citation.get("source")) and _as_str(normalized_citation.get("excerpt")):
+                        normalized_citation["source"] = "source_document"
+                    normalized_evidence.append(normalized_citation)
+                out["evidence"] = normalized_evidence
+            normalized_items.append(out)
+        merged[key] = normalized_items
     return merged
 
 

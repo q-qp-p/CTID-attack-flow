@@ -56,7 +56,14 @@ def build_fused_output_candidate_from_sources(
     merged_package = _normalize_source_package(normalized_package)
 
     merged_attack_refs = dedupe_attack_refs_deterministic_first(attack_refs, [])
-    merged_entities = dedupe_entities_deterministic_first(entities, [])
+    # Entities extracted from the report give action object references their
+    # human-readable identity (for example, software-1 -> PowerShell).  Keep
+    # deterministic source entities authoritative when both sources describe
+    # the same object, while retaining AI-only report entities.
+    merged_entities = dedupe_entities_deterministic_first(
+        entities,
+        extraction_result.deterministic_entities,
+    )
     merged_relationships = merge_relationships_deterministic_first(relationships, [])
 
     merged_actions = _merge_extraction_items(extraction_result.attack_actions, MergedAttackAction)

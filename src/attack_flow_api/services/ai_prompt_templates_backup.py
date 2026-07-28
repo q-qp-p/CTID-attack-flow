@@ -102,20 +102,27 @@ def build_empty_extraction_reprompt_bundle(
 def _build_system_instruction() -> str:
     return (
         "You are an extraction engine that returns JSON only.\n"
-        "Follow these requirements exactly:\n"
-        f"1) Map every attack-action to one best-fit technique from an Attack Flow-supported framework only: MITRE ATT&CK Enterprise, Mobile, or ICS; MITRE ATLAS; MITRE D3FEND; or MITRE F3. Do not emit techniques from any other framework or invent custom techniques. Preserve and normalize explicit ATT&CK evidence to ATT&CK v{ATTACK_VERSION} when possible. An ATT&CK ID, a technique or tactic name, or an ATT&CK external reference is explicit evidence. When the source describes attacker behavior without an explicit ATT&CK reference, infer the closest supported technique from that procedure, set grounded_by to inferred_from_procedure, and use lower confidence than for explicit evidence. Do not omit technique for an attack-action. For every ATT&CK technique, also emit its corresponding ATT&CK tactic in the action's tactic field.\n"
-        "2) Create an attack-action for every source-grounded procedural attacker step, including when the report does not name an ATT&CK technique. Use a concise action name and make its description the most complete contiguous verbatim source excerpt available for that step. Do not shorten or summarize away material details such as tools, file types, commands, targets, conditions, parameters, or outcomes.\n"
-        "3) Order attack_actions chronologically. For every non-terminal action, use effect_refs to point to the next source-supported action, condition, or operator. A terminal action has an empty effect_refs list. Merge contiguous substeps that describe the same technique and operational outcome into one action, retaining all source-specific detail in its description and linked objects.\n"
-        "4) Treat action links as part of the output: do not leave otherwise sequential source-grounded actions disconnected. When the source order is the only sequencing evidence, connect each action to the next action in that order.\n"
-        "5) Create attack-condition and attack-operator only for source-grounded decisions, alternatives, or explicitly concurrent steps. Use AND only for documented parallel requirements and OR only for documented alternatives. When one action produces multiple documented follow-on outcomes, connect that action to an operator and connect the operator to each outcome action; do not force those outcomes into a sequential chain. never guess branching.\n"
-        "6) Every evidence record for an action, condition, operator, or asset must include a nonempty source and an excerpt. For every action, the evidence must contain the verbatim excerpt used for its description.\n"
-        "7) When an action uses or targets a concrete tool, software, file, URL, IP address, process, user, registry key, domain, or observable, emit a matching deterministic_entity and include its object_id in that action's object_refs. Default to the most specific supported STIX object or observable type (for example software, process, file, user_account, or windows_registry_key), not attack_asset. Do not create a linked entity for a generic category without source-specific identifying data.\n"
-        "8) Preserve type-specific entity fields from the source, such as value, path, command_line, hashes, display_name, cpe, vendor, version, pattern, subject, number, or rir. Use the most specific source-grounded field as the entity display label.\n"
-        "9) Prefer linked deterministic_entities over standalone attack_assets. Emit an attack_asset only when it has a specific name or source-grounded description; never use an internal identifier such as software-1 or tool-1 as its name.\n"
-        "10) Do not create standalone attack-pattern nodes. Record ATT&CK techniques only on attack_actions.\n"
-        "11) When the source includes an ATT&CK technique table, appendix, or matrix, use it as supplementary authoritative evidence for coverage and mapping. Create an action from a table entry only when its Use text or a referenced source passage describes concrete behavior; do not invent behavior solely from a technique name. Reports without an ATT&CK table must be extracted from their narrative and other source-grounded evidence.\n"
-        "12) Preserve authors, external references, explicit STIX objects, and explicit STIX relationships. Carry source dates into relevant action metadata, include a source URL in attack_flow.external_references, preserve source-grounded threat-actor, group, or campaign attribution, and capture every lifecycle phase supported by the source.\n"
-        "13) Technique confidence must be in [0.0, 1.0]. Return one top-level AFB extraction JSON object and no prose, bundle envelope, or legacy fields.\n"
+        "Follow these hard constraints exactly:\n"
+        f"1) If the source explicitly references an ATT&CK tactic or technique, always preserve it as an ATT&CK object.\n"
+        "2) Treat ATT&CK IDs in source text, exact or legacy ATT&CK technique/tactic names in source text, STIX attack-pattern objects with ATT&CK external references, and ATT&CK external references on related source objects as explicit ATT&CK evidence.\n"
+        f"3) Normalize ATT&CK objects to ATT&CK v{ATTACK_VERSION} when possible.\n"
+        "4) If an explicit ATT&CK object cannot be fully normalized with high confidence, preserve the best source-grounded identifier or name available instead of omitting it.\n"
+        "5) Never let normalization uncertainty suppress or replace an explicit ATT&CK object.\n"
+        "6) If you infer a tactic or technique, only do so when no explicit ATT&CK evidence is present, and keep inferred confidence lower than explicit confidence.\n"
+        "7) Create attack-action steps even when no technique mapping is available.\n"
+        "8) attack-action descriptions must be verbatim source excerpts only; names should be concise summaries.\n"
+        "9) attack-operator values may only be AND or OR, and attack-condition values may only be true or false.\n"
+        "10) Create attack-operator and attack-condition only when the source explicitly expresses branching or sibling-step logic. Prefer no branching over guessed branching; do not invent branching from unrelated text. When multiple strong cues point to a branch, you may infer it at low confidence and explain the cues. If the source clearly shows a decision point, emit attack-condition and attack-operator nodes rather than flattening the branch into linear actions. If you create an attack-condition or attack-operator, keep its description and evidence verbatim and source-grounded.\n"
+        "11) If one step names or uses a tool and another step shows the concrete runtime command, merge them into one action and link the tool as a deterministic_entity.\n"
+        "12) Use the supported STIX catalog as linked deterministic_entities and deterministic_relationships. Only procedural attacker steps should become attack-action nodes. Asset-like or support objects should usually be linked entities instead of standalone attack_assets unless they must be preserved as explicit assets.\n"
+        "13) When the source mentions a tool, software, file, URL, IP, process, user, registry key, domain, observable, or artifact, emit the matching STIX catalog object or observable as a deterministic_entity attached to the relevant action when possible. Prefer attack_actions[*].object_refs for these linked catalog objects, prefer attached STIX catalog objects over standalone attack_assets, and prefer concrete source-grounded identifiers and values over generic placeholders. Use object_id and object_type keys in deterministic_entities, not entity_id/entity_type.\n"
+        "14) When you emit attack_assets, include a concise name, a source-grounded description when available, and tags when the source provides useful categorization.\n"
+        "15) When you emit ATT&CK technique support data on attack_actions, preserve technique_id or technique_ref and also include description, aliases, kill_chain_phases, and tags when supported by the source.\n"
+        "16) For deterministic_entities, preserve the type-specific STIX fields supported by the UI catalog instead of collapsing the entity to a name alone. If the source provides evidence for a supported field, populate it and prefer that field as the display label instead of a synthetic placeholder. Examples include value, path, command_line, hashes, display_name, cpe, vendor, version, aliases, kill_chain_phases, first_seen, last_seen, pattern, pattern_type, subject, subject_public_key_info, number, rir, and tags depending on the object or observable type.\n"
+        "17) Preserve authors and external references from source metadata.\n"
+        "18) Technique confidence must be in [0.0, 1.0].\n"
+        "19) Return a single top-level JSON object with the AFB extraction fields validation_state, provider_invoked, attack_flow, attack_actions, attack_conditions, attack_operators, attack_assets, deterministic_attack_refs, deterministic_entities, and deterministic_relationships.\n"
+        "20) Do not wrap the result in bundle/object envelopes or emit legacy fields like type, id, spec_version, objects, technique_refs, or deterministic_entity_refs."
     )
 
 
@@ -139,28 +146,21 @@ def _build_full_extraction_prompt(packaged_input: ProviderOrchestrationInput) ->
             "normalize_to_attack_version": ATTACK_VERSION,
             "preserve_unresolved_explicit_mappings": True,
             "allow_inference_only_when_no_explicit_evidence_exists": True,
-            "allow_actions_without_techniques": False,
-            "require_tactic_for_attack_technique": True,
+            "allow_actions_without_techniques": True,
             "description_must_be_verbatim": True,
             "action_name_should_be_concise_summary": True,
             "merge_tool_setup_with_runtime_action": True,
-            "consolidate_contiguous_same_technique_substeps": True,
             "prefer_linked_objects_over_actions": True,
-            "default_entities_to_supported_stix_types": True,
-            "use_attack_technique_table_when_present": True,
             "prefer_attached_stix_catalog_objects": True,
             "preserve_authors": True,
             "preserve_external_references": True,
             "preserve_explicit_stix_objects": True,
             "preserve_explicit_stix_relationships": True,
             "preserve_explicit_branching_logic": True,
-            "allow_inferred_branching_when_supported": False,
+            "allow_inferred_branching_when_supported": True,
             "emit_attack_conditions_for_decisions": True,
-            "use_and_operator_for_explicit_parallel_steps": True,
-            "use_or_operator_for_documented_alternatives": True,
-            "use_operators_for_multiple_documented_outcomes": True,
+            "use_and_operator_for_multi_step_sets": True,
         },
-        "flow_modeling_requirements": _flow_modeling_requirements(),
         "output_shape_reminder": {
             "top_level_fields": [
                 "validation_state",
@@ -208,27 +208,20 @@ def _build_enrichment_prompt(packaged_input: ProviderOrchestrationInput) -> str:
             "normalize_to_attack_version": ATTACK_VERSION,
             "preserve_unresolved_explicit_mappings": True,
             "allow_inference_only_when_no_explicit_evidence_exists": True,
-            "allow_actions_without_techniques": False,
-            "require_tactic_for_attack_technique": True,
+            "allow_actions_without_techniques": True,
             "description_must_be_verbatim": True,
             "action_name_should_be_concise_summary": True,
             "merge_tool_setup_with_runtime_action": True,
-            "consolidate_contiguous_same_technique_substeps": True,
             "prefer_linked_objects_over_actions": True,
-            "default_entities_to_supported_stix_types": True,
-            "use_attack_technique_table_when_present": True,
             "preserve_authors": True,
             "preserve_external_references": True,
             "preserve_explicit_stix_objects": True,
             "preserve_explicit_stix_relationships": True,
             "preserve_explicit_branching_logic": True,
-            "allow_inferred_branching_when_supported": False,
+            "allow_inferred_branching_when_supported": True,
             "emit_attack_conditions_for_decisions": True,
-            "use_and_operator_for_explicit_parallel_steps": True,
-            "use_or_operator_for_documented_alternatives": True,
-            "use_operators_for_multiple_documented_outcomes": True,
+            "use_and_operator_for_multi_step_sets": True,
         },
-        "flow_modeling_requirements": _flow_modeling_requirements(),
         "output_shape_reminder": {
             "top_level_fields": [
                 "validation_state",
@@ -256,28 +249,12 @@ def _constraints_payload(packaged_input: ProviderOrchestrationInput) -> dict[str
     constraints = packaged_input.constraints
     return {
         "explicit_attack_refs_only": constraints.explicit_attack_refs_only,
-        "no_missing_technique_inference": constraints.no_missing_technique_inference,
+        "no_missing_technique_inference": False,
         "descriptions_must_be_verbatim_excerpts": constraints.descriptions_must_be_verbatim_excerpts,
         "conditions_must_be_source_grounded": constraints.conditions_must_be_source_grounded,
         "operators_must_be_source_grounded": constraints.operators_must_be_source_grounded,
         "allowed_operator_values": list(constraints.allowed_operator_values),
         "allowed_condition_values": list(constraints.allowed_condition_values),
-    }
-
-
-def _flow_modeling_requirements() -> dict[str, Any]:
-    return {
-        "action_order": "chronological_source_order",
-        "next_step_field": "attack_actions[*].effect_refs",
-        "connect_nonterminal_actions": True,
-        "action_evidence_must_match_description": True,
-        "link_concrete_entities_to_actions": True,
-        "generic_entity_placeholders_forbidden": True,
-        "require_tactic_for_attack_technique": True,
-        "consolidate_contiguous_same_technique_substeps": True,
-        "default_entities_to_supported_stix_types": True,
-        "model_multiple_documented_outcomes_with_operators": True,
-        "infer_branching": False,
     }
 
 

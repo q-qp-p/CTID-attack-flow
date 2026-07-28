@@ -14,25 +14,32 @@ def test_full_extraction_prompt_contains_required_rules() -> None:
     bundle = build_prompt_template_bundle(packaged)
 
     assert bundle.mode.value == "full_extraction"
-    assert "always preserve it as an ATT&CK object" in bundle.system_instruction
-    assert "Treat ATT&CK IDs in source text" in bundle.system_instruction
+    assert "Map every attack-action to one best-fit technique from an Attack Flow-supported framework only" in bundle.system_instruction
+    assert "MITRE ATT&CK Enterprise, Mobile, or ICS; MITRE ATLAS; MITRE D3FEND; or MITRE F3" in bundle.system_instruction
+    assert "Do not emit techniques from any other framework or invent custom techniques" in bundle.system_instruction
+    assert "An ATT&CK ID, a technique or tactic name, or an ATT&CK external reference is explicit evidence" in bundle.system_instruction
     assert "ATT&CK v19.1" in bundle.system_instruction
-    assert "attack-action descriptions must be verbatim source excerpts only; names should be concise summaries" in bundle.system_instruction
-    assert "attack-operator values may only be AND or OR, and attack-condition values may only be true or false" in bundle.system_instruction
-    assert "Create attack-operator and attack-condition only when the source explicitly expresses branching or sibling-step logic" in bundle.system_instruction
-    assert "Prefer no branching over guessed branching; do not invent branching from unrelated text" in bundle.system_instruction
-    assert "If the source clearly shows a decision point, emit attack-condition and attack-operator nodes rather than flattening the branch into linear actions" in bundle.system_instruction
-    assert "do not invent branching from unrelated text" in bundle.system_instruction
-    assert "If you create an attack-condition or attack-operator, keep its description and evidence verbatim and source-grounded" in bundle.system_instruction
-    assert "Use the supported STIX catalog as linked deterministic_entities and deterministic_relationships" in bundle.system_instruction
-    assert "Asset-like or support objects should usually be linked entities instead of standalone attack_assets" in bundle.system_instruction
-    assert "Use object_id and object_type keys in deterministic_entities, not entity_id/entity_type" in bundle.system_instruction
-    assert "If the source provides evidence for a supported field, populate it" in bundle.system_instruction
-    assert "When you emit attack_assets, include a concise name, a source-grounded description when available, and tags" in bundle.system_instruction
-    assert "When you emit ATT&CK technique support data on attack_actions" in bundle.system_instruction
-    assert "Only procedural attacker steps should become attack-action nodes" in bundle.system_instruction
-    assert "single top-level JSON object with the AFB extraction fields validation_state, provider_invoked, attack_flow" in bundle.system_instruction
-    assert "legacy fields like type, id, spec_version, objects, technique_refs, or deterministic_entity_refs" in bundle.system_instruction
+    assert "set grounded_by to inferred_from_procedure" in bundle.system_instruction
+    assert "Do not omit technique for an attack-action" in bundle.system_instruction
+    assert "also emit its corresponding ATT&CK tactic" in bundle.system_instruction
+    assert "Use a concise action name and make its description the most complete contiguous verbatim source excerpt available" in bundle.system_instruction
+    assert "Do not shorten or summarize away material details" in bundle.system_instruction
+    assert "Use AND only for documented parallel requirements and OR only for documented alternatives" in bundle.system_instruction
+    assert "connect that action to an operator and connect the operator to each outcome action" in bundle.system_instruction
+    assert "For every non-terminal action, use effect_refs" in bundle.system_instruction
+    assert "do not leave otherwise sequential source-grounded actions disconnected" in bundle.system_instruction
+    assert "never guess branching" in bundle.system_instruction
+    assert "Every evidence record for an action, condition, operator, or asset must include a nonempty source and an excerpt" in bundle.system_instruction
+    assert "the evidence must contain the verbatim excerpt used for its description" in bundle.system_instruction
+    assert "include its object_id in that action's object_refs" in bundle.system_instruction
+    assert "Default to the most specific supported STIX object or observable type" in bundle.system_instruction
+    assert "Do not create a linked entity for a generic category" in bundle.system_instruction
+    assert "never use an internal identifier such as software-1 or tool-1 as its name" in bundle.system_instruction
+    assert "Do not create standalone attack-pattern nodes" in bundle.system_instruction
+    assert "Carry source dates into relevant action metadata" in bundle.system_instruction
+    assert "When the source includes an ATT&CK technique table, appendix, or matrix" in bundle.system_instruction
+    assert "Reports without an ATT&CK table must be extracted from their narrative" in bundle.system_instruction
+    assert "capture every lifecycle phase supported by the source" in bundle.system_instruction
     assert "PACKAGED_INPUT" in bundle.user_prompt
     assert '"mode": "full_extraction"' in bundle.user_prompt
     assert '"attack_version": "19.1"' in bundle.user_prompt
@@ -48,11 +55,23 @@ def test_full_extraction_prompt_contains_required_rules() -> None:
     assert '"preserve_explicit_stix_objects": true' in bundle.user_prompt
     assert '"preserve_explicit_stix_relationships": true' in bundle.user_prompt
     assert '"preserve_explicit_branching_logic": true' in bundle.user_prompt
-    assert '"allow_inferred_branching_when_supported": true' in bundle.user_prompt
+    assert '"allow_inferred_branching_when_supported": false' in bundle.user_prompt
     assert '"emit_attack_conditions_for_decisions": true' in bundle.user_prompt
-    assert '"use_and_operator_for_multi_step_sets": true' in bundle.user_prompt
+    assert '"use_and_operator_for_explicit_parallel_steps": true' in bundle.user_prompt
+    assert '"use_or_operator_for_documented_alternatives": true' in bundle.user_prompt
+    assert '"use_operators_for_multiple_documented_outcomes": true' in bundle.user_prompt
+    assert '"require_tactic_for_attack_technique": true' in bundle.user_prompt
+    assert '"consolidate_contiguous_same_technique_substeps": true' in bundle.user_prompt
+    assert '"default_entities_to_supported_stix_types": true' in bundle.user_prompt
+    assert '"use_attack_technique_table_when_present": true' in bundle.user_prompt
     assert '"prefer_linked_objects_over_actions": true' in bundle.user_prompt
     assert '"prefer_attached_stix_catalog_objects": true' in bundle.user_prompt
+    assert '"flow_modeling_requirements": {' in bundle.user_prompt
+    assert '"next_step_field": "attack_actions[*].effect_refs"' in bundle.user_prompt
+    assert '"generic_entity_placeholders_forbidden": true' in bundle.user_prompt
+    assert '"allow_actions_without_techniques": false' in bundle.user_prompt
+    assert '"explicit_attack_refs_only": false' in bundle.user_prompt
+    assert '"no_missing_technique_inference": false' in bundle.user_prompt
     assert '"output_shape_reminder": {' in bundle.user_prompt
     assert '"top_level_fields": [' in bundle.user_prompt
     assert '"attack_action_technique_field": "attack_actions[*].technique"' in bundle.user_prompt
@@ -92,12 +111,17 @@ def test_enrichment_prompt_preserves_deterministic_findings() -> None:
     assert '"preserve_deterministic_findings": true' in bundle.user_prompt
     assert '"do_not_drop_or_rewrite_deterministic_attack_refs": true' in bundle.user_prompt
     assert '"preserve_explicit_branching_logic": true' in bundle.user_prompt
-    assert '"use_and_operator_for_multi_step_sets": true' in bundle.user_prompt
+    assert '"use_and_operator_for_explicit_parallel_steps": true' in bundle.user_prompt
+    assert '"use_or_operator_for_documented_alternatives": true' in bundle.user_prompt
+    assert '"require_tactic_for_attack_technique": true' in bundle.user_prompt
+    assert '"use_attack_technique_table_when_present": true' in bundle.user_prompt
     assert '"prefer_linked_objects_over_actions": true' in bundle.user_prompt
     assert '"output_shape_reminder": {' in bundle.user_prompt
     assert '"top_level_fields": [' in bundle.user_prompt
     assert '"technique_id": "T1059"' in bundle.user_prompt
     assert '"preserve_explicit_attack_evidence": true' in bundle.user_prompt
+    assert '"flow_modeling_requirements": {' in bundle.user_prompt
+    assert '"connect_nonterminal_actions": true' in bundle.user_prompt
 
 
 def test_empty_extraction_reprompt_is_stricter() -> None:

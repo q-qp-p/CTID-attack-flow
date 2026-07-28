@@ -90,6 +90,65 @@ def test_parse_validate_success_with_structured_json() -> None:
     assert result.extraction_result.attack_assets[0].object_ref is None
 
 
+def test_normalizes_missing_evidence_source_without_losing_provider_excerpt() -> None:
+    packaged = _packaged_input()
+    output_json = {
+        "validation_state": "valid",
+        "provider_invoked": True,
+        "attack_flow": {
+            "id": "attack-flow--1",
+            "name": "Example flow",
+            "scope": "incident",
+            "start_refs": ["attack-action--1"],
+            "orchestration_mode": "ai_enrichment",
+            "source_classification": "stix_structured",
+        },
+        "attack_actions": [
+            {
+                "id": "attack-action--1",
+                "name": "Use encrypted channel",
+                "description": "The malware communicates over an encrypted channel.",
+                "confidence": 0.8,
+                "evidence": [
+                    {
+                        "source": "report",
+                        "excerpt": "The malware communicates over an encrypted channel.",
+                    }
+                ],
+            }
+        ],
+        "attack_operators": [
+            {
+                "id": "attack-operator--1",
+                "operator": "AND",
+                "confidence": 0.8,
+                "effect_refs": ["attack-action--1"],
+                "evidence": [
+                    {"excerpt": "It also supports encrypted directories."}
+                ],
+            }
+        ],
+    }
+    invocation_result = ProviderInvocationResult(
+        provider_invoked=True,
+        provider_id="default-openai",
+        model_used="gpt-5.4",
+        deterministic_input_sufficient=False,
+        output_json=output_json,
+    )
+
+    result = parse_validate_and_repair_extraction_output(
+        invocation_result=invocation_result,
+        packaged_input=packaged,
+    )
+
+    assert result.valid is True
+    assert result.extraction_result is not None
+    evidence = result.extraction_result.attack_operators[0].evidence[0]
+    assert evidence.source == "source_document"
+    assert evidence.excerpt == "It also supports encrypted directories."
+
+
 def test_normalizes_deterministic_entity_ids_for_attachments() -> None:
     packaged = _packaged_input()
     output_json = {

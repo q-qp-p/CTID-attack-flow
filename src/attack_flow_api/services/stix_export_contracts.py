@@ -394,13 +394,13 @@ def _normalize_export_object_refs(export_objects: list[Any]) -> None:
     target_id = _first_export_target_id(export_objects)
     for obj in export_objects:
         if isinstance(obj, StixExportAttackActionObject):
-            obj.asset_refs = _normalize_export_ref_list(obj.asset_refs, obj.id)
-            obj.effect_refs = _normalize_export_ref_list(obj.effect_refs, obj.id)
+            obj.asset_refs = _normalize_export_ref_list(obj.asset_refs, target_id)
+            obj.effect_refs = _normalize_export_ref_list(obj.effect_refs, target_id)
         elif isinstance(obj, StixExportAttackConditionObject):
-            obj.on_true_refs = _normalize_export_ref_list(obj.on_true_refs, obj.id)
-            obj.on_false_refs = _normalize_export_ref_list(obj.on_false_refs, obj.id)
+            obj.on_true_refs = _normalize_export_ref_list(obj.on_true_refs, target_id)
+            obj.on_false_refs = _normalize_export_ref_list(obj.on_false_refs, target_id)
         elif isinstance(obj, StixExportAttackOperatorObject):
-            obj.effect_refs = _normalize_export_ref_list(obj.effect_refs, obj.id)
+            obj.effect_refs = _normalize_export_ref_list(obj.effect_refs, target_id)
         elif isinstance(obj, StixExportAttackFlowObject) and target_id is not None:
             obj.start_refs = _normalize_export_ref_list(obj.start_refs, target_id)
 

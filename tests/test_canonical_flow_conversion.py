@@ -11,6 +11,7 @@ from attack_flow_api.services.afb_extraction_contracts import (
     FactOrigin,
     OrchestrationMode,
     SourceClassification,
+    TacticGrounding,
     TechniqueGrounding,
 )
 from attack_flow_api.services.afb_fusion_assembler import FusedOutputCandidate
@@ -32,6 +33,8 @@ from attack_flow_api.services.afb_fusion_dedup import (
 )
 from attack_flow_api.services.canonical_flow_conversion_service import build_canonical_flow_output
 from attack_flow_api.services.canonical_flow_validation_service import validate_canonical_flow_output
+from attack_flow_api.services.afb_export_contracts import assemble_afb_export_bundle
+from attack_flow_api.services.stix_export_contracts import assemble_stix_export_bundle
 from attack_flow_api.services.canonical_flow_contracts import (
     CanonicalFlowEdgeKind,
     CanonicalFlowNodeKind,
@@ -227,6 +230,9 @@ def test_conversion_from_fused_output_preserves_flow_and_conflicts() -> None:
     assert canonical.attack_refs[0].confidence == 1.0
     assert canonical.attack_refs[0].conflicts[0].category == FusionConflictCategory.DUPLICATE_ATTACK_REF
     assert canonical.nodes[0].node_kind == CanonicalFlowNodeKind.ATTACK_ASSET
+    assert canonical.nodes[0].stix_properties["type"] == "malware"
+    assert canonical.nodes[0].stix_properties["kind"] == "malware"
+    assert canonical.nodes[0].stix_properties["id"] == "malware--1"
     assert canonical.nodes[1].node_kind == CanonicalFlowNodeKind.ATTACK_ACTION
     assert canonical.nodes[1].description == "Observed command exactly as reported."
     assert canonical.nodes[1].evidence[0].excerpt == "Observed command exactly as reported."
@@ -245,7 +251,7 @@ def test_conversion_from_fused_output_preserves_flow_and_conflicts() -> None:
     assert canonical.conflicts[0].category == FusionConflictCategory.DUPLICATE_STEP
 
 
-def test_conversion_from_fused_output_materializes_action_object_refs_and_operator_evidence() -> None:
+def test_conversion_from_fused_output_omits_unresolved_asset_refs_and_keeps_operator_evidence() -> None:
     fused = FusedOutputCandidate(
         attack_flow=AttackFlowMetadata(
             id="attack-flow--2",
@@ -301,7 +307,9 @@ def test_conversion_from_fused_output_materializes_action_object_refs_and_operat
     canonical = build_canonical_flow_output(fused_output=fused)
 
     assert canonical is not None
-    assert any(node.node_kind == CanonicalFlowNodeKind.ATTACK_ASSET and node.object_ref == "tool--1" for node in canonical.nodes)
+    assert not any(node.node_kind == CanonicalFlowNodeKind.ATTACK_ASSET and node.object_ref == "tool--1" for node in canonical.nodes)
+    action = next(node for node in canonical.nodes if node.id == "attack-action--1")
+    assert action.object_refs == []
     assert canonical.nodes[-1].node_kind == CanonicalFlowNodeKind.ATTACK_OPERATOR
     assert canonical.nodes[-1].evidence
     assert validate_canonical_flow_output(canonical).valid is True
@@ -373,6 +381,12 @@ def test_conversion_normalizes_legacy_action_reference_prefixes() -> None:
     assert condition.on_true_refs == ["attack-action--1"]
     assert condition.on_false_refs == ["attack-action--2"]
     assert operator.effect_refs == ["attack-action--1"]
+    assert {(edge.source_ref, edge.target_ref) for edge in canonical.edges} >= {
+        ("attack-action--1", "attack-action--2"),
+        ("attack-condition--1", "attack-action--1"),
+        ("attack-condition--1", "attack-action--2"),
+        ("attack-operator--1", "attack-action--1"),
+    }
 
 
 def test_conversion_normalizes_short_legacy_action_reference_prefixes() -> None:
@@ -419,6 +433,9 @@ def test_conversion_normalizes_short_legacy_action_reference_prefixes() -> None:
     action = next(node for node in canonical.nodes if node.id == "attack-action--1")
     assert action.effect_refs == ["attack-action--2"]
     assert canonical.metadata.start_refs == ["attack-action--1"]
+    assert ("attack-action--1", "attack-action--2") in {
+        (edge.source_ref, edge.target_ref) for edge in canonical.edges
+    }
 
 
 def test_conversion_backfills_condition_provenance_when_missing() -> None:
@@ -585,3 +602,110 @@ def test_conversion_falls_back_to_afb_output_when_no_fused_output_exists() -> No
     assert canonical.edges[-1].edge_type == CanonicalFlowEdgeKind.RELATIONSHIP
     assert canonical.edges[-1].relationship_type == "uses"
     assert canonical.provenance["source_form"] == "afb-v2-intermediate"
+
+
+def test_conversion_normalizes_action_to_operator_branch_references() -> None:
+    extraction = AfbExtractionResult(
+        validation_state=ExtractionValidationState.VALID,
+        provider_invoked=True,
+        attack_flow=AttackFlowMetadata(
+            id="attack-flow--operator-branch",
+            name="Operator branch",
+            scope="incident",
+            orchestration_mode=OrchestrationMode.FULL_EXTRACTION,
+            source_classification=SourceClassification.NARRATIVE_TEXT,
+            start_refs=["action--1"],
+        ),
+        attack_actions=[
+            AttackActionNode(
+                id="action--1",
+                name="Initial action",
+                description="The initial action led to multiple observed outcomes.",
+                confidence=0.8,
+                technique=TechniqueGrounding(
+                    technique_id="T1059",
+                    confidence=0.8,
+                    grounded_by="inferred_from_procedure",
+                ),
+                effect_refs=["operator--1"],
+                evidence=[{"source": "report", "excerpt": "The initial action led to multiple observed outcomes."}],
+            ),
+            AttackActionNode(
+                id="action--2",
+                name="First outcome",
+                description="The first outcome was observed.",
+                confidence=0.8,
+                technique=TechniqueGrounding(
+                    technique_id="T1105",
+                    confidence=0.8,
+                    grounded_by="inferred_from_procedure",
+                ),
+                evidence=[{"source": "report", "excerpt": "The first outcome was observed."}],
+            ),
+            AttackActionNode(
+                id="action--3",
+                name="Second outcome",
+                description="The second outcome was observed.",
+                confidence=0.8,
+                technique=TechniqueGrounding(
+                    technique_id="T1070",
+                    confidence=0.8,
+                    grounded_by="inferred_from_procedure",
+                ),
+                evidence=[{"source": "report", "excerpt": "The second outcome was observed."}],
+            ),
+        ],
+        attack_operators=[
+            AttackOperatorNode(
+                id="operator--1",
+                operator=AttackOperatorType.AND,
+                confidence=0.8,
+                effect_refs=["action--2", "action--3"],
+            )
+        ],
+    )
+
+    canonical = build_canonical_flow_output(extraction_output=extraction)
+
+    assert canonical is not None
+    initial_action = next(node for node in canonical.nodes if node.id == "attack-action--1")
+    operator = next(node for node in canonical.nodes if node.id == "attack-operator--1")
+    assert initial_action.effect_refs == ["attack-operator--1"]
+    assert operator.effect_refs == ["attack-action--2", "attack-action--3"]
+    assert validate_canonical_flow_output(canonical).valid is True
+    assert assemble_afb_export_bundle(canonical).validation_errors == []
+    assert assemble_stix_export_bundle(canonical).validation_errors == []
+
+
+def test_conversion_preserves_tactic_id_for_afb_actions() -> None:
+    extraction = AfbExtractionResult(
+        validation_state=ExtractionValidationState.VALID,
+        provider_invoked=True,
+        attack_flow=AttackFlowMetadata(
+            id="attack-flow--tactic",
+            name="Example",
+            scope="incident",
+            orchestration_mode=OrchestrationMode.FULL_EXTRACTION,
+            source_classification=SourceClassification.DOCUMENT_EXTRACTED_TEXT,
+        ),
+        attack_actions=[
+            AttackActionNode(
+                id="action--1",
+                name="Execute PowerShell",
+                description="The adversary executed PowerShell.",
+                confidence=0.9,
+                technique=TechniqueGrounding(technique_id="T1059.001", confidence=0.9, grounded_by="report"),
+                tactic=TacticGrounding(tactic_id="TA0002", confidence=0.9, grounded_by="report"),
+                evidence=[{"source": "report", "excerpt": "The adversary executed PowerShell."}],
+            )
+        ],
+    )
+
+    canonical = build_canonical_flow_output(extraction_output=extraction)
+
+    assert canonical is not None
+    action = next(node for node in canonical.nodes if node.node_kind == CanonicalFlowNodeKind.ATTACK_ACTION)
+    assert action.tactic_ref == "TA0002"
+    diagram_export = assemble_afb_export_bundle(canonical).to_diagram_export_ready()
+    exported_action = next(item for item in diagram_export["objects"] if item["id"] == "action")
+    assert ["ttp", {"tactic": "TA0002", "technique": "T1059.001"}] in exported_action["properties"]

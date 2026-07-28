@@ -64,14 +64,16 @@ class CanonicalFlowConversionService:
             _convert_attack_ref(ref, source_classification=fused_output.attack_flow.source_classification)
             for ref in fused_output.attack_refs
         ]
+        entities = _entities_with_specific_data(fused_output.entities)
+        actions = _actions_with_resolved_asset_refs(fused_output.attack_actions, entities)
         action_assets = _convert_action_object_refs_to_assets(
-            fused_output.attack_actions,
-            existing_asset_ids=[asset.object_id for asset in fused_output.entities if asset.object_id is not None],
+            actions,
+            existing_asset_ids=[asset.object_id for asset in entities if asset.object_id is not None],
         )
         nodes = [
-            *_convert_entities_to_assets(fused_output.entities),
+            *_convert_entities_to_assets(entities),
             *action_assets,
-            *_convert_actions(fused_output.attack_actions),
+            *_convert_actions(actions),
             *_convert_conditions(fused_output.attack_conditions),
             *_convert_operators(fused_output.attack_operators, fused_output.attack_actions),
         ]
@@ -80,7 +82,7 @@ class CanonicalFlowConversionService:
             provenance=provenance,
             start_refs=_filter_start_refs(fused_output.attack_flow, nodes),
         )
-        edges = _build_edges_from_fused_output(nodes, fused_output.attack_actions, fused_output.attack_conditions, fused_output.attack_operators, fused_output.attack_assets, fused_output.relationships)
+        edges = _build_edges_from_fused_output(nodes, actions, fused_output.attack_conditions, fused_output.attack_operators, fused_output.attack_assets, fused_output.relationships)
 
         return _build_canonical_flow_output(
             metadata=metadata,
@@ -378,12 +380,15 @@ def _convert_attack_ref_from_dict(
 def _convert_actions(actions: list[MergedAttackAction]) -> list[CanonicalFlowActionNode]:
     return [
         CanonicalFlowActionNode(
-            id=action.id,
+            id=_normalize_canonical_ref(action.id),
             name=action.name,
             description=action.description,
             confidence=action.confidence,
             technique=_convert_technique_mapping(action.technique, action.provenance, action.confidence),
-            tactic_ref=_as_str(_mapping_get(action.tactic, "tactic_ref")),
+            tactic_ref=(
+                _as_str(_mapping_get(action.tactic, "tactic_ref"))
+                or _as_str(_mapping_get(action.tactic, "tactic_id"))
+            ),
             tactic_name=_as_str(_mapping_get(action.tactic, "tactic_name")),
             asset_refs=list(action.asset_refs),
             object_refs=list(action.object_refs),
@@ -400,13 +405,16 @@ def _convert_actions(actions: list[MergedAttackAction]) -> list[CanonicalFlowAct
 def _convert_afb_actions(actions: list[AttackActionNode]) -> list[CanonicalFlowActionNode]:
     return [
         CanonicalFlowActionNode(
-            id=action.id,
+            id=_normalize_canonical_ref(action.id),
             name=action.name,
             description=action.description,
             tags=list(getattr(action, "tags", []) or []),
             confidence=action.confidence,
             technique=_convert_technique_from_afb(action.technique, action.confidence),
-            tactic_ref=_as_str(getattr(action.tactic, "tactic_ref", None)),
+            tactic_ref=(
+                _as_str(getattr(action.tactic, "tactic_ref", None))
+                or _as_str(getattr(action.tactic, "tactic_id", None))
+            ),
             tactic_name=_as_str(getattr(action.tactic, "tactic_name", None)),
             asset_refs=list(action.asset_refs),
             object_refs=list(action.object_refs),
@@ -423,7 +431,7 @@ def _convert_afb_actions(actions: list[AttackActionNode]) -> list[CanonicalFlowA
 def _convert_conditions(conditions: list[MergedCondition]) -> list[CanonicalFlowConditionNode]:
     return [
         CanonicalFlowConditionNode(
-            id=item.id,
+            id=_normalize_canonical_ref(item.id),
             name=None,
             description=item.description,
             tags=list(getattr(item, "tags", []) or []),
@@ -443,7 +451,7 @@ def _convert_conditions(conditions: list[MergedCondition]) -> list[CanonicalFlow
 def _convert_afb_conditions(conditions: list[AttackConditionNode]) -> list[CanonicalFlowConditionNode]:
     return [
         CanonicalFlowConditionNode(
-            id=item.id,
+            id=_normalize_canonical_ref(item.id),
             name=None,
             description=item.description,
             confidence=item.confidence,
@@ -492,7 +500,7 @@ def _convert_operators(operators: list[MergedOperator], actions: list[MergedAtta
     action_lookup = {action.id: action for action in actions}
     return [
         CanonicalFlowOperatorNode(
-            id=item.id,
+            id=_normalize_canonical_ref(item.id),
             name=None,
             description=None,
             tags=list(getattr(item, "tags", []) or []),
@@ -512,7 +520,7 @@ def _convert_afb_operators(operators: list[AttackOperatorNode], actions: list[At
     action_lookup = {action.id: action for action in actions}
     return [
         CanonicalFlowOperatorNode(
-            id=item.id,
+            id=_normalize_canonical_ref(item.id),
             name=None,
             description=None,
             confidence=item.confidence,
@@ -556,6 +564,28 @@ def _convert_action_object_refs_to_assets(
             )
         )
     return out
+
+
+def _entities_with_specific_data(entities: list[MergedEntity]) -> list[MergedEntity]:
+    """Keep only entities that can render as meaningful assets."""
+    return [item for item in entities if _best_entity_name(item) or _as_str(item.description)]
+
+
+def _actions_with_resolved_asset_refs(
+    actions: list[MergedAttackAction],
+    entities: list[MergedEntity],
+) -> list[MergedAttackAction]:
+    """Avoid emitting placeholder asset blocks for unresolved references."""
+    entity_refs = {item.object_id for item in entities if item.object_id}
+    return [
+        action.model_copy(
+            update={
+                "object_refs": [ref for ref in action.object_refs if ref in entity_refs],
+                "asset_refs": [ref for ref in action.asset_refs if ref in entity_refs],
+            }
+        )
+        for action in actions
+    ]
 
 
 def _ensure_operator_evidence(
@@ -625,7 +655,11 @@ def _convert_entities_to_assets(entities: list[MergedEntity]) -> list[CanonicalF
             name=_best_entity_name(item) or item.object_type,
             description=item.description,
             tags=list(getattr(item, "tags", []) or []),
-            stix_properties=dict(getattr(item, "stix_properties", {}) or {}),
+            # Keep the original STIX type with the intermediate asset node.  The
+            # AFB renderer uses this metadata to select a concrete STIX card
+            # (for example, software or process) instead of the generic asset
+            # card.
+            stix_properties=_entity_stix_properties(item),
             confidence=item.confidence,
             object_ref=item.object_id,
             evidence=[],
@@ -635,6 +669,24 @@ def _convert_entities_to_assets(entities: list[MergedEntity]) -> list[CanonicalF
         )
         for item in entities
     ]
+
+
+def _entity_stix_properties(item: MergedEntity) -> dict[str, Any]:
+    properties = dict(getattr(item, "stix_properties", {}) or {})
+    object_type = _canonical_stix_object_type(getattr(item, "object_type", None))
+    if object_type:
+        properties.setdefault("type", object_type)
+        properties.setdefault("kind", object_type)
+    if item.object_id:
+        properties.setdefault("id", item.object_id)
+    return properties
+
+
+def _canonical_stix_object_type(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().replace("_", "-")
+    return normalized or None
 
 
 def _best_entity_name(item: MergedEntity) -> str:
@@ -709,17 +761,17 @@ def _build_edges_from_fused_output(
     edges: list[CanonicalFlowEdge] = []
     for action in actions:
         for ref in action.asset_refs:
-            edges.append(CanonicalFlowEdge(source_ref=action.id, target_ref=ref, edge_type=CanonicalFlowEdgeKind.ASSET))
+            edges.append(CanonicalFlowEdge(source_ref=action.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.ASSET))
         for ref in action.effect_refs:
-            edges.append(CanonicalFlowEdge(source_ref=action.id, target_ref=ref, edge_type=CanonicalFlowEdgeKind.EFFECT))
+            edges.append(CanonicalFlowEdge(source_ref=action.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.EFFECT))
     for condition in conditions:
         for ref in condition.on_true_refs:
-            edges.append(CanonicalFlowEdge(source_ref=condition.id, target_ref=ref, edge_type=CanonicalFlowEdgeKind.TRUE_BRANCH))
+            edges.append(CanonicalFlowEdge(source_ref=condition.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.TRUE_BRANCH))
         for ref in condition.on_false_refs:
-            edges.append(CanonicalFlowEdge(source_ref=condition.id, target_ref=ref, edge_type=CanonicalFlowEdgeKind.FALSE_BRANCH))
+            edges.append(CanonicalFlowEdge(source_ref=condition.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.FALSE_BRANCH))
     for operator in operators:
         for ref in operator.effect_refs:
-            edges.append(CanonicalFlowEdge(source_ref=operator.id, target_ref=ref, edge_type=CanonicalFlowEdgeKind.EFFECT))
+            edges.append(CanonicalFlowEdge(source_ref=operator.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.EFFECT))
     for relationship in relationships:
         edges.append(
             CanonicalFlowEdge(
@@ -746,17 +798,17 @@ def _build_edges_from_afb_output(
     edges: list[CanonicalFlowEdge] = []
     for action in actions:
         for ref in action.asset_refs:
-            edges.append(CanonicalFlowEdge(source_ref=action.id, target_ref=ref, edge_type=CanonicalFlowEdgeKind.ASSET))
+            edges.append(CanonicalFlowEdge(source_ref=action.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.ASSET))
         for ref in action.effect_refs:
-            edges.append(CanonicalFlowEdge(source_ref=action.id, target_ref=ref, edge_type=CanonicalFlowEdgeKind.EFFECT))
+            edges.append(CanonicalFlowEdge(source_ref=action.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.EFFECT))
     for condition in conditions:
         for ref in condition.on_true_refs:
-            edges.append(CanonicalFlowEdge(source_ref=condition.id, target_ref=ref, edge_type=CanonicalFlowEdgeKind.TRUE_BRANCH))
+            edges.append(CanonicalFlowEdge(source_ref=condition.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.TRUE_BRANCH))
         for ref in condition.on_false_refs:
-            edges.append(CanonicalFlowEdge(source_ref=condition.id, target_ref=ref, edge_type=CanonicalFlowEdgeKind.FALSE_BRANCH))
+            edges.append(CanonicalFlowEdge(source_ref=condition.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.FALSE_BRANCH))
     for operator in operators:
         for ref in operator.effect_refs:
-            edges.append(CanonicalFlowEdge(source_ref=operator.id, target_ref=ref, edge_type=CanonicalFlowEdgeKind.EFFECT))
+            edges.append(CanonicalFlowEdge(source_ref=operator.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.EFFECT))
     for relationship in relationships:
         source_ref = _as_str(relationship.get("source_ref"))
         target_ref = _as_str(relationship.get("target_ref"))

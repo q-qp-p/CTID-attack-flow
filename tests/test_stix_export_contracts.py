@@ -537,3 +537,36 @@ def test_validate_stix_export_bundle_reports_broken_references() -> None:
 
     assert result.valid is False
     assert any(error.code == "attack_action_asset_ref_invalid" for error in result.errors)
+
+
+def test_assemble_stix_export_bundle_preserves_long_action_refs_from_legacy_operator() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--legacy-operator",
+            name="Example flow",
+            scope="incident",
+            start_refs=["attack-action--1"],
+        ),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Example step",
+                description="Observed command exactly as reported.",
+            ),
+            CanonicalFlowOperatorNode(
+                id="op--1",
+                operator="AND",
+                effect_refs=["attack-action--1"],
+            ),
+        ],
+        edges=[],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    bundle = assemble_stix_export_bundle(canonical)
+    operator = next(item for item in bundle.objects.objects if item["type"] == "attack-operator")
+
+    assert operator["effect_refs"] == ["attack-action--1"]
+    assert bundle.validation_errors == []

@@ -89,10 +89,12 @@ export async function loadExistingFile(
     // Construct file
     const viewFile = new DiagramViewFile(factory, jsonFile);
     // Run layout
-    if (!isValidLayout(jsonFile.layout)) {
+    const generatedAutoLayout = (jsonFile as { generated_layout?: unknown }).generated_layout === "auto";
+    if (generatedAutoLayout || !isValidLayout(jsonFile.layout)) {
         viewFile.runLayout(autoLayoutEngine);
     }
-    if (!isValidCamera(jsonFile.camera)) {
+    viewFile.compactActionAssetStacks();
+    if (generatedAutoLayout || !isValidCamera(jsonFile.camera)) {
         viewFile.centerAndZoomCamera();
     }
     // Return command

@@ -10,8 +10,8 @@ class OrchestrationMode(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class SourceConstraints:
-    explicit_attack_refs_only: bool = True
-    no_missing_technique_inference: bool = True
+    explicit_attack_refs_only: bool = False
+    no_missing_technique_inference: bool = False
     descriptions_must_be_verbatim_excerpts: bool = True
     conditions_must_be_source_grounded: bool = True
     operators_must_be_source_grounded: bool = True
