@@ -107,7 +107,7 @@ export const AttackFlow: CanvasTemplate = {
             }
         },
         ttp_frameworks: {
-            name: "TTP Frameworks",
+            name: "Frameworks",
             type: PropertyType.MultiSelect,
             options: {
                 type: PropertyType.List,

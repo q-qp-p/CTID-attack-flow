@@ -207,7 +207,17 @@ export default defineComponent({
       for (const [value, prop] of optionsProp.value) {
         // For tags, 'prop' is now the tag object from canvasTags
         // For non-tags, 'prop' is the standard Enum property
-        const text = prop.name || prop.toString();
+        // For framework tuples [code, label], use the label (second element)
+        let text = prop.name || prop.toString();
+        // Check if this is a framework tuple by looking at the property's JSON representation
+        const jsonValue = prop.toJson?.();
+        if (Array.isArray(jsonValue) && jsonValue.length === 2) {
+          // This is a framework tuple [code, label], use the label
+          text = jsonValue[1];
+        } else if (typeof jsonValue === 'string' && value !== jsonValue) {
+          // This is a framework option where the key (value) is the code and the value is the label
+          text = jsonValue;
+        }
         const feat = fo ? fo.has(value) : true;
 
         options.push({ value, text, feature: feat });
