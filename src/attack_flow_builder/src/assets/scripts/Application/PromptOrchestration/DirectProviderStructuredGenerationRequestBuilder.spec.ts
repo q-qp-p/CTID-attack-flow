@@ -17,9 +17,15 @@ describe("DirectProviderStructuredGenerationRequestBuilder", () => {
                 systemInstructions: {
                     version: "v1",
                     constraints: {
-                        noAttackInference: true,
-                        explicitAttackRefsOnly: true,
-                        allowStepsWithoutTechniques: true,
+                        allowProcedureInference: true,
+                        explicitAttackRefsOnly: false,
+                        requireTechniqueForEveryAction: true,
+                        requireTacticForAttackTechnique: true,
+                        supportedFrameworksOnly: true,
+                        consolidateSameTechniqueSubsteps: true,
+                        useSpecificStixEntityTypes: true,
+                        useAttackTechniqueTables: true,
+                        modelMultipleOutcomesWithOperators: true,
                         descriptionsMustBeVerbatimExcerpts: true,
                         onlyAndOrOperators: true,
                         onlyTrueFalseConditions: true,
@@ -72,12 +78,15 @@ describe("DirectProviderStructuredGenerationRequestBuilder", () => {
             }
         });
 
-        expect(request.prompt).toContain("SYSTEM_INSTRUCTIONS:");
-        expect(request.prompt).toContain("TARGET_OUTPUT_SHAPE:");
+        expect(request.prompt).toContain("SYSTEM_INSTRUCTION:");
+        expect(request.prompt).toContain("USER_PROMPT:");
+        expect(request.prompt).toContain("OUTPUT_SCHEMA:");
         expect(request.prompt).toContain("PACKAGED_INPUT:");
-        expect(request.prompt).toContain("\"schema_version\": \"afb-v2-intermediate\"");
+        expect(request.prompt).toContain("\"schema_version\"");
+        expect(request.prompt).toContain("afb-v2-intermediate");
         expect(request.prompt).toContain("Alpha");
-        expect(request.prompt).toContain("\"attack_actions\": []");
+        expect(request.prompt).toContain("\"mode\": \"full_extraction\"");
+        expect(request.prompt).toContain("\"effect_refs\"");
     });
 
     it("uses the model override when provided", () => {
@@ -95,9 +104,15 @@ describe("DirectProviderStructuredGenerationRequestBuilder", () => {
                 systemInstructions: {
                     version: "v1",
                     constraints: {
-                        noAttackInference: true,
-                        explicitAttackRefsOnly: true,
-                        allowStepsWithoutTechniques: true,
+                        allowProcedureInference: true,
+                        explicitAttackRefsOnly: false,
+                        requireTechniqueForEveryAction: true,
+                        requireTacticForAttackTechnique: true,
+                        supportedFrameworksOnly: true,
+                        consolidateSameTechniqueSubsteps: true,
+                        useSpecificStixEntityTypes: true,
+                        useAttackTechniqueTables: true,
+                        modelMultipleOutcomesWithOperators: true,
                         descriptionsMustBeVerbatimExcerpts: true,
                         onlyAndOrOperators: true,
                         onlyTrueFalseConditions: true,
@@ -134,9 +149,15 @@ describe("DirectProviderStructuredGenerationRequestBuilder", () => {
                 systemInstructions: {
                     version: "v1",
                     constraints: {
-                        noAttackInference: true,
-                        explicitAttackRefsOnly: true,
-                        allowStepsWithoutTechniques: true,
+                        allowProcedureInference: true,
+                        explicitAttackRefsOnly: false,
+                        requireTechniqueForEveryAction: true,
+                        requireTacticForAttackTechnique: true,
+                        supportedFrameworksOnly: true,
+                        consolidateSameTechniqueSubsteps: true,
+                        useSpecificStixEntityTypes: true,
+                        useAttackTechniqueTables: true,
+                        modelMultipleOutcomesWithOperators: true,
                         descriptionsMustBeVerbatimExcerpts: true,
                         onlyAndOrOperators: true,
                         onlyTrueFalseConditions: true,
@@ -172,9 +193,15 @@ describe("DirectProviderStructuredGenerationRequestBuilder", () => {
                 systemInstructions: {
                     version: "v1" as const,
                     constraints: {
-                        noAttackInference: true,
-                        explicitAttackRefsOnly: true,
-                        allowStepsWithoutTechniques: true,
+                        allowProcedureInference: true,
+                        explicitAttackRefsOnly: false,
+                        requireTechniqueForEveryAction: true,
+                        requireTacticForAttackTechnique: true,
+                        supportedFrameworksOnly: true,
+                        consolidateSameTechniqueSubsteps: true,
+                        useSpecificStixEntityTypes: true,
+                        useAttackTechniqueTables: true,
+                        modelMultipleOutcomesWithOperators: true,
                         descriptionsMustBeVerbatimExcerpts: true,
                         onlyAndOrOperators: true,
                         onlyTrueFalseConditions: true,

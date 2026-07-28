@@ -1,4 +1,7 @@
-import type { InputNormalizedContentStats } from "./InputNormalizationContracts";
+import type {
+    InputNormalizedContentStats,
+    InputNormalizedTruncation
+} from "./InputNormalizationContracts";
 
 /**
  * Normalizes text deterministically without paraphrasing or rewriting it.
@@ -71,4 +74,39 @@ export function buildNormalizedContentStats(normalizedText: string): InputNormal
         lineCount: countNormalizedLines(normalizedText),
         paragraphCount: countNormalizedParagraphs(normalizedText)
     };
+}
+
+export interface InputContentBudgetResult {
+    text: string;
+    truncation: InputNormalizedTruncation;
+}
+
+/** Applies a deterministic character budget without splitting surrogate pairs. */
+export function applyInputContentBudget(
+    normalizedText: string,
+    budgetCharacters: number
+): InputContentBudgetResult {
+    const normalizedBudget = Number.isFinite(budgetCharacters) && budgetCharacters > 0
+        ? Math.max(1, Math.floor(budgetCharacters))
+        : 1;
+    const wasTruncated = normalizedText.length > normalizedBudget;
+    let text = wasTruncated ? normalizedText.slice(0, normalizedBudget) : normalizedText;
+    if (wasTruncated && text && isHighSurrogate(text.charCodeAt(text.length - 1))) {
+        text = text.slice(0, -1);
+    }
+    if (wasTruncated) {
+        text = text.trimEnd();
+    }
+    return {
+        text,
+        truncation: {
+            wasTruncated,
+            budgetCharacters: normalizedBudget,
+            originalCharacterCount: normalizedText.length
+        }
+    };
+}
+
+function isHighSurrogate(code: number): boolean {
+    return code >= 0xD800 && code <= 0xDBFF;
 }

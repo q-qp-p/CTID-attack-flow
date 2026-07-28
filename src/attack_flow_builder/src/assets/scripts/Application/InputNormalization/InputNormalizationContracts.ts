@@ -1,4 +1,4 @@
-export const INPUT_NORMALIZED_SOURCE_TYPES = ["text", "pdf"] as const;
+export const INPUT_NORMALIZED_SOURCE_TYPES = ["text", "pdf", "url"] as const;
 
 export type InputNormalizedSourceType = typeof INPUT_NORMALIZED_SOURCE_TYPES[number];
 
@@ -10,6 +10,11 @@ export interface InputNormalizedMetadata {
     filename?: string;
     sourceName?: string;
     pageCount?: number;
+    sourceUrl?: string;
+    finalUrl?: string;
+    canonicalUrl?: string;
+    contentType?: string;
+    responseSizeBytes?: number;
 }
 
 /**
@@ -22,6 +27,12 @@ export interface InputNormalizedContentStats {
     paragraphCount?: number;
 }
 
+export interface InputNormalizedTruncation {
+    wasTruncated: boolean;
+    budgetCharacters: number;
+    originalCharacterCount: number;
+}
+
 /**
  * Shared browser-side normalized input package for raw text and extracted PDF text.
  */
@@ -30,4 +41,5 @@ export interface NormalizedInputPackage {
     normalizedText: string;
     metadata: InputNormalizedMetadata;
     contentStats?: InputNormalizedContentStats;
+    truncation?: InputNormalizedTruncation;
 }

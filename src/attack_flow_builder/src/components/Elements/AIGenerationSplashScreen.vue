@@ -147,7 +147,10 @@
               style="flex: 1;"
             >
               <span>TYPE:</span>
-              <AIGenerationProviderType v-model="llmType" />
+              <AIGenerationProviderType
+                v-model="llmType"
+                :provider-types="RUNTIME_PROVIDER_OVERRIDE_TYPES"
+              />
             </label>
             <label
               class="form-field"
@@ -186,7 +189,10 @@
         <div class="llm-grid">
           <label class="form-field">
             <span>PROVIDER TYPE:</span>
-            <AIGenerationProviderType v-model="llmType" />
+            <AIGenerationProviderType
+              v-model="llmType"
+              :provider-types="SUPPORTED_RUNTIME_PROVIDER_TYPES"
+            />
           </label>
           <label class="form-field">
             <span>ENDPOINT:</span>
@@ -288,6 +294,7 @@ import FolderIcon from "@/components/Icons/FolderIcon.vue";
 import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
 import {
     fetchJobResultArtifact,
+    RUNTIME_PROVIDER_OVERRIDE_TYPES,
     runJobToResult,
     type RuntimeProviderOverrideType,
 } from "@/api/jobs";
@@ -305,6 +312,7 @@ import {
   normalizeRawTextInput,
   type NormalizedInputPackage
 } from "@/assets/scripts/Application/InputNormalization";
+import { prepareDirectProviderUrlInput } from "@/assets/scripts/Application/UrlExtraction";
 import {
   buildDirectProviderRequestPipeline,
   type DirectProviderRequestPipelineParams
@@ -317,7 +325,10 @@ import {
 } from "@/assets/scripts/Application/StructuredExtraction";
 import { prepareEditorFromValidatedStructuredExtraction } from "@/assets/scripts/Application/Commands";
 import { OpenAICompatibleProviderAdapter, type StructuredGenerationRequest } from "@/assets/scripts/Application/Providers";
-import type { SupportedRuntimeProviderType } from "@/assets/scripts/Application/Configuration";
+import {
+  SUPPORTED_RUNTIME_PROVIDER_TYPES,
+  type SupportedRuntimeProviderType
+} from "@/assets/scripts/Application/Configuration";
 import { prepareEditorFromExistingFile } from "@/assets/scripts/Application/index.ts";
 import LoadingSpinner from "./LoadingSpinner.vue";
 import AIGenerationProviderType from "./AIGenerationProviderType.vue";
@@ -338,6 +349,8 @@ export default defineComponent({
     return {
         applicationStore: useApplicationStore(),
         runtimeProviderStore: useRuntimeProviderStore(),
+        RUNTIME_PROVIDER_OVERRIDE_TYPES,
+        SUPPORTED_RUNTIME_PROVIDER_TYPES
     }
   },
   data() {
@@ -362,7 +375,6 @@ export default defineComponent({
       llmModel: "",
       llmUseAzure: false,
       llmAzureApiVersion: ""
-
     }
   },
   created() {
@@ -494,7 +506,15 @@ export default defineComponent({
      *  True if the URL has a basic HTTP(S) shape.
      */
     isSourceUrlValid(): boolean {
-      return /^https?:\/\/\S+$/.test(this.sourceUrl.trim());
+      try {
+        const url = new URL(this.sourceUrl.trim());
+        const protocolAllowed = this.apiHealthCheckSucceeded
+          ? url.protocol === "http:" || url.protocol === "https:"
+          : url.protocol === "https:";
+        return protocolAllowed && !!url.hostname && !url.username && !url.password;
+      } catch {
+        return false;
+      }
     },
 
     /**
@@ -731,7 +751,7 @@ export default defineComponent({
 
       if (this.sourceType === "url") {
         const url = this.sourceUrl.trim();
-        return url ? normalizeRawTextInput(url, { sourceName: "Link to Report" }) : null;
+        return url ? prepareDirectProviderUrlInput(url, { sourceName: "Link to Report" }) : null;
       }
 
       if (this.sourceType === "upload" && this.sourceFile) {

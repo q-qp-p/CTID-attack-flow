@@ -15,7 +15,7 @@ jobs:
   test_python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v4
         with:
           python-version: "3.12"
@@ -39,13 +39,14 @@ jobs:
   test_attack_flow_builder:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24.18.0"
+          registry-url: "https://registry.npmjs.org"
       - name: Install dependencies
         working-directory: ./src/attack_flow_builder/
-        run: npm ci
+        run: npm ci --include=dev
       - name: Lint
         working-directory: ./src/attack_flow_builder/
         run: npm run lint
@@ -59,13 +60,14 @@ jobs:
     env:
       AFB_BASE_URL: "${{ github.ref == 'refs/heads/main' && '/attack-flow/ui/' || format('/{0}/ui/', github.head_ref || github.ref_name) }}"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24.18.0"
+          registry-url: "https://registry.npmjs.org"
       - name: Install dependencies
         working-directory: ./src/attack_flow_builder/
-        run: npm ci
+        run: npm ci --include=dev
       - name: Build
         working-directory: ./src/attack_flow_builder/
         run: npm run build
@@ -81,16 +83,16 @@ jobs:
     env:
       AFB_BASE_URL: "${{ github.ref == 'refs/heads/main' && '/attack-flow/ui-v2/' || format('/{0}/ui-v2/', github.head_ref || github.ref_name) }}"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: center-for-threat-informed-defense/attack-flow
           ref: v2.3.3
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v6
         with:
           node-version: "19"
       - name: Install dependencies
         working-directory: ./src/attack_flow_builder/
-        run: npm ci
+        run: npm ci --include=dev
       - name: Build
         working-directory: ./src/attack_flow_builder/
         env:
@@ -107,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/github-script@v6
         env:
           PR_NUMBER: ${{ github.event.number }}
@@ -149,13 +151,14 @@ jobs:
     needs: ["test_python", "attack_flow_builder", "attack_flow_builder_v2"]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v4
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24.18.0"
+          registry-url: "https://registry.npmjs.org"
       - name: Update APT
         run: sudo apt update
       - name: Install APT dependencies
@@ -168,7 +171,7 @@ jobs:
         run: poetry install --with api,docs
       - name: Install Node dependencies
         working-directory: ./src/attack_flow_builder/
-        run: npm ci
+        run: npm ci --include=dev
       - name: Create client directory
         run: mkdir docs/extra/ui
       - name: Download Attack Flow Builder
@@ -235,7 +238,7 @@ jobs:
       STATICRYPT_PASS: ${{ secrets.STATICRYPT_PASS }}
       NODE_OPTIONS: --max-old-space-size=8192
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
       - run: npm install -g staticrypt

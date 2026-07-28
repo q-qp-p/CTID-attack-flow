@@ -6,6 +6,7 @@ export * from "./FileValidator";
 export * from "./FilePreprocessor";
 export * from "./Visualization";
 export * from "./PdfExtraction";
+export * from "./UrlExtraction";
 export * from "./InputNormalization";
 export * from "./PromptOrchestration";
 export * from "./StructuredExtraction";

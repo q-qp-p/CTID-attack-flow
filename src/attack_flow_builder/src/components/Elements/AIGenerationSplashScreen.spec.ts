@@ -9,7 +9,11 @@ import { useApplicationStore } from "@/stores/ApplicationStore";
 
 const extractMock = vi.hoisted(() => vi.fn());
 const prepareEditorMock = vi.hoisted(() => vi.fn());
+const prepareExistingEditorMock = vi.hoisted(() => vi.fn());
 const generateStructuredMock = vi.hoisted(() => vi.fn());
+const prepareDirectProviderUrlInputMock = vi.hoisted(() => vi.fn());
+const runJobToResultMock = vi.hoisted(() => vi.fn());
+const fetchJobResultArtifactMock = vi.hoisted(() => vi.fn());
 const fetchHealthCheckMock = vi.hoisted(() => vi.fn(async () => ({ status: "error" as const })));
 vi.hoisted(() => {
     const canvasContext = new Proxy({}, {
@@ -86,8 +90,23 @@ vi.mock("@/assets/scripts/Application/Providers", () => ({
     }
 }));
 
+vi.mock("@/assets/scripts/Application/UrlExtraction", () => ({
+    prepareDirectProviderUrlInput: prepareDirectProviderUrlInputMock
+}));
+
+vi.mock("@/api/jobs", async (importOriginal) => ({
+    ...await importOriginal<typeof import("@/api/jobs")>(),
+    runJobToResult: runJobToResultMock,
+    fetchJobResultArtifact: fetchJobResultArtifactMock
+}));
+
 vi.mock("@/assets/scripts/Application/Commands", () => ({
     prepareEditorFromValidatedStructuredExtraction: prepareEditorMock
+}));
+
+vi.mock("@/assets/scripts/Application/index.ts", async (importOriginal) => ({
+    ...await importOriginal<typeof import("@/assets/scripts/Application/index.ts")>(),
+    prepareEditorFromExistingFile: prepareExistingEditorMock
 }));
 
 vi.mock("@/api/health.ts", () => ({
@@ -100,7 +119,11 @@ describe("AIGenerationSplashScreen", () => {
         setActivePinia(createPinia());
         extractMock.mockReset();
         prepareEditorMock.mockReset();
+        prepareExistingEditorMock.mockReset();
         generateStructuredMock.mockReset();
+        prepareDirectProviderUrlInputMock.mockReset();
+        runJobToResultMock.mockReset();
+        fetchJobResultArtifactMock.mockReset();
         fetchHealthCheckMock.mockReset();
         fetchHealthCheckMock.mockResolvedValue({ status: "error" });
     });
@@ -133,7 +156,40 @@ describe("AIGenerationSplashScreen", () => {
         wrapper.vm.apiHealthCheckSucceeded = false;
         await wrapper.vm.$nextTick();
 
-        expect(wrapper.find("select[name=\"llm-provider-type\"]").exists()).toBe(true);
+        const providerSelect = wrapper.find("select[name=\"llm-provider-type\"]");
+        expect(providerSelect.exists()).toBe(true);
+        expect(providerSelect.findAll("option").map(option => option.text())).toEqual([
+            "Provider type",
+            "(none)",
+            "openai_compatible",
+            "gemini"
+        ]);
+    });
+
+    it("shows API provider override types when the health check succeeds", async () => {
+        const wrapper = mount(AIGenerationSplashScreen, {
+            global: {
+                stubs: {
+                    EmptyPageIcon: true,
+                    FolderIcon: true,
+                    LinkIcon: true
+                }
+            }
+        });
+
+        wrapper.vm.apiHealthCheckSucceeded = true;
+        await wrapper.vm.$nextTick();
+
+        const providerSelect = wrapper.find("select[name=\"llm-provider-type\"]");
+        expect(providerSelect.findAll("option").map(option => option.text())).toEqual([
+            "Provider type",
+            "(none)",
+            "openai",
+            "openai_compatible",
+            "azure_openai",
+            "anthropic",
+            "gemini"
+        ]);
     });
 
     it("hides azure settings for gemini", async () => {
@@ -379,8 +435,165 @@ describe("AIGenerationSplashScreen", () => {
         wrapper.vm.llmToken = "secret";
         wrapper.vm.llmModel = "gpt-4o-mini";
 
-        expect(wrapper.vm.directProviderStructuredGenerationRequest?.prompt).toContain("\"sourceType\": \"pdf\"");
+        expect(wrapper.vm.directProviderStructuredGenerationRequest?.prompt).toContain("\"source_type\": \"document_extracted_text\"");
         expect(wrapper.vm.directProviderStructuredGenerationRequest?.prompt).toContain("report.pdf");
+    });
+
+    it("fetches and packages URL content in direct-provider mode", async () => {
+        const app = useApplicationStore();
+        const executeSpy = vi.spyOn(app, "execute");
+        const command = { execute: vi.fn() };
+        prepareEditorMock.mockResolvedValue(command);
+        prepareDirectProviderUrlInputMock.mockResolvedValue({
+            sourceType: "url",
+            normalizedText: "Actor executed PowerShell from the article.",
+            metadata: {
+                sourceName: "Link to Report",
+                sourceUrl: "https://reports.example/start",
+                finalUrl: "https://reports.example/final"
+            },
+            contentStats: {
+                characterCount: 46,
+                wordCount: 7,
+                lineCount: 1,
+                paragraphCount: 1
+            }
+        });
+        generateStructuredMock.mockResolvedValue({
+            providerId: "runtime-openai_compatible",
+            providerType: "openai_compatible",
+            model: "gpt-4o-mini",
+            finishReason: "stop",
+            outputJson: {
+                schema_version: "afb-v2-intermediate",
+                validation_state: "valid",
+                repair_attempted: false,
+                provider_invoked: true,
+                attack_flow: {
+                    id: "attack-flow--url",
+                    type: "attack-flow",
+                    spec_version: "2.1",
+                    name: "URL Flow",
+                    scope: "incident",
+                    orchestration_mode: "direct_provider",
+                    source_classification: "url_extracted_text"
+                },
+                attack_actions: [],
+                attack_conditions: [],
+                attack_operators: [],
+                attack_assets: [],
+                deterministic_attack_refs: [],
+                deterministic_entities: [],
+                deterministic_relationships: []
+            }
+        });
+        const store = useRuntimeProviderStore();
+        store.setRuntimeProviderConfig({
+            providerType: "openai_compatible",
+            endpoint: "https://provider.example/v1",
+            apiKey: "secret",
+            model: "gpt-4o-mini"
+        });
+        const wrapper = mount(AIGenerationSplashScreen, {
+            global: {
+                stubs: {
+                    EmptyPageIcon: true,
+                    FolderIcon: true,
+                    LinkIcon: true
+                }
+            }
+        });
+        wrapper.vm.apiHealthCheckSucceeded = false;
+        await wrapper.vm.selectSourceType("url");
+        wrapper.vm.sourceUrl = "https://reports.example/start";
+        wrapper.vm.llmEndpoint = "https://provider.example/v1";
+        wrapper.vm.llmToken = "secret";
+
+        await wrapper.vm.onClickGenerate();
+
+        expect(prepareDirectProviderUrlInputMock).toHaveBeenCalledWith(
+            "https://reports.example/start",
+            { sourceName: "Link to Report" }
+        );
+        expect(generateStructuredMock).toHaveBeenCalledWith(expect.objectContaining({
+            prompt: expect.stringContaining("Actor executed PowerShell from the article.")
+        }));
+        expect(generateStructuredMock.mock.calls[0][0].prompt).toContain("\"source_type\": \"url_extracted_text\"");
+        expect(prepareEditorMock).toHaveBeenCalledWith(app, expect.objectContaining({
+            attack_flow: expect.objectContaining({ id: "attack-flow--url" })
+        }));
+        expect(executeSpy).toHaveBeenCalledWith(command);
+        expect(wrapper.vm.generationStatus).toBe("success");
+    });
+
+    it("leaves URL fetching to the API when the health check succeeds", async () => {
+        const app = useApplicationStore();
+        const executeSpy = vi.spyOn(app, "execute");
+        const command = { execute: vi.fn() };
+        runJobToResultMock.mockResolvedValue({
+            status: "completed",
+            job_id: "job-url"
+        });
+        fetchJobResultArtifactMock.mockResolvedValue("generated-afb");
+        prepareExistingEditorMock.mockResolvedValue(command);
+        const wrapper = mount(AIGenerationSplashScreen, {
+            global: {
+                stubs: {
+                    EmptyPageIcon: true,
+                    FolderIcon: true,
+                    LinkIcon: true
+                }
+            }
+        });
+        wrapper.vm.apiHealthCheckSucceeded = true;
+        await wrapper.vm.selectSourceType("url");
+        wrapper.vm.sourceUrl = "https://reports.example/article";
+
+        await wrapper.vm.onClickGenerate();
+
+        expect(runJobToResultMock).toHaveBeenCalledWith(
+            "url",
+            "https://reports.example/article",
+            {}
+        );
+        expect(prepareDirectProviderUrlInputMock).not.toHaveBeenCalled();
+        expect(fetchJobResultArtifactMock).toHaveBeenCalledWith("job-url", "afb");
+        expect(prepareExistingEditorMock).toHaveBeenCalledWith(app, "generated-afb");
+        expect(executeSpy).toHaveBeenCalledWith(command);
+        expect(wrapper.vm.generationStatus).toBe("success");
+    });
+
+    it("surfaces direct-provider URL fetch failures before provider invocation", async () => {
+        prepareDirectProviderUrlInputMock.mockRejectedValue(new Error(
+            "The report could not be fetched. The site may not allow browser cross-origin access."
+        ));
+        const store = useRuntimeProviderStore();
+        store.setRuntimeProviderConfig({
+            providerType: "openai_compatible",
+            endpoint: "https://provider.example/v1",
+            apiKey: "secret",
+            model: "gpt-4o-mini"
+        });
+        const wrapper = mount(AIGenerationSplashScreen, {
+            global: {
+                stubs: {
+                    EmptyPageIcon: true,
+                    FolderIcon: true,
+                    LinkIcon: true
+                }
+            }
+        });
+        wrapper.vm.apiHealthCheckSucceeded = false;
+        await wrapper.vm.selectSourceType("url");
+        wrapper.vm.sourceUrl = "https://reports.example/article";
+        wrapper.vm.llmEndpoint = "https://provider.example/v1";
+        wrapper.vm.llmToken = "secret";
+
+        await wrapper.vm.onClickGenerate();
+
+        expect(generateStructuredMock).not.toHaveBeenCalled();
+        expect(wrapper.vm.generationStatus).toBe("error");
+        expect(wrapper.vm.generationMessage).toContain("cross-origin access");
     });
 
     it("exposes validated direct-provider structured extraction output", async () => {

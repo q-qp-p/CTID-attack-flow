@@ -20,7 +20,7 @@
       (none)
     </option>
     <option
-      v-for="providerType in RUNTIME_PROVIDER_OVERRIDE_TYPES"
+      v-for="providerType in providerTypes"
       :key="providerType"
       :value="providerType"
     >
@@ -29,8 +29,15 @@
   </select>
 </template>
 <script setup lang="ts">
-import { RUNTIME_PROVIDER_OVERRIDE_TYPES } from '@/api/jobs';
-const model = defineModel<string>()
+import { SUPPORTED_RUNTIME_PROVIDER_TYPES } from "@/assets/scripts/Application/Configuration";
+
+withDefaults(defineProps<{
+    providerTypes?: readonly string[];
+}>(), {
+    providerTypes: () => SUPPORTED_RUNTIME_PROVIDER_TYPES
+});
+
+const model = defineModel<string>();
 
 </script>
 <style scoped>

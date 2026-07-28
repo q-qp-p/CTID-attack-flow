@@ -1,4 +1,5 @@
 import type { RuntimeProviderConfig } from "../Configuration";
+import type { InputNormalizedSourceType } from "../InputNormalization";
 import type { StructuredGenerationRequest } from "../Providers";
 import { STRUCTURED_EXTRACTION_RESULT_SCHEMA_VERSION } from "../StructuredExtraction/StructuredExtractionContracts";
 import {
@@ -8,7 +9,11 @@ import {
     DIRECT_PROVIDER_REQUEST_MODEL_VERSION,
     type DirectProviderStructuredGenerationRequestModel
 } from "./DirectProviderRequestModels";
-import { buildDirectProviderSystemInstructionText } from "./DirectProviderSystemInstructionBuilder";
+import { DIRECT_PROVIDER_OUTPUT_SCHEMA } from "./DirectProviderOutputSchema";
+import {
+    buildDirectProviderPromptTemplateBundle,
+    composeDirectProviderPrompt
+} from "./DirectProviderPromptTemplates";
 
 export const DIRECT_PROVIDER_REQUEST_TEMPERATURE = 0 as const;
 export const DIRECT_PROVIDER_REQUEST_TIMEOUT_SECONDS = 300 as const;
@@ -31,8 +36,21 @@ export function buildDirectProviderStructuredGenerationRequest(
     params: DirectProviderStructuredGenerationRequestBuilderParams
 ): StructuredGenerationRequest {
     const requestModel = params.request;
-    const targetShape = buildDirectProviderAfbIntermediateOutputShape();
     const model = requestModel.modelOverride?.trim() || params.provider.model.trim();
+    const promptMode = requestModel.promptMode ?? "full_extraction";
+    const promptSourceType = requestModel.promptSourceType ??
+        mapNormalizedInputSourceToPromptSourceType(requestModel.sourceType);
+    const promptBundle = buildDirectProviderPromptTemplateBundle({
+        mode: promptMode,
+        sourceType: promptSourceType,
+        normalizedText: requestModel.input.normalizedText,
+        metadata: buildPromptMetadata(requestModel.input),
+        structuredSummary: requestModel.input.structuredSummary,
+        deterministicAttackRefs: requestModel.input.deterministicAttackRefs,
+        deterministicEntities: requestModel.input.deterministicEntities,
+        deterministicRelationships: requestModel.input.deterministicRelationships,
+        provenance: requestModel.input.provenance
+    }, DIRECT_PROVIDER_OUTPUT_SCHEMA);
 
     return {
         providerId: params.providerId,
@@ -42,12 +60,7 @@ export function buildDirectProviderStructuredGenerationRequest(
         model,
         useAzure: params.provider.useAzure,
         azureApiVersion: params.provider.azureApiVersion,
-        prompt: buildDirectProviderStructuredPrompt({
-            requestModel,
-            systemInstructionText: buildDirectProviderSystemInstructionText(),
-            inputPayload: requestModel.input,
-            targetShape
-        }),
+        prompt: composeDirectProviderPrompt(promptBundle),
         responseFormat: requestModel.responseSchema?.format ?? "json_object",
         temperature: params.temperature ?? DIRECT_PROVIDER_REQUEST_TEMPERATURE,
         maxOutputTokens: params.maxOutputTokens,
@@ -59,91 +72,49 @@ export function buildDirectProviderStructuredGenerationRequest(
             schema_name: requestModel.responseSchema?.schemaName ?? DIRECT_PROVIDER_AFB_INTERMEDIATE_SCHEMA_NAME,
             schema_version: STRUCTURED_EXTRACTION_RESULT_SCHEMA_VERSION,
             mode: requestModel.mode,
+            prompt_mode: promptMode,
             source_type: requestModel.sourceType,
+            prompt_source_type: promptSourceType,
             system_instruction_version: requestModel.systemInstructions.version
         }
     };
 }
 
-function buildDirectProviderStructuredPrompt(params: {
-    requestModel: DirectProviderStructuredGenerationRequestModel;
-    systemInstructionText: string;
-    inputPayload: DirectProviderStructuredGenerationRequestModel["input"];
-    targetShape: DirectProviderStructuredExtractionPromptShape;
-}): string {
-    return [
-        "SYSTEM_INSTRUCTIONS:",
-        params.systemInstructionText,
-        "",
-        "TARGET_OUTPUT_SHAPE:",
-        stableJsonStringify(params.targetShape),
-        "",
-        "PACKAGED_INPUT:",
-        stableJsonStringify({
-            version: params.requestModel.version,
-            mode: params.requestModel.mode,
-            sourceType: params.requestModel.sourceType,
-            input: params.inputPayload
-        })
-    ].join("\n");
-}
-
-/**
- * Builds the structured extraction output shape template referenced by the
- * request prompt.
- */
-function buildDirectProviderAfbIntermediateOutputShape(): DirectProviderStructuredExtractionPromptShape {
+function buildPromptMetadata(
+    input: DirectProviderStructuredGenerationRequestModel["input"]
+): Record<string, unknown> {
+    const metadata = input.metadata;
     return {
-        schema_version: STRUCTURED_EXTRACTION_RESULT_SCHEMA_VERSION,
-        validation_state: "valid",
-        repair_attempted: false,
-        provider_invoked: true,
-        provider_id: null,
-        model: null,
-        attack_flow: {
-            id: "attack-flow--generated",
-            type: "attack-flow",
-            spec_version: "2.1",
-            name: "Generated Attack Flow",
-            scope: "incident",
-            orchestration_mode: "direct_provider",
-            source_classification: "narrative_text"
-        },
-        attack_actions: [],
-        attack_conditions: [],
-        attack_operators: [],
-        attack_assets: [],
-        deterministic_attack_refs: [],
-        deterministic_entities: [],
-        deterministic_relationships: []
+        ...(metadata.title === undefined ? {} : { title: metadata.title }),
+        ...(metadata.filename === undefined ? {} : { original_name: metadata.filename }),
+        ...(metadata.sourceName === undefined ? {} : { source_name: metadata.sourceName }),
+        ...(metadata.pageCount === undefined ? {} : { page_count: metadata.pageCount }),
+        ...(metadata.sourceUrl === undefined ? {} : { requested_url: metadata.sourceUrl }),
+        ...((metadata.finalUrl ?? metadata.sourceUrl) === undefined
+            ? {}
+            : { source_url: metadata.finalUrl ?? metadata.sourceUrl }),
+        ...(metadata.canonicalUrl === undefined ? {} : { canonical_url: metadata.canonicalUrl }),
+        ...(metadata.contentType === undefined ? {} : { content_type: metadata.contentType }),
+        ...(metadata.responseSizeBytes === undefined ? {} : { response_size_bytes: metadata.responseSizeBytes }),
+        ...(input.truncation === undefined ? {} : {
+            truncation: {
+                was_truncated: input.truncation.wasTruncated,
+                budget_characters: input.truncation.budgetCharacters,
+                original_character_count: input.truncation.originalCharacterCount
+            }
+        })
     };
 }
 
-interface DirectProviderStructuredExtractionPromptShape {
-    schema_version: typeof STRUCTURED_EXTRACTION_RESULT_SCHEMA_VERSION;
-    validation_state: "valid";
-    repair_attempted: false;
-    provider_invoked: true;
-    provider_id: null;
-    model: null;
-    attack_flow: {
-        id: string;
-        type: "attack-flow";
-        spec_version: "2.1";
-        name: string;
-        scope: string;
-        orchestration_mode: string;
-        source_classification: string;
-    };
-    attack_actions: [];
-    attack_conditions: [];
-    attack_operators: [];
-    attack_assets: [];
-    deterministic_attack_refs: [];
-    deterministic_entities: [];
-    deterministic_relationships: [];
-}
-
-function stableJsonStringify(value: unknown): string {
-    return JSON.stringify(value, null, 2);
+export function mapNormalizedInputSourceToPromptSourceType(
+    sourceType: InputNormalizedSourceType
+): "narrative_text" | "document_extracted_text" | "url_extracted_text" {
+    switch (sourceType) {
+        case "pdf":
+            return "document_extracted_text";
+        case "url":
+            return "url_extracted_text";
+        case "text":
+            return "narrative_text";
+    }
 }

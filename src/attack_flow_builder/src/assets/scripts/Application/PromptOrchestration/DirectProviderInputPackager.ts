@@ -1,6 +1,7 @@
 import type {
     InputNormalizedContentStats,
     InputNormalizedMetadata,
+    InputNormalizedTruncation,
     NormalizedInputPackage
 } from "../InputNormalization";
 import type { DirectProviderInputPayload } from "./DirectProviderRequestModels";
@@ -16,7 +17,8 @@ export function buildDirectProviderInputPayload(
         sourceType: normalizedInput.sourceType,
         normalizedText: normalizedInput.normalizedText,
         metadata: cloneMetadata(normalizedInput.metadata),
-        contentStats: cloneContentStats(normalizedInput.contentStats)
+        contentStats: cloneContentStats(normalizedInput.contentStats),
+        truncation: cloneTruncation(normalizedInput.truncation)
     };
 }
 
@@ -25,8 +27,19 @@ function cloneMetadata(metadata: InputNormalizedMetadata): InputNormalizedMetada
         title: metadata.title,
         filename: metadata.filename,
         sourceName: metadata.sourceName,
-        pageCount: metadata.pageCount
+        pageCount: metadata.pageCount,
+        sourceUrl: metadata.sourceUrl,
+        finalUrl: metadata.finalUrl,
+        canonicalUrl: metadata.canonicalUrl,
+        contentType: metadata.contentType,
+        responseSizeBytes: metadata.responseSizeBytes
     };
+}
+
+function cloneTruncation(
+    truncation: InputNormalizedTruncation | undefined
+): InputNormalizedTruncation | undefined {
+    return truncation ? { ...truncation } : undefined;
 }
 
 function cloneContentStats(

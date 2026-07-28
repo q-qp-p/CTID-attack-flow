@@ -7,6 +7,7 @@ import {
 import { buildDirectProviderInputPayload } from "./DirectProviderInputPackager";
 import {
     DIRECT_PROVIDER_REQUEST_MODEL_VERSION,
+    type DirectProviderInputPayload,
     type DirectProviderStructuredGenerationRequestModel
 } from "./DirectProviderRequestModels";
 import {
@@ -22,6 +23,16 @@ export interface DirectProviderRequestPipelineParams {
     providerId?: string;
     timeoutSeconds?: number;
     metadata?: Record<string, string>;
+    promptMode?: "full_extraction" | "enrichment";
+    promptSourceType?: string;
+    promptContext?: Pick<
+        DirectProviderInputPayload,
+        "structuredSummary" |
+        "deterministicAttackRefs" |
+        "deterministicEntities" |
+        "deterministicRelationships" |
+        "provenance"
+    >;
 }
 
 /**
@@ -36,8 +47,13 @@ export function buildDirectProviderRequestPipeline(
         version: DIRECT_PROVIDER_REQUEST_MODEL_VERSION,
         mode: "direct_provider",
         sourceType: params.normalizedInput.sourceType,
+        promptMode: params.promptMode,
+        promptSourceType: params.promptSourceType,
         systemInstructions: buildDirectProviderSystemInstructionModel(),
-        input: buildDirectProviderInputPayload(params.normalizedInput),
+        input: {
+            ...buildDirectProviderInputPayload(params.normalizedInput),
+            ...params.promptContext
+        },
         responseSchema: {
             format: "json_object",
             schemaName: DIRECT_PROVIDER_AFB_INTERMEDIATE_SCHEMA_NAME

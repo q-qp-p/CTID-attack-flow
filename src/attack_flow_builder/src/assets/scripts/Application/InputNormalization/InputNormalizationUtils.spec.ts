@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { countNormalizedLines, normalizeInputText } from "./InputNormalizationUtils";
+import {
+    applyInputContentBudget,
+    countNormalizedLines,
+    normalizeInputText
+} from "./InputNormalizationUtils";
 
 describe("InputNormalizationUtils", () => {
     it("normalizes line endings and trims outer whitespace", () => {
@@ -21,5 +25,16 @@ describe("InputNormalizationUtils", () => {
     it("counts normalized lines deterministically", () => {
         expect(countNormalizedLines("A\r\n\r\nB\n\nC")).toBe(5);
         expect(countNormalizedLines("   \n\n   ")).toBe(0);
+    });
+
+    it("applies deterministic content budgets", () => {
+        expect(applyInputContentBudget("abcdef", 4)).toEqual({
+            text: "abcd",
+            truncation: {
+                wasTruncated: true,
+                budgetCharacters: 4,
+                originalCharacterCount: 6
+            }
+        });
     });
 });

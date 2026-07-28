@@ -3,6 +3,7 @@ import type {
     InputNormalizedContentStats,
     InputNormalizedMetadata,
     InputNormalizedSourceType,
+    InputNormalizedTruncation,
     NormalizedInputPackage
 } from "../InputNormalization";
 
@@ -30,9 +31,15 @@ export interface DirectProviderSystemInstructionModel {
  * Constraint flags that will be encoded into the prompt at a later stage.
  */
 export interface DirectProviderPromptConstraints {
-    noAttackInference: true;
-    explicitAttackRefsOnly: true;
-    allowStepsWithoutTechniques: true;
+    allowProcedureInference: true;
+    explicitAttackRefsOnly: false;
+    requireTechniqueForEveryAction: true;
+    requireTacticForAttackTechnique: true;
+    supportedFrameworksOnly: true;
+    consolidateSameTechniqueSubsteps: true;
+    useSpecificStixEntityTypes: true;
+    useAttackTechniqueTables: true;
+    modelMultipleOutcomesWithOperators: true;
     descriptionsMustBeVerbatimExcerpts: true;
     onlyAndOrOperators: true;
     onlyTrueFalseConditions: true;
@@ -48,6 +55,12 @@ export interface DirectProviderInputPayload {
     normalizedText: string;
     metadata: InputNormalizedMetadata;
     contentStats?: InputNormalizedContentStats;
+    truncation?: InputNormalizedTruncation;
+    structuredSummary?: Record<string, unknown>;
+    deterministicAttackRefs?: Record<string, unknown>[];
+    deterministicEntities?: Record<string, unknown>[];
+    deterministicRelationships?: Record<string, unknown>[];
+    provenance?: Record<string, unknown>;
 }
 
 /**
@@ -65,6 +78,8 @@ export interface DirectProviderStructuredGenerationRequestModel {
     version: typeof DIRECT_PROVIDER_REQUEST_MODEL_VERSION;
     mode: DirectProviderOrchestrationMode;
     sourceType: InputNormalizedSourceType;
+    promptMode?: "full_extraction" | "enrichment";
+    promptSourceType?: string;
     systemInstructions: DirectProviderSystemInstructionModel;
     input: DirectProviderInputPayload;
     responseSchema?: DirectProviderResponseSchemaExpectation;
@@ -77,5 +92,5 @@ export interface DirectProviderStructuredGenerationRequestModel {
  */
 export type DirectProviderNormalizedInputSnapshot = Pick<
     NormalizedInputPackage,
-    "sourceType" | "normalizedText" | "metadata" | "contentStats"
+    "sourceType" | "normalizedText" | "metadata" | "contentStats" | "truncation"
 >;
