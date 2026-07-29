@@ -151,6 +151,7 @@ def build_structured_stix_normalized_update(
             target_ref=_as_optional_str(item.get("target_ref")),
             observed_data_refs=_as_str_list(item.get("observed_data_refs")),
             created_by_ref=_as_optional_str(item.get("created_by_ref")),
+            stix_properties=_coerce_dict(item.get("stix_properties")),
             provenance=_coerce_str_dict(item.get("provenance")),
         )
         for item in _iter_dict_items(entities_raw)

@@ -180,6 +180,50 @@
               >
             </label>
           </div>
+          <div
+            v-if="llmType"
+            class="llm-container llm-override-details"
+          >
+            <label
+              v-if="llmType !== 'azure_openai'"
+              class="form-field"
+              style="flex: 1;"
+            >
+              <span>MODEL:</span>
+              <input
+                v-model="llmModel"
+                type="text"
+                placeholder="Provider model"
+                @keydown.stop
+              >
+            </label>
+            <template v-else>
+              <label
+                class="form-field"
+                style="flex: 1;"
+              >
+                <span>AZURE DEPLOYMENT:</span>
+                <input
+                  v-model="llmAzureDeployment"
+                  type="text"
+                  placeholder="Azure deployment name"
+                  @keydown.stop
+                >
+              </label>
+              <label
+                class="form-field"
+                style="flex: 1;"
+              >
+                <span>AZURE API VERSION:</span>
+                <input
+                  v-model="llmAzureApiVersion"
+                  type="text"
+                  placeholder="2025-04-01-preview"
+                  @keydown.stop
+                >
+              </label>
+            </template>
+          </div>
         </details>
       </div>
       <div
@@ -377,6 +421,7 @@ export default defineComponent({
       apiHealthCheckSucceeded: false,
       llmModel: "",
       llmUseAzure: false,
+      llmAzureDeployment: "",
       llmAzureApiVersion: ""
     }
   },
@@ -553,8 +598,22 @@ export default defineComponent({
         // If using AFB API, only the source data input is required.
         // However, if LLM info is given, it must be complete.
         if (this.apiHealthCheckSucceeded) {
-            const llmInfoFullyFull = this.llmType && this.llmEndpoint && this.llmToken;
-            const llmInfoFullyEmpty = !(this.llmType || this.llmEndpoint || this.llmToken);
+            const isAzureOverride = this.llmType === "azure_openai";
+            const providerSelection = isAzureOverride
+                ? this.llmAzureDeployment.trim() && this.llmAzureApiVersion.trim()
+                : this.llmModel.trim();
+            const llmInfoFullyFull = this.llmType
+                && this.llmEndpoint.trim()
+                && this.llmToken.trim()
+                && providerSelection;
+            const llmInfoFullyEmpty = !(
+                this.llmType
+                || this.llmEndpoint.trim()
+                || this.llmToken.trim()
+                || (isAzureOverride
+                    ? this.llmAzureDeployment.trim() || this.llmAzureApiVersion.trim()
+                    : this.llmModel.trim())
+            );
             return !!(
                 this.hasSourceData
                 && (llmInfoFullyFull || llmInfoFullyEmpty)
@@ -600,6 +659,9 @@ export default defineComponent({
         if (!this.supportsAzureSettings) {
           this.llmUseAzure = false;
           this.llmAzureApiVersion = "";
+        }
+        if (this.llmType !== "azure_openai") {
+          this.llmAzureDeployment = "";
         }
       },
       immediate: true
@@ -783,12 +845,21 @@ export default defineComponent({
         let requestOptions = {};
 
         if (this.llmType && this.llmEndpoint && this.llmToken) {
+            const isAzureOverride = this.llmType === "azure_openai";
+            const providerModel = isAzureOverride
+                ? this.llmAzureDeployment.trim()
+                : this.llmModel.trim();
             requestOptions = {
                 options: {
                     provider_override: {
                         provider_type: this.llmType,
-                        endpoint: this.llmEndpoint,
-                        api_key: this.llmToken
+                        endpoint: this.llmEndpoint.trim(),
+                        api_key: this.llmToken.trim(),
+                        model: providerModel,
+                        ...(isAzureOverride ? {
+                            deployment: this.llmAzureDeployment.trim(),
+                            api_version: this.llmAzureApiVersion.trim()
+                        } : {})
                     }
                 }
             }
@@ -808,7 +879,7 @@ export default defineComponent({
                 }
             } else {
                 const runtimeProviderConfig = this.runtimeProviderStore.runtimeProviderConfig;
-                const model = this.llmModel;
+                const model = this.llmModel.trim() || runtimeProviderConfig?.model.trim();
                 if (!model) {
                     throw new Error("Direct provider mode requires a configured model.");
                 }
@@ -825,17 +896,21 @@ export default defineComponent({
                         endpoint: this.llmEndpoint.trim(),
                         apiKey: this.llmToken.trim(),
                         model,
+                        useAzure: this.llmUseAzure,
+                        azureApiVersion: this.llmAzureApiVersion.trim() || undefined,
                         extraHeaders: runtimeProviderConfig?.extraHeaders
                     }
                 };
 
                 const request = buildDirectProviderRequestPipeline(directProviderRequestParams);
                 const adapter = new OpenAICompatibleProviderAdapter({
-                    ...runtimeProviderConfig,
                     providerType: this.directProviderType,
                     endpoint: this.llmEndpoint.trim(),
                     apiKey: this.llmToken.trim(),
-                    model
+                    model,
+                    useAzure: this.llmUseAzure,
+                    azureApiVersion: this.llmAzureApiVersion.trim() || undefined,
+                    extraHeaders: runtimeProviderConfig?.extraHeaders
                 });
                 const output = await adapter.generateStructured(request);
                 const repair = validateAndRepairStructuredExtractionOutput as (input: unknown) => StructuredExtractionRepairResult;
@@ -1239,7 +1314,12 @@ export default defineComponent({
 
 .llm-container {
   display: flex;
+  flex-wrap: wrap;
   gap: 28px;
+}
+
+.llm-override-details {
+  margin-top: 12px;
 }
 
 .compact-results-section {

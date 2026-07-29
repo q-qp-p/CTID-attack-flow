@@ -55,10 +55,10 @@ export const DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT =
     "2) Create an attack-action for every source-grounded procedural attacker step, including when the report does not name an ATT&CK technique. Use a concise action name and make its description the most complete contiguous verbatim source excerpt available for that step. Do not shorten or summarize away material details such as tools, file types, commands, targets, conditions, parameters, or outcomes.\n" +
     "3) Order attack_actions chronologically. For every non-terminal action, use effect_refs to point to the next source-supported action, condition, or operator. A terminal action has an empty effect_refs list. Merge contiguous substeps only when they describe the same technique and operational outcome. Treat tool setup as part of its runtime action unless the setup itself maps to a distinct ATT&CK technique; create a separate setup action only in that case. Do not merge source-distinct steps when they have different techniques, create an explicit prerequisite or state change, occur concurrently, or have different documented follow-on outcomes. Retain all source-specific detail in each action's description and linked objects.\n" +
     "4) Treat action links as part of the output: do not leave otherwise sequential source-grounded actions disconnected. When the source order is the only sequencing evidence, connect each action to the next action in that order.\n" +
-    "5) Create attack-condition and attack-operator only for source-grounded flow logic. When an action's effect_refs points to a condition, that condition's on_true_refs must point to the next source-supported action, condition, or operator using its exact emitted ID. Leave on_false_refs empty unless the source documents a false or alternative path. A condition may be terminal only when the source contains no supported next step. Use AND only for documented parallel requirements and OR only for documented alternatives. When one action produces multiple documented follow-on outcomes, connect that action to an operator and connect the operator to each outcome action; do not force those outcomes into a sequential chain. never guess branching.\n" +
+    "5) Create attack-condition and attack-operator only for source-grounded flow logic. Create an attack-condition when the source explicitly describes a state or prerequisite that gates a later action, including cues such as upon execution, after, before, when, once, with those credentials, or a documented outcome such as a file being opened or a host being compromised. When an action's effect_refs points to a condition, that condition's on_true_refs must point to the next source-supported action, condition, or operator using its exact emitted ID. Leave on_false_refs empty unless the source documents a false or alternative path. A condition may be terminal only when the source contains no supported next step. Use AND only for documented concurrent activity, parallel requirements, or multiple independent outcomes that all occur after the same source-supported step. Use OR only for documented alternatives. Model a documented split by connecting the predecessor to an operator and the operator to each outcome; model a documented join by connecting each supported predecessor to the shared next action or condition. Do not force supported splits or joins into a sequential chain, and never guess branching.\n" +
     "6) Every evidence record for an action, condition, operator, or asset must include a nonempty source and an excerpt. For every action, the evidence must contain the verbatim excerpt used for its description.\n" +
     "7) When an action uses or targets a concrete tool, software, file, URL, IP address, process, user, registry key, domain, or observable, emit a matching deterministic_entity and include its object_id in that action's object_refs. Default to the most specific supported STIX object or observable type (for example software, process, file, user_account, or windows_registry_key), not attack_asset. Do not create a linked entity for a generic category without source-specific identifying data.\n" +
-    "8) Preserve type-specific entity fields from the source, such as value, path, command_line, hashes, display_name, cpe, vendor, version, pattern, subject, number, or rir. Use the most specific source-grounded field as the entity display label.\n" +
+    "8) Preserve type-specific entity fields from the source, such as value, path, command_line, hashes, display_name, cpe, vendor, version, pattern, subject, number, or rir. Preserve defanged observables exactly as written in the source: never refang indicators such as [.] or [:] in URL, domain, IP, email, or other observable values. Use the most specific source-grounded field as the entity display label.\n" +
     "9) Prefer linked deterministic_entities over standalone attack_assets. Emit an attack_asset only when it has a specific name or source-grounded description; never use an internal identifier such as software-1 or tool-1 as its name.\n" +
     "10) Do not create standalone attack-pattern nodes. Record ATT&CK techniques only on attack_actions.\n" +
     "11) When the source includes an ATT&CK technique table, appendix, or matrix, use it as supplementary authoritative evidence for coverage and mapping. Create an action from a table entry only when its Use text or a referenced source passage describes concrete behavior; do not invent behavior solely from a technique name. Reports without an ATT&CK table must be extracted from their narrative and other source-grounded evidence.\n" +
@@ -128,10 +128,14 @@ function buildFlowModelingRequirements(): Record<string, unknown> {
         generic_entity_placeholders_forbidden: true,
         require_tactic_for_attack_technique: true,
         consolidate_contiguous_same_technique_substeps: true,
+        keep_source_distinct_actions_separate: true,
         default_entities_to_supported_stix_types: true,
+        preserve_defanged_observable_values: true,
         model_multiple_documented_outcomes_with_operators: true,
+        model_explicit_prerequisites_and_state_changes_as_conditions: true,
         connect_condition_true_paths: true,
         condition_references_use_exact_emitted_ids: true,
+        preserve_documented_splits_and_joins: true,
         infer_branching: false
     };
 }
@@ -154,6 +158,7 @@ function buildRequiredOutputBehavior(mode: DirectProviderPromptMode): Record<str
         consolidate_contiguous_same_technique_substeps: true,
         prefer_linked_objects_over_actions: true,
         default_entities_to_supported_stix_types: true,
+        preserve_defanged_observable_values: true,
         use_attack_technique_table_when_present: true,
         ...(mode === "full_extraction" ? { prefer_attached_stix_catalog_objects: true } : {}),
         preserve_authors: true,
@@ -163,11 +168,13 @@ function buildRequiredOutputBehavior(mode: DirectProviderPromptMode): Record<str
         preserve_explicit_branching_logic: true,
         allow_inferred_branching_when_supported: false,
         emit_attack_conditions_for_decisions: true,
+        emit_attack_conditions_for_explicit_prerequisites_and_state_changes: true,
         connect_condition_true_paths_to_next_supported_step: true,
         condition_references_must_use_exact_emitted_ids: true,
         use_and_operator_for_explicit_parallel_steps: true,
         use_or_operator_for_documented_alternatives: true,
-        use_operators_for_multiple_documented_outcomes: true
+        use_operators_for_multiple_documented_outcomes: true,
+        preserve_documented_flow_joins: true
     };
 }
 

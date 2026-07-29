@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -15,6 +15,39 @@ _SUPPORTED_ENTITY_TYPES = {
     "note",
     "observed-data",
     "sighting",
+    "artifact",
+    "autonomous-system",
+    "directory",
+    "domain-name",
+    "email-addr",
+    "email-message",
+    "file",
+    "ipv4-addr",
+    "ipv6-addr",
+    "mac-addr",
+    "mutex",
+    "network-traffic",
+    "process",
+    "software",
+    "url",
+    "user-account",
+    "windows-registry-key",
+    "x509-certificate",
+}
+
+_NORMALIZED_ENTITY_FIELDS = {
+    "type",
+    "id",
+    "description",
+    "labels",
+    "first_seen",
+    "last_seen",
+    "confidence",
+    "pattern",
+    "source_ref",
+    "target_ref",
+    "observed_data_refs",
+    "created_by_ref",
 }
 
 
@@ -34,6 +67,7 @@ class StixEntity:
     observed_data_refs: list[str]
     created_by_ref: str | None
     provenance: dict[str, str]
+    stix_properties: dict[str, Any] = field(default_factory=dict)
 
 
 def extract_stix_entities(bundle: dict[str, Any]) -> list[StixEntity]:
@@ -70,6 +104,7 @@ def extract_stix_entities(bundle: dict[str, Any]) -> list[StixEntity]:
                 observed_data_refs=_coerce_string_list(obj.get("observed_data_refs")),
                 created_by_ref=_coerce_non_empty_str(obj.get("created_by_ref")),
                 provenance=provenance,
+                stix_properties=_extract_stix_properties(obj),
             )
         )
 
@@ -84,11 +119,36 @@ def extract_stix_entities(bundle: dict[str, Any]) -> list[StixEntity]:
 
 
 def _derive_display_name(obj: dict[str, Any]) -> str | None:
-    for field_name in ("name", "title", "abstract"):
+    object_type = _coerce_non_empty_str(obj.get("type"))
+    fields = ["name", "title", "abstract"]
+    if object_type in {"domain-name", "email-addr", "ipv4-addr", "ipv6-addr", "mac-addr", "url"}:
+        fields.append("value")
+    elif object_type == "directory":
+        fields.append("path")
+    elif object_type == "email-message":
+        fields.append("subject")
+    elif object_type == "process":
+        fields.append("command_line")
+    elif object_type == "user-account":
+        fields.extend(("display_name", "account_login"))
+    elif object_type == "windows-registry-key":
+        fields.append("key")
+    elif object_type == "x509-certificate":
+        fields.extend(("subject", "serial_number"))
+
+    for field_name in fields:
         candidate = _coerce_non_empty_str(obj.get(field_name))
         if candidate is not None:
             return candidate
     return None
+
+
+def _extract_stix_properties(obj: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: obj[key]
+        for key in sorted(obj)
+        if key not in _NORMALIZED_ENTITY_FIELDS
+    }
 
 
 def _build_provenance(obj: dict[str, Any]) -> dict[str, str]:

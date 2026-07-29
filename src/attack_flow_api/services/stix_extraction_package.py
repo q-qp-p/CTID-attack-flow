@@ -65,6 +65,7 @@ def build_stix_extraction_package(
             "target_ref": item.target_ref,
             "observed_data_refs": item.observed_data_refs,
             "created_by_ref": item.created_by_ref,
+            "stix_properties": item.stix_properties,
             "provenance": item.provenance,
         }
         for item in entities

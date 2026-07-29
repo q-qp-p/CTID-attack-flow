@@ -7,7 +7,7 @@ from attack_flow_api.services.afb_extraction_contracts import (
     OrchestrationMode,
     SourceClassification,
 )
-from attack_flow_api.services.canonical_flow_conversion_service import build_canonical_flow_output
+from attack_flow_api.services.afb_export_contracts import assemble_afb_export_bundle
 from attack_flow_api.services.afb_fusion_assembler import (
     FusedOutputCandidate,
     build_fused_output_candidate,
@@ -26,6 +26,10 @@ from attack_flow_api.services.afb_fusion_dedup import (
     MergedRelationship,
     MergedOperator,
 )
+from attack_flow_api.services.ai_orchestration_planner import build_provider_orchestration_input
+from attack_flow_api.services.ai_output_validation_service import parse_validate_and_repair_extraction_output
+from attack_flow_api.services.ai_provider_invocation_service import ProviderInvocationResult
+from attack_flow_api.services.canonical_flow_conversion_service import build_canonical_flow_output
 from attack_flow_api.services.persistence_service import PersistenceService
 from attack_flow_api.storage.database import initialize_database
 from attack_flow_api.storage.repositories import JobCreate
@@ -197,6 +201,128 @@ def test_fusion_preserves_extracted_entity_details_for_action_assets() -> None:
     asset = next(node for node in canonical.nodes if node.id == "software-1")
     assert asset.name == "PowerShell"
     assert asset.description == "Microsoft command-line shell used by the actor."
+
+
+def test_provider_assets_and_relationships_survive_fusion_and_canonical_conversion() -> None:
+    packaged = build_provider_orchestration_input(
+        {
+            "source_type": "plaintext",
+            "normalized_text": "The actor deployed Beacon to the target host.",
+            "structured_summary": {},
+        }
+    )
+    provider_output = {
+        "validation_state": "valid",
+        "provider_invoked": True,
+        "attack_flow": {
+            "id": "attack-flow--provider",
+            "name": "Provider flow",
+            "scope": "incident",
+            "start_refs": ["attack-action--deploy"],
+            "orchestration_mode": "full_extraction",
+            "source_classification": "narrative_text",
+        },
+        "attack_actions": [
+            {
+                "id": "attack-action--deploy",
+                "name": "Deploy Beacon",
+                "description": "The actor deployed Beacon to the target host.",
+                "confidence": 0.91,
+                "asset_refs": ["attack-asset--beacon"],
+                "evidence": [
+                    {"source": "provider", "excerpt": "The actor deployed Beacon to the target host."}
+                ],
+            }
+        ],
+        "attack_assets": [
+            {
+                "id": "attack-asset--beacon",
+                "name": "Beacon payload",
+                "description": "Beacon",
+                "object_ref": "malware--beacon",
+                "tags": ["payload", "c2"],
+                "confidence": 0.87,
+                "evidence": [{"source": "provider", "excerpt": "Beacon"}],
+            }
+        ],
+        "deterministic_entities": [
+            {
+                "object_id": "malware--beacon",
+                "object_type": "malware",
+                "display_name": "Beacon",
+            },
+            {
+                "object_id": "threat-actor--operator",
+                "object_type": "threat-actor",
+                "display_name": "Operator",
+            },
+        ],
+        "deterministic_relationships": [
+            {
+                "relationship_id": "relationship--uses-beacon",
+                "relationship_type": "uses",
+                "source_ref": "threat-actor--operator",
+                "target_ref": "malware--beacon",
+                "source_object_type": "threat-actor",
+            }
+        ],
+    }
+    validation = parse_validate_and_repair_extraction_output(
+        invocation_result=ProviderInvocationResult(
+            provider_invoked=True,
+            provider_id="test-provider",
+            model_used="test-model",
+            deterministic_input_sufficient=False,
+            output_json=provider_output,
+        ),
+        packaged_input=packaged,
+    )
+
+    assert validation.valid is True
+    assert validation.extraction_result is not None
+    fused = build_fused_output_candidate_from_sources(
+        normalized_package={},
+        extraction_result=validation.extraction_result,
+    )
+    canonical = build_canonical_flow_output(fused_output=fused)
+
+    assert canonical is not None
+    fused_asset = fused.attack_assets[0]
+    assert fused_asset.object_id == "attack-asset--beacon"
+    assert fused_asset.display_name == "Beacon payload"
+    assert fused_asset.object_ref == "malware--beacon"
+    assert fused_asset.tags == ["payload", "c2"]
+    assert fused_asset.confidence == 0.87
+    assert fused_asset.evidence[0]["excerpt"] == "Beacon"
+    assert fused.attack_actions[0].asset_refs == ["attack-asset--beacon"]
+    assert fused.relationships[0].relationship_id == "relationship--uses-beacon"
+
+    asset = next(node for node in canonical.nodes if node.id == "attack-asset--beacon")
+    assert asset.name == "Beacon payload"
+    assert asset.object_ref == "malware--beacon"
+    assert asset.tags == ["payload", "c2"]
+    assert asset.confidence == 0.87
+    assert asset.evidence[0].excerpt == "Beacon"
+    assert any(
+        edge.source_ref == "attack-action--deploy"
+        and edge.target_ref == "attack-asset--beacon"
+        and edge.edge_type.value == "asset"
+        for edge in canonical.edges
+    )
+    assert any(
+        edge.source_ref == "threat-actor--operator"
+        and edge.target_ref == "malware--beacon"
+        and edge.relationship_type == "uses"
+        for edge in canonical.edges
+    )
+    diagram_export = assemble_afb_export_bundle(canonical).to_diagram_export_ready()
+    assert "layout" not in diagram_export
+    assert "generated_layout" not in diagram_export
+    assert any(
+        item.get("id") == "dynamic_line"
+        and ["relationship_type", "uses"] in item.get("properties", [])
+        for item in diagram_export["objects"]
+    )
 
 
 def test_fused_output_candidate_remains_compatible_with_constrained_canonical_model() -> None:

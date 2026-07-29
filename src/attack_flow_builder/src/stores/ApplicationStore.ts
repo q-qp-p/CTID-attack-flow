@@ -12,6 +12,8 @@ import { AsynchronousEditorCommand, BasicRecommender, DiagramViewEditor, Synchro
 import type { EditorCommand } from "@OpenChart/DiagramEditor";
 import type { DiagramObjectView } from "@OpenChart/DiagramView";
 
+export type SplashMenuMode = "home" | "ai-generation";
+
 
 ///////////////////////////////////////////////////////////////////////////////
 //  1. Registry Configuration  ////////////////////////////////////////////////
@@ -50,6 +52,7 @@ export const useApplicationStore = defineStore("applicationStore", {
             ?? new BasicVisualizationModal(Visualizations),
         activeFinder: new OpenChartFinder<DiagramViewEditor, DiagramObjectView>(),
         settings: BaseAppSettings,
+        splashMenuMode: "home" as SplashMenuMode,
         readOnlyMode: false,
         recentTimezone: DateTime.local().toFormat("ZZ")
     }),

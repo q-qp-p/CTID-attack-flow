@@ -227,8 +227,9 @@ function validateStructuredExtractionResult(
     const attackAssets = validateAttackAssets(candidate.attack_assets, context);
 
     validateStructuredJsonArray(candidate.deterministic_attack_refs, "deterministic_attack_refs", context);
-    validateStructuredJsonArray(candidate.deterministic_entities, "deterministic_entities", context);
-    validateStructuredJsonArray(candidate.deterministic_relationships, "deterministic_relationships", context);
+    const entityIds = validateDeterministicEntities(candidate.deterministic_entities, context);
+    validateDeterministicRelationships(candidate.deterministic_relationships, entityIds, context);
+    validateExtractionReferences(attackActions ?? [], attackAssets ?? [], entityIds, context);
 
     if (context.failures.length > 0) {
         return null;
@@ -675,6 +676,7 @@ function validateAttackAsset(
         : item.object_ref === undefined
             ? undefined
             : requireString(item.object_ref, `${path}.object_ref`, "structured_extraction_attack_asset_object_ref_invalid", context);
+    const tags = normalizeAttackAssetTags(item.tags, `${path}.tags`, context);
 
     return {
         id,
@@ -682,18 +684,35 @@ function validateAttackAsset(
         spec_version: specVersion,
         name,
         description,
-        tags: isPlainObject(item.tags) ? (item.tags as Record<string, boolean>) : item.tags === null || item.tags === undefined ? undefined : (context.failures.push(buildFailure({
-            code: "structured_extraction_attack_asset_tags_invalid",
-            category: "schema",
-            message: "attack_asset tags must be an object or null",
-            path: `${path}.tags`,
-            field: "tags"
-        })), undefined),
+        tags,
         object_ref,
         evidence,
         confidence,
         fact_origin: factOrigin
     };
+}
+
+function normalizeAttackAssetTags(
+    value: unknown,
+    path: string,
+    context: ValidationContext
+): Record<string, boolean> | undefined {
+    if (isPlainObject(value)) {
+        return value as Record<string, boolean>;
+    }
+    if (Array.isArray(value) && value.every(tag => typeof tag === "string")) {
+        return Object.fromEntries(value.map(tag => [tag, true]));
+    }
+    if (value !== null && value !== undefined) {
+        context.failures.push(buildFailure({
+            code: "structured_extraction_attack_asset_tags_invalid",
+            category: "schema",
+            message: "attack_asset tags must be an array, object, or null",
+            path,
+            field: "tags"
+        }));
+    }
+    return undefined;
 }
 
 function validateEvidence(
@@ -843,6 +862,107 @@ function validateStructuredJsonArray(
             message: `${path} must be an array when present`,
             path,
             field: path
+        }));
+        return;
+    }
+    for (const [index, item] of value.entries()) {
+        if (!isPlainObject(item)) {
+            context.failures.push(buildFailure({
+                code: `${path}_item_invalid`,
+                category: "schema",
+                message: `${path} items must be objects`,
+                path: `${path}[${index}]`
+            }));
+        }
+    }
+}
+
+function validateDeterministicEntities(value: unknown, context: ValidationContext): Set<string> {
+    validateStructuredJsonArray(value, "deterministic_entities", context);
+    const ids = new Set<string>();
+    if (!Array.isArray(value)) {
+        return ids;
+    }
+    for (const [index, item] of value.entries()) {
+        if (!isPlainObject(item)) {
+            continue;
+        }
+        const path = `deterministic_entities[${index}]`;
+        const id = requireString(item.object_id ?? item.id, `${path}.object_id`, "structured_extraction_deterministic_entity_id_invalid", context);
+        requireString(item.object_type ?? item.type, `${path}.object_type`, "structured_extraction_deterministic_entity_type_invalid", context);
+        if (id && ids.has(id)) {
+            context.failures.push(buildFailure({
+                code: "structured_extraction_deterministic_entity_id_duplicate",
+                category: "constraint",
+                message: `duplicate deterministic entity id '${id}'`,
+                path: `${path}.object_id`,
+                field: "object_id"
+            }));
+        }
+        if (id) {
+            ids.add(id);
+        }
+    }
+    return ids;
+}
+
+function validateDeterministicRelationships(
+    value: unknown,
+    entityIds: Set<string>,
+    context: ValidationContext
+): void {
+    validateStructuredJsonArray(value, "deterministic_relationships", context);
+    if (!Array.isArray(value)) {
+        return;
+    }
+    for (const [index, item] of value.entries()) {
+        if (!isPlainObject(item)) {
+            continue;
+        }
+        const path = `deterministic_relationships[${index}]`;
+        requireString(item.relationship_type, `${path}.relationship_type`, "structured_extraction_deterministic_relationship_type_invalid", context);
+        const sourceRef = requireString(item.source_ref, `${path}.source_ref`, "structured_extraction_deterministic_relationship_source_invalid", context);
+        const targetRef = requireString(item.target_ref, `${path}.target_ref`, "structured_extraction_deterministic_relationship_target_invalid", context);
+        validateResolvedReference(sourceRef, entityIds, `${path}.source_ref`, context);
+        validateResolvedReference(targetRef, entityIds, `${path}.target_ref`, context);
+    }
+}
+
+function validateExtractionReferences(
+    actions: StructuredExtractionAttackActionNode[],
+    assets: StructuredExtractionAttackAssetNode[],
+    entityIds: Set<string>,
+    context: ValidationContext
+): void {
+    const assetIds = new Set(assets.map(asset => asset.id));
+    for (const [index, action] of actions.entries()) {
+        for (const ref of action.asset_refs ?? []) {
+            validateResolvedReference(ref, assetIds, `attack_actions[${index}].asset_refs`, context);
+        }
+        for (const ref of action.object_refs ?? []) {
+            validateResolvedReference(ref, entityIds, `attack_actions[${index}].object_refs`, context);
+        }
+    }
+    for (const [index, asset] of assets.entries()) {
+        if (asset.object_ref) {
+            validateResolvedReference(asset.object_ref, entityIds, `attack_assets[${index}].object_ref`, context);
+        }
+    }
+}
+
+function validateResolvedReference(
+    ref: string,
+    knownIds: Set<string>,
+    path: string,
+    context: ValidationContext
+): void {
+    if (ref && !knownIds.has(ref)) {
+        context.failures.push(buildFailure({
+            code: "structured_extraction_reference_unresolved",
+            category: "constraint",
+            message: `reference '${ref}' does not resolve to an emitted object`,
+            path,
+            field: path.split(".").pop()
         }));
     }
 }

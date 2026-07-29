@@ -698,11 +698,17 @@ class AttackFlowPublisher implements FilePublisher {
      */
     private createSroFromLineProperties(parent: Sdo, child: Sdo, property: DictionaryProperty): Sro | null {
         const confidence = this.toConfidenceValue(property);
-        if (confidence === null) {
+        const relationshipTypeProperty = property.get("relationship_type", StringProperty);
+        const relationshipType = relationshipTypeProperty?.isDefined()
+            ? relationshipTypeProperty.value ?? undefined
+            : undefined;
+        if (confidence === null && !relationshipType) {
             return null;
         }
-        const sro = this.createSro(parent, child);
-        sro.confidence = confidence;
+        const sro = this.createSro(parent, child, relationshipType);
+        if (confidence !== null) {
+            sro.confidence = confidence;
+        }
         return sro;
     }
 

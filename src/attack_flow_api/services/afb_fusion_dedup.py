@@ -47,6 +47,8 @@ class MergedEntity(BaseModel):
     pattern: str | None = None
     source_ref: str | None = None
     target_ref: str | None = None
+    object_ref: str | None = None
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
     observed_data_refs: list[str] = Field(default_factory=list)
     created_by_ref: str | None = None
     provenance: list[FusionFindingProvenance] = Field(default_factory=list)
@@ -467,6 +469,10 @@ def fuse_attachment_metadata_deterministic_first(
 ) -> MergedAttachmentBundle:
     preserved_object_refs = _build_allowed_object_refs(relationships or [])
     preserved_evidence_refs = _build_allowed_evidence_refs(attack_actions or [])
+    preserved_asset_refs = set(preserved_object_refs)
+    for action in attack_actions or []:
+        preserved_asset_refs.update(action.asset_refs)
+        preserved_asset_refs.update(action.object_refs)
 
     fused_actions = [
         action.model_copy(
@@ -479,13 +485,11 @@ def fuse_attachment_metadata_deterministic_first(
     ]
 
     fused_assets = [
-        asset.model_copy(
-            update={
-                "object_id": asset.object_id if asset.object_id in preserved_object_refs or asset.object_id is None else asset.object_id,
-            }
-        )
+        asset
         for asset in attack_assets or []
-        if asset.object_id is None or asset.object_id in preserved_object_refs
+        if asset.object_type == "attack-asset"
+        or asset.object_id is None
+        or asset.object_id in preserved_asset_refs
     ]
 
     return MergedAttachmentBundle(
@@ -699,12 +703,25 @@ def _merge_entity(
     current.labels = _dedupe_preserve_order(current.labels + _as_str_list(item.get("labels")))
     current.tags = _dedupe_preserve_order(current.tags + _as_str_list(item.get("tags")))
     current.observed_data_refs = _dedupe_preserve_order(current.observed_data_refs + _as_str_list(item.get("observed_data_refs")))
-    current.stix_properties = {**current.stix_properties, **{k: v for k, v in item.items() if k not in {
+    incoming_properties = {k: v for k, v in item.items() if k not in {
         "object_id", "entity_id", "entity_ref", "id", "object_type", "entity_type", "kind", "type",
         "display_name", "name", "description", "tags", "labels", "first_seen", "last_seen", "confidence",
         "deterministic_confidence", "ai_confidences", "pattern", "source_ref", "target_ref", "observed_data_refs",
         "created_by_ref", "provenance", "conflicts", "fact_origin",
-    }}}
+    }}
+    for key, value in incoming_properties.items():
+        if key not in current.stix_properties:
+            current.stix_properties[key] = value
+        elif current.stix_properties[key] != value:
+            conflicts.append(
+                _build_conflict(
+                    category=FusionConflictCategory.CONFLICTING_ATTACHMENT,
+                    source_kind=FusionInputSourceKind.AI_AFB_EXTRACTION if not deterministic else FusionInputSourceKind.DETERMINISTIC_STIX_OPENCTI,
+                    message=f"entity STIX property '{key}' conflicts with deterministic source fact",
+                    deterministic_ref=current.object_id or current.display_name,
+                    ai_ref=str(value),
+                )
+            )
 
     provenance.append(
         _build_provenance(

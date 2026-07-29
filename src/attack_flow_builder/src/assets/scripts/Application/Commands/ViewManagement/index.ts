@@ -12,7 +12,7 @@ import {
     ToPreviousSearchResult
 } from "./index.commands";
 import type { OpenChartFinder } from "@/assets/scripts/OpenChartFinder";
-import type { ApplicationStore } from "@/stores/ApplicationStore";
+import type { ApplicationStore, SplashMenuMode } from "@/stores/ApplicationStore";
 import type { DiagramViewEditor } from "@OpenChart/DiagramEditor";
 
 
@@ -28,7 +28,7 @@ import type { DiagramViewEditor } from "@OpenChart/DiagramEditor";
  * @returns
  *  A command that represents the action.
  */
-export function showSearchMenu(ctx: ApplicationStore): ShowSplashMenu {
+export function showSearchMenu(ctx: ApplicationStore): ShowSearchMenu {
     return new ShowSearchMenu(ctx);
 }
 
@@ -39,7 +39,7 @@ export function showSearchMenu(ctx: ApplicationStore): ShowSplashMenu {
  * @returns
  *  A command that represents the action.
  */
-export function hideSearchMenu(ctx: ApplicationStore): HideSplashMenu {
+export function hideSearchMenu(ctx: ApplicationStore): HideSearchMenu {
     return new HideSearchMenu(ctx);
 }
 
@@ -97,13 +97,16 @@ export function toPreviousSearchResult(
  * Display the splash menu.
  * @param ctx
  *  The application context.
+ * @param mode
+ *  The splash screen to display.
  * @returns
  *  A command that represents the action.
  */
 export function showSplashMenu(
-    ctx: ApplicationStore
+    ctx: ApplicationStore,
+    mode: SplashMenuMode = "home"
 ): ShowSplashMenu {
-    return new ShowSplashMenu(ctx);
+    return new ShowSplashMenu(ctx, mode);
 }
 
 /**

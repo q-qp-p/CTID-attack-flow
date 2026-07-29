@@ -5,7 +5,7 @@ import { DiagramObjectType, PropertyType } from "@OpenChart/DiagramModel";
 import type { DiagramObjectTemplate } from "@OpenChart/DiagramModel";
 import { AccountTypeOv } from "./StixOpenVocabularies";
 
-export const StixObservables: DiagramObjectTemplate[] = [
+const StixObservableTemplates: DiagramObjectTemplate[] = [
     {
         name: "artifact",
         namespace: ["stix_observable", "artifact"],
@@ -661,3 +661,12 @@ export const StixObservables: DiagramObjectTemplate[] = [
         anchors: AnchorConfiguration
     }
 ];
+
+// is_defanged is a common SCO property and must survive editor import/export.
+export const StixObservables: DiagramObjectTemplate[] = StixObservableTemplates.map(template => ({
+    ...template,
+    properties: {
+        ...template.properties,
+        is_defanged: BoolEnum
+    }
+}));

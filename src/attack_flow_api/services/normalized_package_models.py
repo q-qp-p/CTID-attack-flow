@@ -55,6 +55,7 @@ class NormalizedEntity:
     target_ref: str | None = None
     observed_data_refs: list[str] = field(default_factory=list)
     created_by_ref: str | None = None
+    stix_properties: dict[str, Any] = field(default_factory=dict)
     provenance: dict[str, str] = field(default_factory=dict)
 
 
@@ -90,7 +91,12 @@ class CanonicalNormalizedPackage:
     provenance: dict[str, Any] = field(default_factory=dict)
 
     def to_json_ready(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        for entity in payload["entities"]:
+            stix_properties = entity.pop("stix_properties", {})
+            for key, value in stix_properties.items():
+                entity.setdefault(key, value)
+        return payload
 
 
 def build_canonical_normalized_package(

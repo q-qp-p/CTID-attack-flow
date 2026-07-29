@@ -328,7 +328,7 @@ def build_afb_attack_action_object(node: CanonicalFlowActionNode) -> AfbExportAt
         id=node.id,
         name=node.name or node.id,
         description=_coerce_verbatim_description(node.description),
-        confidence=node.confidence,
+        confidence=0.0,
         technique_id=_coerce_non_empty_string(getattr(technique, "technique_id", None)),
         technique_ref=_coerce_non_empty_string(getattr(technique, "technique_ref", None)),
         technique_name=_coerce_non_empty_string(getattr(technique, "technique_name", None)),
@@ -668,19 +668,6 @@ def _build_builder_diagram_export_json_ready(bundle: AfbExportBundle) -> dict[st
         if target_anchor is not None:
             target_anchor.setdefault("latches", []).append(target_latch["instance"])
 
-    layout = _build_diagram_layout(block_specs, relations)
-
-    for rel, line_export, handle_export in zip(relations, line_exports, handle_exports):
-        source_position = layout.get(rel["source_instance"])
-        target_position = layout.get(rel["target_instance"])
-        if source_position is not None and target_position is not None:
-            handle_position = [
-                round((source_position[0] + target_position[0]) / 2.0, 1),
-                round((source_position[1] + target_position[1]) / 2.0, 1),
-            ]
-            handle_export["position"] = handle_position
-            layout[handle_export["instance"]] = handle_position
-
     canvas_export = _build_canvas_export(canvas, bundle.metadata.authors, bundle.metadata.external_references)
     canvas_export["objects"] = [spec["instance"] for spec in block_specs] + [line["instance"] for line in line_exports]
 
@@ -695,10 +682,7 @@ def _build_builder_diagram_export_json_ready(bundle: AfbExportBundle) -> dict[st
 
     return {
         "schema": "attack_flow_v2",
-        "generated_layout": "auto",
         "objects": objects,
-        "layout": layout,
-        "camera": {"x": 0, "y": 0, "k": 1},
     }
 
 def _validate_object_count(bundle: AfbExportBundle, errors: list[AfbExportCompatibilityError]) -> None:
@@ -849,23 +833,51 @@ def _compatibility_error(
 
 
 def _coerce_non_empty_description(value: str | None) -> str | None:
-    if value is None:
+    if not isinstance(value, str):
         return None
     stripped = value.strip()
     return stripped or None
 
 
 def _coerce_verbatim_description(value: str | None) -> str | None:
-    if value is None:
+    if not isinstance(value, str):
         return None
     return value if value.strip() else None
 
 
 def _coerce_non_empty_string(value: str | None) -> str | None:
-    if value is None:
+    if not isinstance(value, str):
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _coerce_boolean(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip().lower() in {"true", "false"}:
+        return value.strip().lower() == "true"
+    return None
+
+
+def _coerce_non_negative_integer(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value >= 0:
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def _is_valid_timestamp(value: Any) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return True
 
 
 def _coerce_string_list(values: Any) -> list[str]:
@@ -1056,9 +1068,7 @@ def _build_canvas_properties(canvas: dict[str, Any], authors: list[str]) -> list
     if description is not None:
         properties.append(["description", description])
 
-    scope = _coerce_non_empty_string(canvas.get("scope"))
-    if scope is not None:
-        properties.append(["scope", scope])
+    properties.append(["scope", _best_fit_flow_scope(canvas)])
 
     author_name = authors[0] if authors else "Unknown"
     properties.append(["author", {"name": author_name}])
@@ -1071,6 +1081,45 @@ def _build_canvas_properties(canvas: dict[str, Any], authors: list[str]) -> list
             properties.append(["external_references", _build_external_reference_objects(_coerce_string_list(external_references))])
 
     return properties
+
+
+def _best_fit_flow_scope(canvas: dict[str, Any]) -> str:
+    raw_scope = (_coerce_non_empty_string(canvas.get("scope")) or "").lower().replace("_", "-").replace(" ", "-")
+    aliases = {
+        "incident": "incident",
+        "campaign": "campaign",
+        "threat-actor": "threat-actor",
+        "adversary": "threat-actor",
+        "malware": "malware",
+        "emulation-plan": "emulation-plan",
+        "emulation": "emulation-plan",
+        "attack-tree": "attack-tree",
+        "other": "other",
+    }
+    if raw_scope in aliases:
+        return aliases[raw_scope]
+
+    context = " ".join(
+        str(value)
+        for value in (
+            canvas.get("scope"),
+            canvas.get("name"),
+            canvas.get("description"),
+            canvas.get("source_classification"),
+        )
+        if value
+    ).lower().replace("_", "-")
+    if "attack-tree" in context or "attack tree" in context:
+        return "attack-tree"
+    if "emulation" in context or "purple-team" in context or "purple team" in context:
+        return "emulation-plan"
+    if "campaign" in context:
+        return "campaign"
+    if any(term in context for term in ("threat-actor", "threat actor", "adversary", "intrusion-set", "intrusion set")):
+        return "threat-actor"
+    if any(term in context for term in ("malware", "ransomware", "trojan", "worm", "backdoor")):
+        return "malware"
+    return "incident"
 
 
 def _build_diagram_object_export(item: dict[str, Any]) -> dict[str, Any] | None:
@@ -1094,10 +1143,12 @@ def _build_diagram_object_export(item: dict[str, Any]) -> dict[str, Any] | None:
         return _build_block_export("action", object_id, properties)
 
     if object_type == "attack-condition":
-        properties = []
-        description = _coerce_non_empty_description(item.get("description"))
-        if description is not None:
-            properties.append(["description", description])
+        description = (
+            _coerce_non_empty_description(item.get("description"))
+            or _coerce_non_empty_string(item.get("id"))
+            or "Condition"
+        )
+        properties = [["description", description]]
         return _build_block_export("condition", object_id, properties)
 
     if object_type == "attack-asset":
@@ -1198,7 +1249,7 @@ def _build_diagram_export_json_ready(bundle: AfbExportBundle) -> dict[str, Any]:
     objects: list[dict[str, Any]] = [canvas_export, *block_exports, *anchor_exports, *latch_exports, *handle_exports, *line_exports]
     payload: dict[str, Any] = {
         "schema": "attack_flow_v2",
-        # dp not set layout so that we fall back on the automated layout engine
+        # Do not set layout so the builder uses its automated layout engine.
         "objects": objects,
     }
     return payload
@@ -1371,6 +1422,11 @@ def _build_relations_from_canonical_flow(
                 layout_mode,
                 source_anchor=source_anchor,
                 target_anchor=target_anchor,
+                relationship_type=(
+                    edge.relationship_type
+                    if edge.edge_type == "relationship"
+                    else None
+                ),
                 source_support_item=source_support_item,
                 target_support_item=target_support_item,
             )
@@ -1464,7 +1520,10 @@ def _support_item_for_node(node: Any) -> dict[str, Any] | None:
             support.setdefault("type", _coerce_non_empty_string(getattr(node, "object_ref", None)) or _coerce_non_empty_string(getattr(node, "id", None)) or "attack-asset")
             support.setdefault("kind", support["type"])
             support.setdefault("id", _coerce_non_empty_string(getattr(node, "object_ref", None)) or getattr(node, "id", None))
-            _set_stix_representative_property(support, _coerce_non_empty_string(getattr(node, "name", None)))
+            node_name = _coerce_non_empty_string(getattr(node, "name", None))
+            if node_name is not None:
+                support.setdefault("display_name", node_name)
+            _set_stix_representative_property(support, node_name)
             return support
         object_ref = _coerce_non_empty_string(getattr(node, "object_ref", None))
         if object_ref is not None:
@@ -1636,10 +1695,11 @@ def _make_relation(
     *,
     source_anchor: str,
     target_anchor: str,
+    relationship_type: str | None = None,
     source_support_item: dict[str, Any] | None = None,
     target_support_item: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    relation_key = f"{source_instance}:{source_anchor}->{target_instance}:{target_anchor}:{layout_mode}"
+    relation_key = f"{source_instance}:{source_anchor}->{target_instance}:{target_anchor}:{layout_mode}:{relationship_type or ''}"
     line_instance = _make_diagram_instance_id("line", relation_key)
     return {
         "kind": layout_mode,
@@ -1649,6 +1709,7 @@ def _make_relation(
         "target_anchor_key": target_anchor,
         "source_anchor_instance": _anchor_instance_for(source_instance, source_anchor),
         "target_anchor_instance": _anchor_instance_for(target_instance, target_anchor),
+        "relationship_type": relationship_type,
         "instance": line_instance,
         "source_support_item": source_support_item,
         "target_support_item": target_support_item,
@@ -1666,6 +1727,9 @@ def _build_diagram_line_export(rel: dict[str, Any]) -> tuple[dict[str, Any], dic
         "target": target_latch_instance,
         "handles": [handle_instance],
     }
+    relationship_type = _coerce_non_empty_string(rel.get("relationship_type"))
+    if relationship_type is not None:
+        line_export["properties"] = [["relationship_type", relationship_type]]
     return (
         line_export,
         {"id": "generic_latch", "instance": source_latch_instance},
@@ -1782,9 +1846,7 @@ def _main_properties_for_item(item: dict[str, Any]) -> list[list[Any]]:
         description = _coerce_non_empty_description(item.get("description"))
         if description is not None:
             properties.append(["description", description])
-        confidence = item.get("confidence")
-        if confidence is not None:
-            properties.append(["confidence", confidence])
+        properties.append(["confidence", 0.0])
         ttp = _build_ttp_property(item)
         if ttp is not None:
             properties.append(["ttp", ttp])
@@ -1823,6 +1885,10 @@ def _support_template_and_properties(item: dict[str, Any]) -> tuple[str | None, 
     kind = item.get("kind") or item.get("type")
     if isinstance(kind, str):
         kind = kind.replace("_", "-")
+    normalized_item = _normalize_required_support_fields(item, kind)
+    if normalized_item is None:
+        return "asset", [["name", _support_label(item) or _support_instance_for_item(item) or "Untitled asset"]]
+    item = normalized_item
     if kind == "attack-pattern":
         return "attack_pattern", _support_properties_from_item(item)
     if kind == "attack-asset":
@@ -1834,24 +1900,166 @@ def _support_template_and_properties(item: dict[str, Any]) -> tuple[str | None, 
                 properties.append(["identity_class", "organization"])
             return "identity", properties
         return kind.replace("-", "_"), _support_properties_from_item(item)
-    if kind in {"artifact", "ipv4-addr", "ipv6-addr", "mac-addr", "domain-name", "email-addr", "url", "file", "directory", "mutex", "process", "user-account", "windows-registry-key"}:
+    if kind in {"artifact", "autonomous-system", "ipv4-addr", "ipv6-addr", "mac-addr", "domain-name", "email-addr", "email-message", "url", "file", "directory", "mutex", "network-traffic", "process", "user-account", "windows-registry-key", "x509-certificate"}:
         template = {
             "artifact": "artifact",
+            "autonomous-system": "autonomous_system",
             "ipv4-addr": "ipv4_addr",
             "ipv6-addr": "ipv6_addr",
             "mac-addr": "mac_addr",
             "domain-name": "domain_name",
             "email-addr": "email_address",
+            "email-message": "email_message",
             "url": "url",
             "file": "file",
             "directory": "directory",
             "mutex": "mutex",
+            "network-traffic": "network_traffic",
             "process": "process",
             "user-account": "user_account",
             "windows-registry-key": "windows_registry_key",
+            "x509-certificate": "x509_certificate",
         }[kind]
         return template, _support_properties_from_item(item)
     return None, []
+
+
+def _normalize_required_support_fields(item: dict[str, Any], kind: Any) -> dict[str, Any] | None:
+    if not isinstance(kind, str):
+        return dict(item)
+    source = item.get("stix_properties") if isinstance(item.get("stix_properties"), dict) else {}
+    normalized = {**source, **item}
+    label = _support_label(normalized)
+
+    def set_fallback(field: str, *fallback_fields: str) -> None:
+        if _coerce_non_empty_string(normalized.get(field)) is not None:
+            return
+        for fallback_field in fallback_fields:
+            fallback = _coerce_non_empty_string(normalized.get(fallback_field))
+            if fallback is not None:
+                normalized[field] = fallback
+                return
+        if label is not None:
+            normalized[field] = label
+
+    if kind in {"attack-pattern", "campaign", "course-of-action", "grouping", "identity", "infrastructure", "intrusion-set", "report", "threat-actor", "tool", "vulnerability"}:
+        set_fallback("name", "display_name", "description")
+    elif kind == "autonomous-system":
+        candidate = normalized.get("number")
+        if isinstance(candidate, str):
+            candidate = candidate.removeprefix("AS").strip()
+        if candidate is None and label is not None:
+            candidate = label.removeprefix("AS").strip()
+        number = _coerce_non_negative_integer(candidate)
+        if number is not None:
+            normalized["number"] = number
+    elif kind == "malware":
+        normalized["is_family"] = _coerce_boolean(normalized.get("is_family"))
+    elif kind == "observed-data":
+        normalized["number_observed"] = _coerce_non_negative_integer(normalized.get("number_observed"))
+    elif kind == "directory":
+        set_fallback("path", "display_name", "name", "value")
+    elif kind in {"domain-name", "email-addr", "ipv4-addr", "ipv6-addr", "mac-addr", "url"}:
+        set_fallback("value", "display_name", "name")
+        address_replacements = {
+            "ipv4-addr": (("[.]", "."), ("(.)", "."), ("{.}", ".")),
+            "ipv6-addr": (("[:]", ":"), ("[.]", ".")),
+            "mac-addr": (("[:]", ":"),),
+        }.get(kind, ())
+        value = _coerce_non_empty_string(normalized.get("value"))
+        if value is not None and address_replacements:
+            normalized_value = value
+            for original, replacement in address_replacements:
+                normalized_value = normalized_value.replace(original, replacement)
+            if normalized_value != value:
+                normalized["value"] = normalized_value
+                normalized["is_defanged"] = True
+    elif kind == "email-message":
+        is_multipart = _coerce_boolean(normalized.get("is_multipart"))
+        normalized["is_multipart"] = (
+            is_multipart if is_multipart is not None else bool(normalized.get("body_multipart"))
+        )
+    elif kind in {"mutex", "software"}:
+        set_fallback("name", "display_name", "value")
+    elif kind == "malware-analysis":
+        set_fallback("product", "display_name", "name")
+    elif kind == "network-traffic":
+        protocols = normalized.get("protocols")
+        if isinstance(protocols, str):
+            protocols = [protocols]
+        normalized["protocols"] = _coerce_string_list(protocols) or None
+    elif kind == "process":
+        set_fallback("command_line", "display_name", "name", "value")
+    elif kind == "note":
+        set_fallback("content", "description", "display_name", "name")
+    elif kind == "user-account":
+        set_fallback("display_name", "account_login", "user_name", "name", "value")
+    elif kind == "x509-certificate":
+        set_fallback("subject", "display_name", "issuer", "serial_number", "name")
+
+    required_fields = {
+        "attack-pattern": ("name",),
+        "campaign": ("name",),
+        "course-of-action": ("name",),
+        "grouping": ("name",),
+        "identity": ("name", "identity_class"),
+        "indicator": ("pattern", "pattern_type", "valid_from"),
+        "infrastructure": ("name",),
+        "intrusion-set": ("name",),
+        "malware": ("is_family",),
+        "malware-analysis": ("product",),
+        "note": ("content",),
+        "observed-data": ("first_observed", "last_observed", "number_observed"),
+        "opinion": ("opinion",),
+        "report": ("name", "published"),
+        "threat-actor": ("name",),
+        "tool": ("name",),
+        "vulnerability": ("name",),
+        "autonomous-system": ("number",),
+        "directory": ("path",),
+        "domain-name": ("value",),
+        "email-addr": ("value",),
+        "email-message": ("is_multipart",),
+        "ipv4-addr": ("value",),
+        "ipv6-addr": ("value",),
+        "mac-addr": ("value",),
+        "mutex": ("name",),
+        "network-traffic": ("protocols",),
+        "process": ("command_line",),
+        "software": ("name",),
+        "url": ("value",),
+        "user-account": ("display_name",),
+        "x509-certificate": ("subject",),
+    }.get(kind, ())
+    for field in required_fields:
+        value = normalized.get(field)
+        if value is None or value == "" or value == []:
+            return None
+    for field in {"is_family", "is_multipart"}.intersection(required_fields):
+        if not isinstance(normalized.get(field), bool):
+            return None
+    for field in {"number", "number_observed"}.intersection(required_fields):
+        if _coerce_non_negative_integer(normalized.get(field)) is None:
+            return None
+    for field in {"valid_from", "first_observed", "last_observed", "published"}.intersection(required_fields):
+        if not _is_valid_timestamp(normalized.get(field)):
+            return None
+    if kind == "network-traffic" and not _coerce_string_list(normalized.get("protocols")):
+        return None
+    if kind == "opinion" and normalized.get("opinion") not in {
+        "strongly-disagree", "disagree", "neutral", "agree", "strongly-agree"
+    }:
+        return None
+    return normalized
+
+
+def _support_label(item: dict[str, Any]) -> str | None:
+    source = item.get("stix_properties") if isinstance(item.get("stix_properties"), dict) else {}
+    for field in ("display_name", "name", "value", "path", "command_line", "subject", "pattern", "product", "content", "description"):
+        value = _coerce_non_empty_string(item.get(field)) or _coerce_non_empty_string(source.get(field))
+        if value is not None:
+            return value
+    return None
 
 
 def _support_properties_from_item(item: dict[str, Any]) -> list[list[Any]]:
@@ -1892,6 +2100,26 @@ def _support_properties_from_item(item: dict[str, Any]) -> list[list[Any]]:
             merged["hashes"] = hash_entries
         else:
             merged.pop("hashes", None)
+    bool_enum_fields = {
+        "is_active",
+        "is_defanged",
+        "is_disabled",
+        "is_family",
+        "is_hidden",
+        "is_multipart",
+        "is_privileged",
+        "is_self_signed",
+        "is_service_account",
+        "can_escalate_privs",
+    }
+    for key in bool_enum_fields:
+        if key not in merged:
+            continue
+        value = _coerce_boolean(merged[key])
+        if value is None:
+            merged.pop(key, None)
+        else:
+            merged[key] = "true" if value else "false"
     for key, value in list(merged.items()):
         if isinstance(value, list) and key not in {"tags", "hashes"}:
             list_entries = _build_string_list_entries(value) or _build_ordered_list_property(value)
@@ -1947,21 +2175,26 @@ def _infer_stix_template_and_properties(ref: str) -> tuple[str | None, list[list
         return prefix.replace("-", "_"), [["name", ref]]
     if prefix == "identity":
         return "identity", [["name", ref], ["identity_class", "organization"]]
-    if prefix in {"artifact", "ipv4-addr", "ipv6-addr", "mac-addr", "domain-name", "email-addr", "url", "file", "directory", "mutex", "process", "software", "user-account"}:
+    if prefix in {"artifact", "autonomous-system", "ipv4-addr", "ipv6-addr", "mac-addr", "domain-name", "email-addr", "email-message", "url", "file", "directory", "mutex", "network-traffic", "process", "software", "user-account", "windows-registry-key", "x509-certificate"}:
         template = {
             "artifact": "artifact",
+            "autonomous-system": "autonomous_system",
             "ipv4-addr": "ipv4_addr",
             "ipv6-addr": "ipv6_addr",
             "mac-addr": "mac_addr",
             "domain-name": "domain_name",
             "email-addr": "email_address",
+            "email-message": "email_message",
             "url": "url",
             "file": "file",
             "directory": "directory",
             "mutex": "mutex",
+            "network-traffic": "network_traffic",
             "process": "process",
             "software": "software",
             "user-account": "user_account",
+            "windows-registry-key": "windows_registry_key",
+            "x509-certificate": "x509_certificate",
         }[prefix]
         return template, _support_properties_for_kind(prefix, ref)
     return None, []

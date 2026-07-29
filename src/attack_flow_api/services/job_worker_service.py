@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from attack_flow_api.config import AppSettings
+from attack_flow_api.providers.contracts import RuntimeProviderOverride
 from attack_flow_api.providers.registry import ProviderRegistry
 from attack_flow_api.services.ai_orchestration_service import AIOrchestrationService
 from attack_flow_api.services.ai_provider_invocation_service import AIProviderInvocationService
@@ -78,6 +79,7 @@ class JobWorkerService:
         self._wake_event = asyncio.Event()
         self._logger = logging.getLogger("attack_flow_api.worker")
         self._forced_failure_job_ids: set[str] = set()
+        self._runtime_provider_overrides: dict[str, RuntimeProviderOverride] = {}
         self._url_job_context: dict[str, _UrlJobContext] = {}
         self._file_job_context: dict[str, _FileJobContext] = {}
         self._allowed_url_schemes = {
@@ -148,6 +150,9 @@ class JobWorkerService:
 
     def notify_new_job(self) -> None:
         self._wake_event.set()
+
+    def set_runtime_provider_override(self, job_id: str, runtime_override: RuntimeProviderOverride) -> None:
+        self._runtime_provider_overrides[job_id] = runtime_override
 
     def force_failure_for_job(self, job_id: str) -> None:
         self._forced_failure_job_ids.add(job_id)
@@ -258,6 +263,7 @@ class JobWorkerService:
         finally:
             self._url_job_context.pop(job_id, None)
             self._file_job_context.pop(job_id, None)
+            self._runtime_provider_overrides.pop(job_id, None)
 
     def _advance_stage(self, job_id: str, stage: str) -> None:
         self.persistence_service.update_job_lifecycle(
@@ -306,7 +312,7 @@ class JobWorkerService:
         normalized_text = None
         if stage == "ai_extraction":
             normalized_text = self.persistence_service.resolve_canonical_text_for_job(job_id)
-            self._run_ai_extraction_orchestration(job_id)
+            await asyncio.to_thread(self._run_ai_extraction_orchestration, job_id)
         _ = (job_id, stage, normalized_text)
         await asyncio.sleep(0)
 
@@ -628,7 +634,7 @@ class JobWorkerService:
 
         if stage == "ai_extraction":
             _ = self.persistence_service.resolve_canonical_text_for_job(job_id)
-            self._run_ai_extraction_orchestration(job_id)
+            await asyncio.to_thread(self._run_ai_extraction_orchestration, job_id)
 
     async def _fetch_url_content(self, job_id: str, input_source_id: str, source_url: str) -> None:
         job = self.persistence_service.get_job(job_id)
@@ -731,7 +737,7 @@ class JobWorkerService:
 
         if stage == "ai_extraction":
             _ = self.persistence_service.resolve_canonical_text_for_job(job_id)
-            self._run_ai_extraction_orchestration(job_id)
+            await asyncio.to_thread(self._run_ai_extraction_orchestration, job_id)
 
     def _run_ai_extraction_orchestration(self, job_id: str) -> None:
         job = self.persistence_service.get_job(job_id)
@@ -740,11 +746,27 @@ class JobWorkerService:
 
         requested_provider_id = job.provider_id
         requested_model = job.model
-        execution = self._ai_orchestration_service.run_for_job(
-            job_id=job_id,
-            requested_provider_id=requested_provider_id,
-            requested_model=requested_model,
-        )
+        runtime_override = self._runtime_provider_overrides.get(job_id)
+        registered_runtime_provider_id = None
+        try:
+            if runtime_override is not None:
+                registered_runtime_provider_id = self.provider_registry.register_runtime_provider(
+                    runtime_override=runtime_override,
+                    allow_runtime_provider_override=self.settings.allow_runtime_provider_override,
+                    allowed_provider_types=self.settings.allowed_runtime_provider_type_set(),
+                    allow_extra_headers=self.settings.allow_runtime_provider_extra_headers,
+                    timeout_seconds=self.settings.runtime_provider_timeout_seconds,
+                )
+                requested_provider_id = registered_runtime_provider_id
+
+            execution = self._ai_orchestration_service.run_for_job(
+                job_id=job_id,
+                requested_provider_id=requested_provider_id,
+                requested_model=requested_model,
+            )
+        finally:
+            if registered_runtime_provider_id is not None:
+                self.provider_registry.unregister_runtime_provider(registered_runtime_provider_id)
 
         self.persistence_service.update_job_extraction(
             job_id,
