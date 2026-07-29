@@ -20,9 +20,14 @@ describe("DirectProviderSystemInstructionBuilder", () => {
         expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("Merge contiguous substeps");
         expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("do not leave otherwise sequential source-grounded actions disconnected");
         expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("never guess branching");
-        expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("multiple documented follow-on outcomes");
+        expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("state or prerequisite that gates a later action");
+        expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("upon execution, after, before, when, once, with those credentials");
+        expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("documented concurrent activity, parallel requirements");
+        expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("model a documented join by connecting each supported predecessor");
         expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("include its object_id in that action's object_refs");
         expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("most specific supported STIX object or observable type");
+        expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("Preserve defanged observables exactly as written in the source");
+        expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("never refang indicators such as [.] or [:]");
         expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("Do not create standalone attack-pattern nodes");
         expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("ATT&CK technique table, appendix, or matrix");
         expect(DIRECT_PROVIDER_SYSTEM_INSTRUCTION_TEXT).toContain("Return one top-level AFB extraction JSON object");
@@ -36,9 +41,16 @@ describe("DirectProviderSystemInstructionBuilder", () => {
             requireTacticForAttackTechnique: true,
             supportedFrameworksOnly: true,
             consolidateSameTechniqueSubsteps: true,
+            separateToolSetupOnlyForDistinctTechnique: true,
+            keepSourceDistinctActionsSeparate: true,
             useSpecificStixEntityTypes: true,
+            preserveDefangedObservableValues: true,
             useAttackTechniqueTables: true,
             modelMultipleOutcomesWithOperators: true,
+            modelExplicitPrerequisitesAndStateChangesAsConditions: true,
+            connectConditionTruePaths: true,
+            useExactEmittedIdsForConditionReferences: true,
+            preserveDocumentedSplitsAndJoins: true,
             descriptionsMustBeVerbatimExcerpts: true,
             onlyAndOrOperators: true,
             onlyTrueFalseConditions: true,
@@ -55,9 +67,16 @@ describe("DirectProviderSystemInstructionBuilder", () => {
                 requireTacticForAttackTechnique: true,
                 supportedFrameworksOnly: true,
                 consolidateSameTechniqueSubsteps: true,
+                separateToolSetupOnlyForDistinctTechnique: true,
+                keepSourceDistinctActionsSeparate: true,
                 useSpecificStixEntityTypes: true,
+                preserveDefangedObservableValues: true,
                 useAttackTechniqueTables: true,
                 modelMultipleOutcomesWithOperators: true,
+                modelExplicitPrerequisitesAndStateChangesAsConditions: true,
+                connectConditionTruePaths: true,
+                useExactEmittedIdsForConditionReferences: true,
+                preserveDocumentedSplitsAndJoins: true,
                 descriptionsMustBeVerbatimExcerpts: true,
                 onlyAndOrOperators: true,
                 onlyTrueFalseConditions: true,

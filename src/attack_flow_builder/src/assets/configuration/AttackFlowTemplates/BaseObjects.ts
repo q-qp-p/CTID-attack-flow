@@ -1,5 +1,5 @@
 import { ConfidenceProperty } from "./ConfidenceProperty";
-import { DiagramObjectType } from "@OpenChart/DiagramModel";
+import { DiagramObjectType, PropertyType } from "@OpenChart/DiagramModel";
 import type { DiagramObjectTemplate } from "@OpenChart/DiagramModel";
 
 export const BaseObjects: DiagramObjectTemplate[] = [
@@ -13,7 +13,10 @@ export const BaseObjects: DiagramObjectTemplate[] = [
         },
         handle_template: "generic_handle",
         properties: {
-            confidence: ConfidenceProperty
+            confidence: ConfidenceProperty,
+            relationship_type: {
+                type: PropertyType.String
+            }
         }
     },
     {

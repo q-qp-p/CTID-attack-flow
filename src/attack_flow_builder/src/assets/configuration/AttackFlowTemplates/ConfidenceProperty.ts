@@ -21,8 +21,9 @@ export const ConfidenceProperty: EnumPropertyDescriptor = {
             }
         },
         default: [
-            ["speculative",   { text: "Speculative", value: 0 }],
-            ["very-doubtful", { text: "Very Doubtful", value: 10 }],
+            ["ai-generated",   { text: "AI Generated", value: 0 }],
+            ["speculative",   { text: "Speculative", value: 10 }],
+            ["very-doubtful", { text: "Very Doubtful", value: 20 }],
             ["doubtful",      { text: "Doubtful", value: 30 }],
             ["even-odds",     { text: "Even Odds", value: 50 }],
             ["probable",      { text: "Probable", value: 70 }],

@@ -41,6 +41,29 @@ describe("StructuredExtractionRepairService", () => {
         expect(result.validation.result?.attack_flow.id).toBe("attack-flow--1");
     });
 
+    it("repairs descriptions that do not exactly match their evidence", () => {
+        const evidenceExcerpt = "The actor executed PowerShell to download and run the payload.";
+        const result = validateAndRepairStructuredExtractionOutput({
+            outputJson: {
+                ...validOutput,
+                attack_actions: [{
+                    id: "attack-action--1",
+                    type: "attack-action",
+                    spec_version: "2.1",
+                    name: "Execute PowerShell",
+                    description: "The actor downloaded a payload with PowerShell.",
+                    confidence: 0.9,
+                    evidence: [{ source: "report", excerpt: evidenceExcerpt }]
+                }]
+            }
+        });
+
+        expect(result.validation.status).toBe("valid");
+        expect(result.validation.repairAttempted).toBe(true);
+        expect(result.validation.result?.validation_state).toBe("repaired");
+        expect(result.validation.result?.attack_actions?.[0].description).toBe(evidenceExcerpt);
+    });
+
     it("returns unrecoverable when one repair pass cannot fix the output", () => {
         const result = validateAndRepairStructuredExtractionOutput({
             outputText: "not json"

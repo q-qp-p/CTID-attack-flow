@@ -17,7 +17,7 @@
     </div>
     <div
       class="menu-body"
-      v-if="menuMode === 'home'"
+      v-if="application.splashMenuMode === 'home'"
     >
       <div
         class="section open-recovered-file"
@@ -172,8 +172,6 @@ import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
 import ScrollBox from "../Containers/ScrollBox.vue";
 import AIGenerationSplashScreen from "./AIGenerationSplashScreen.vue";
 
-type SplashMenuMode = "home" | "ai-generation";
-
 export default defineComponent({
   name: 'SplashMenu',
   data() {
@@ -186,8 +184,7 @@ export default defineComponent({
       openFile: Configuration.splash.open_file,
       generateFlow: Configuration.splash.generate_flow,
       importStix: Configuration.splash.import_stix,
-      helpLinks: Configuration.splash.help_links,
-      menuMode: "home" as SplashMenuMode
+      helpLinks: Configuration.splash.help_links
     }
   },
   computed: {
@@ -239,7 +236,7 @@ export default defineComponent({
      * Generate Flow behavior.
      */
     onGenerateFlow() {
-      this.menuMode = "ai-generation";
+      this.application.splashMenuMode = "ai-generation";
     },
 
     /**

@@ -192,6 +192,82 @@ describe("AIGenerationSplashScreen", () => {
         ]);
     });
 
+    it("shows Azure runtime override fields only for Azure OpenAI", async () => {
+        const wrapper = mount(AIGenerationSplashScreen, {
+            global: {
+                stubs: {
+                    EmptyPageIcon: true,
+                    FolderIcon: true,
+                    LinkIcon: true
+                }
+            }
+        });
+
+        wrapper.vm.apiHealthCheckSucceeded = true;
+        wrapper.vm.llmType = "azure_openai";
+        await wrapper.vm.$nextTick();
+
+        expect(wrapper.text()).toContain("AZURE DEPLOYMENT:");
+        expect(wrapper.text()).toContain("AZURE API VERSION:");
+        expect(wrapper.text()).not.toContain("MODEL:");
+
+        wrapper.vm.llmType = "openai";
+        await wrapper.vm.$nextTick();
+
+        expect(wrapper.text()).toContain("MODEL:");
+        expect(wrapper.text()).not.toContain("AZURE DEPLOYMENT:");
+        expect(wrapper.text()).not.toContain("AZURE API VERSION:");
+    });
+
+    it("submits complete Azure runtime override settings to the API", async () => {
+        const command = { execute: vi.fn() };
+        runJobToResultMock.mockResolvedValue({
+            status: "completed",
+            job_id: "job-azure"
+        });
+        fetchJobResultArtifactMock.mockResolvedValue("generated-afb");
+        prepareExistingEditorMock.mockResolvedValue(command);
+        const wrapper = mount(AIGenerationSplashScreen, {
+            global: {
+                stubs: {
+                    EmptyPageIcon: true,
+                    FolderIcon: true,
+                    LinkIcon: true
+                }
+            }
+        });
+
+        wrapper.vm.apiHealthCheckSucceeded = true;
+        await wrapper.vm.selectSourceType("text");
+        wrapper.vm.sourceText = "Investigation report";
+        wrapper.vm.llmType = "azure_openai";
+        wrapper.vm.llmEndpoint = " https://azure.example/openai ";
+        wrapper.vm.llmToken = " secret ";
+        wrapper.vm.llmAzureDeployment = " deployment-a ";
+        wrapper.vm.llmAzureApiVersion = " 2025-04-01-preview ";
+        await wrapper.vm.$nextTick();
+
+        expect(wrapper.vm.canGenerate).toBe(true);
+        await wrapper.vm.onClickGenerate();
+
+        expect(runJobToResultMock).toHaveBeenCalledWith(
+            "text",
+            "Investigation report",
+            {
+                options: {
+                    provider_override: {
+                        provider_type: "azure_openai",
+                        endpoint: "https://azure.example/openai",
+                        api_key: "secret",
+                        model: "deployment-a",
+                        deployment: "deployment-a",
+                        api_version: "2025-04-01-preview"
+                    }
+                }
+            }
+        );
+    });
+
     it("hides azure settings for gemini", async () => {
         const wrapper = mount(AIGenerationSplashScreen, {
             global: {
@@ -439,7 +515,7 @@ describe("AIGenerationSplashScreen", () => {
         expect(wrapper.vm.directProviderStructuredGenerationRequest?.prompt).toContain("report.pdf");
     });
 
-    it("fetches and packages URL content in direct-provider mode", async () => {
+    it("uses the form model without requiring stored provider config", async () => {
         const app = useApplicationStore();
         const executeSpy = vi.spyOn(app, "execute");
         const command = { execute: vi.fn() };
@@ -487,13 +563,6 @@ describe("AIGenerationSplashScreen", () => {
                 deterministic_relationships: []
             }
         });
-        const store = useRuntimeProviderStore();
-        store.setRuntimeProviderConfig({
-            providerType: "openai_compatible",
-            endpoint: "https://provider.example/v1",
-            apiKey: "secret",
-            model: "gpt-4o-mini"
-        });
         const wrapper = mount(AIGenerationSplashScreen, {
             global: {
                 stubs: {
@@ -508,6 +577,7 @@ describe("AIGenerationSplashScreen", () => {
         wrapper.vm.sourceUrl = "https://reports.example/start";
         wrapper.vm.llmEndpoint = "https://provider.example/v1";
         wrapper.vm.llmToken = "secret";
+        wrapper.vm.llmModel = "gpt-4o-mini";
 
         await wrapper.vm.onClickGenerate();
 

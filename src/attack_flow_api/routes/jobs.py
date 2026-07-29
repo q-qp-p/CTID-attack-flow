@@ -117,6 +117,7 @@ class SubmissionPayload:
     metadata: dict[str, Any] | None = None
     options: dict[str, Any] | None = None
     provider_id: str | None = None
+    runtime_provider_override: RuntimeProviderOverride | None = None
     model: str | None = None
     title: str | None = None
     case_id: str | None = None
@@ -258,6 +259,7 @@ async def submit_job(request: Request) -> JobSubmissionResponse:
         input_source.id,
         provider_id=submission.provider_id,
         model=submission.model,
+        runtime_provider_override=submission.runtime_provider_override,
     )
 
 
@@ -333,7 +335,7 @@ def _submission_from_json(payload: JobSubmissionRequest, raw_text_max_chars: int
     title = _coerce_optional_metadata_str(payload.metadata, "title")
     case_id = _coerce_optional_metadata_str(payload.metadata, "case_id")
     source_name = _coerce_optional_metadata_str(payload.metadata, "source_name")
-    safe_options, provider_id, model = _normalize_submission_options(payload.options)
+    safe_options, provider_id, model, runtime_provider_override = _normalize_submission_options(payload.options)
     if normalized_input_type == "text" and raw_text is not None:
         normalized_result = normalize_raw_text(raw_text)
         normalized_text = normalized_result.text
@@ -351,6 +353,7 @@ def _submission_from_json(payload: JobSubmissionRequest, raw_text_max_chars: int
         metadata=payload.metadata,
         options=safe_options,
         provider_id=provider_id,
+        runtime_provider_override=runtime_provider_override,
         model=model,
         title=title,
         case_id=case_id,
@@ -393,7 +396,7 @@ async def _submission_from_multipart(request: Request) -> SubmissionPayload:
 
     metadata = _parse_optional_json_object(form_data.get("metadata"), "metadata")
     options = _parse_optional_json_object(form_data.get("options"), "options")
-    safe_options, provider_id, model = _normalize_submission_options(options)
+    safe_options, provider_id, model, runtime_provider_override = _normalize_submission_options(options)
 
     file_bytes = await upload_file.read()
     settings = request.app.state.settings
@@ -447,6 +450,7 @@ async def _submission_from_multipart(request: Request) -> SubmissionPayload:
         metadata=metadata,
         options=safe_options,
         provider_id=provider_id,
+        runtime_provider_override=runtime_provider_override,
         model=model,
         source_name=None,
         title=None,
@@ -484,9 +488,11 @@ def _parse_optional_json_object(raw_value: object, field_name: str) -> dict[str,
     return parsed
 
 
-def _normalize_submission_options(options: dict[str, Any] | None) -> tuple[dict[str, Any] | None, str | None, str | None]:
+def _normalize_submission_options(
+    options: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, str | None, str | None, RuntimeProviderOverride | None]:
     if options is None:
-        return None, None, None
+        return None, None, None, None
 
     safe_options = dict(options)
     has_provider_id = "provider_id" in safe_options and safe_options.get("provider_id") is not None
@@ -512,7 +518,7 @@ def _normalize_submission_options(options: dict[str, Any] | None) -> tuple[dict[
         safe_options["provider_id"] = provider_id
         if model is not None:
             safe_options["model"] = model
-        return safe_options, provider_id, model
+        return safe_options, provider_id, model, None
 
     if has_provider_override:
         try:
@@ -530,11 +536,12 @@ def _normalize_submission_options(options: dict[str, Any] | None) -> tuple[dict[
             safe_options,
             f"runtime-{runtime_override.provider_type}",
             runtime_override.deployment or runtime_override.model,
+            runtime_override,
         )
 
     if model is not None:
         safe_options["model"] = model
-    return safe_options, None, model
+    return safe_options, None, model, None
 
 
 def _coerce_optional_options_str(options: dict[str, Any], key: str) -> str | None:
@@ -559,6 +566,7 @@ def _create_queued_job_response(
     *,
     provider_id: str | None = None,
     model: str | None = None,
+    runtime_provider_override: RuntimeProviderOverride | None = None,
 ) -> JobSubmissionResponse:
     persistence_service = request.app.state.persistence_service
     job = persistence_service.create_job(
@@ -591,6 +599,8 @@ def _create_queued_job_response(
                 details=runtime_provider_metadata,
             )
     persistence_service.record_job_queued(job=job, request_id=request.state.request_id)
+    if runtime_provider_override is not None:
+        request.app.state.job_worker.set_runtime_provider_override(job.id, runtime_provider_override)
     if input_source is not None and input_source.type == "text" and input_source.normalized_text is not None:
         persistence_service.record_job_event(
             job=job,

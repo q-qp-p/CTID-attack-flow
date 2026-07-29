@@ -1,4 +1,4 @@
-import { getDocument, PDFWorker } from "pdfjs-dist";
+import { getDocument, PDFWorker, VerbosityLevel } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import type {
     PdfExtractionError,
@@ -117,6 +117,7 @@ export class BrowserPdfExtractionService {
             ({ worker, releaseWorker } = await this.createWorker());
             const loadingTask = this.pdfJs.getDocument({
                 data: await file.arrayBuffer(),
+                verbosity: VerbosityLevel.ERRORS,
                 ...(worker ? { worker } : {})
             });
             document = await loadingTask.promise as PdfJsDocument;

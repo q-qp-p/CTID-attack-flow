@@ -62,6 +62,7 @@ def test_build_stix_extraction_package_assembles_deterministic_payload_shape():
                 observed_data_refs=[],
                 created_by_ref=None,
                 provenance={"display_name": "name"},
+                stix_properties={},
             )
         ],
         relationships=[

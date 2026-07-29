@@ -206,3 +206,53 @@ def test_build_structured_stix_normalized_update_truncates_narrative_only(tmp_pa
     assert payload["normalized_text"] == "ABCD"
     assert payload["entities"][0]["object_id"] == "report--1"
     assert payload["structured_summary"]["bundle_metadata"]["id"] == "bundle--1"
+
+
+def test_build_structured_stix_normalized_update_exposes_sco_properties_downstream(tmp_path):
+    from attack_flow_api.services.normalized_package_assembler import build_structured_stix_normalized_update
+
+    db_path = tmp_path / "attack-flow.db"
+    initialize_database(db_path)
+    repository = PersistenceRepository(db_path)
+    stix_source = repository.create_input_source(
+        InputSourceCreate(
+            id="input-stix-scos",
+            type="file",
+            file_class="stix_json",
+            stix_summary_json='{"bundle_metadata":{"id":"bundle--1"},"inventory":{},"narrative":{}}',
+            stix_entities_json=json.dumps(
+                [
+                    {
+                        "object_id": "file--1",
+                        "object_type": "file",
+                        "display_name": "payload.exe",
+                        "stix_properties": {
+                            "name": "payload.exe",
+                            "hashes": {"SHA-256": "abc123"},
+                        },
+                    },
+                    {
+                        "object_id": "process--1",
+                        "object_type": "process",
+                        "stix_properties": {"command_line": "cmd.exe /c whoami"},
+                    },
+                ]
+            ),
+            stix_relationships_json="[]",
+            stix_attack_refs_json="[]",
+            stix_provenance_json="{}",
+        )
+    )
+
+    update = build_structured_stix_normalized_update(
+        stix_source,
+        pipeline_version="v1",
+        content_budget_chars=100000,
+    )
+
+    assert update is not None
+    entities = {item["object_id"]: item for item in json.loads(update.normalized_package_json)["entities"]}
+    assert entities["file--1"]["hashes"] == {"SHA-256": "abc123"}
+    assert entities["file--1"]["name"] == "payload.exe"
+    assert entities["process--1"]["command_line"] == "cmd.exe /c whoami"
+    assert "stix_properties" not in entities["file--1"]

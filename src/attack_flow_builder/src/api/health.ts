@@ -55,10 +55,17 @@ async function parseApiResponse(response: Response): Promise<unknown> {
     const payload = await parseResponseBody(response);
 
     if (!response.ok) {
-        const apiError = payload as ApiErrorResponse | null;
+        const apiError = payload && typeof payload === "object"
+            ? payload as ApiErrorResponse
+            : null;
         const errorCode = apiError?.error?.code?.trim();
         const errorMessage = apiError?.error?.message?.trim();
-        throw new Error(errorCode && errorMessage ? `${errorCode}: ${errorMessage}` : errorMessage || response.statusText);
+        const responseStatus = `${response.status} ${response.statusText}`.trim();
+        throw new Error(
+            errorCode && errorMessage
+                ? `${errorCode}: ${errorMessage}`
+                : errorMessage || `API request failed (${responseStatus})`
+        );
     }
 
     return payload;
@@ -78,7 +85,7 @@ async function parseResponseBody(response: Response): Promise<unknown> {
     }
 
     const text = await response.text();
-    return text ? JSON.parse(text) as unknown : null;
+    return text || null;
 }
 
 /**

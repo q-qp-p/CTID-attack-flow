@@ -230,6 +230,11 @@ class AppSettings(BaseSettings):
     allow_runtime_provider_extra_headers: bool = Field(
         default=False, validation_alias="ALLOW_RUNTIME_PROVIDER_EXTRA_HEADERS"
     )
+    runtime_provider_timeout_seconds: float = Field(
+        default=180.0,
+        gt=0,
+        validation_alias="RUNTIME_PROVIDER_TIMEOUT_SECONDS",
+    )
 
     def allowed_runtime_provider_type_set(self) -> set[str]:
         return {item.strip() for item in self.allow_runtime_provider_types.split(",") if item.strip()}

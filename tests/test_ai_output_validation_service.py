@@ -1,3 +1,4 @@
+from attack_flow_api.services.afb_extraction_contracts import ExtractionValidationState
 from attack_flow_api.services.ai_orchestration_planner import build_provider_orchestration_input
 from attack_flow_api.services.ai_output_validation_service import parse_validate_and_repair_extraction_output
 from attack_flow_api.services.ai_provider_invocation_service import ProviderInvocationResult
@@ -562,7 +563,7 @@ def test_parse_validate_unwraps_nested_output_json_wrapper() -> None:
     assert result.extraction_result.attack_actions[0].id == "attack-action--1"
 
 
-def test_validation_fails_when_description_not_verbatim_evidence() -> None:
+def test_validation_repairs_descriptions_from_longest_verbatim_evidence() -> None:
     packaged = _packaged_input()
     output_json = {
         "validation_state": "valid",
@@ -581,7 +582,32 @@ def test_validation_fails_when_description_not_verbatim_evidence() -> None:
                 "name": "Credential Access",
                 "description": "Paraphrased summary",
                 "confidence": 0.8,
-                "evidence": [{"source": "narrative", "excerpt": "Observed command exactly as reported."}],
+                "evidence": [
+                    {"source": "narrative", "excerpt": "Observed command."},
+                    {"source": "narrative", "excerpt": "Observed command exactly as reported."},
+                ],
+            }
+        ],
+        "attack_conditions": [
+            {
+                "id": "attack-condition--1",
+                "description": "After access was obtained",
+                "value": "true",
+                "confidence": 0.8,
+                "evidence": [
+                    {"source": "narrative", "excerpt": "Once the actor obtained access"}
+                ],
+            }
+        ],
+        "attack_assets": [
+            {
+                "id": "attack-asset--1",
+                "name": "Target host",
+                "description": "The compromised machine",
+                "confidence": 0.8,
+                "evidence": [
+                    {"source": "narrative", "excerpt": "the targeted Windows host"}
+                ],
             }
         ],
     }
@@ -598,8 +624,23 @@ def test_validation_fails_when_description_not_verbatim_evidence() -> None:
         packaged_input=packaged,
     )
 
-    assert result.valid is False
-    assert result.error_code == "action_description_not_verbatim_excerpt"
+    assert result.valid is True
+    assert result.repair_attempted is True
+    assert result.extraction_result is not None
+    assert result.extraction_result.validation_state == ExtractionValidationState.REPAIRED
+    assert result.extraction_result.repair_attempted is True
+    assert (
+        result.extraction_result.attack_actions[0].description
+        == "Observed command exactly as reported."
+    )
+    assert (
+        result.extraction_result.attack_conditions[0].description
+        == "Once the actor obtained access"
+    )
+    assert (
+        result.extraction_result.attack_assets[0].description
+        == "the targeted Windows host"
+    )
 
 
 def test_provider_error_is_returned_cleanly() -> None:

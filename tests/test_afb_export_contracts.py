@@ -182,7 +182,7 @@ def test_build_afb_attack_flow_root_object_maps_canonical_metadata() -> None:
     }
 
 
-def test_build_afb_attack_action_object_preserves_explicit_mapping_fields() -> None:
+def test_build_afb_attack_action_object_uses_ai_generated_confidence() -> None:
     node = CanonicalFlowActionNode(
         id="attack-action--1",
         name="Observed step",
@@ -206,7 +206,7 @@ def test_build_afb_attack_action_object_preserves_explicit_mapping_fields() -> N
     assert action.id == "attack-action--1"
     assert action.name == "Observed step"
     assert action.description == "  Observed command exactly as reported.  "
-    assert action.confidence == 0.73
+    assert action.confidence == 0.0
     assert action.technique_id == "T1059"
     assert action.technique_ref == "attack-pattern--1"
     assert action.tactic_id is None
@@ -429,7 +429,8 @@ def test_assemble_afb_export_bundle_builds_builder_diagram_export() -> None:
     diagram_export = bundle.to_diagram_export_ready()
 
     assert diagram_export["schema"] == "attack_flow_v2"
-    assert diagram_export["generated_layout"] == "auto"
+    assert "generated_layout" not in diagram_export
+    assert "layout" not in diagram_export
     canvas = diagram_export["objects"][0]
     action = next(item for item in diagram_export["objects"] if item["id"] == "action")
     assert canvas["id"] == "flow"
@@ -438,21 +439,36 @@ def test_assemble_afb_export_bundle_builds_builder_diagram_export() -> None:
         "source_name": "example.com",
         "url": "https://example.com/report",
     }
-    assert [item for item in action["properties"] if item[0] == "confidence"][0][1] == 0.62
+    assert [item for item in action["properties"] if item[0] == "confidence"][0][1] == 0.0
     assert "attack-action--1" in canvas["objects"]
     assert "attack-asset--1" in canvas["objects"]
     assert "malware--1" in canvas["objects"]
     assert canvas["objects"].count("attack-action--1") == 1
     assert canvas["objects"].count("attack-asset--1") == 1
     assert canvas["objects"].count("malware--1") == 1
-    assert diagram_export["layout"]["attack-action--1"] == [0.0, 0.0]
-    assert diagram_export["layout"]["attack-asset--1"][0] > 400.0
-    assert diagram_export["layout"]["attack-asset--1"][1] == diagram_export["layout"]["attack-action--1"][1]
-    assert diagram_export["layout"]["malware--1"][1] == diagram_export["layout"]["attack-action--1"][1]
-    assert diagram_export["layout"]["malware--1"][0] > diagram_export["layout"]["attack-asset--1"][0]
     assert any(item["id"] == "generic_handle" for item in diagram_export["objects"])
     assert any(item["id"] == "dynamic_line" for item in diagram_export["objects"])
     assert json.loads(bundle.to_diagram_export_bytes().decode("utf-8")) == diagram_export
+
+
+def test_assemble_afb_export_bundle_selects_best_fit_ui_scope() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(
+            flow_id="attack-flow--scope",
+            name="Adversary profile",
+            scope="adversary_profile",
+        ),
+        nodes=[],
+        edges=[],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    diagram_export = assemble_afb_export_bundle(canonical).to_diagram_export_ready()
+    canvas = diagram_export["objects"][0]
+
+    assert ["scope", "threat-actor"] in canvas["properties"]
 
 
 def test_assemble_afb_export_bundle_renders_shared_assets_next_to_each_action() -> None:
@@ -507,10 +523,7 @@ def test_assemble_afb_export_bundle_renders_shared_assets_next_to_each_action() 
     assert "attack-asset--qbot" not in canvas["objects"]
     assert len(qbot_blocks) == 2
     assert len({item["instance"] for item in qbot_blocks}) == 2
-    assert {diagram_export["layout"][item["instance"]][1] for item in qbot_blocks} == {
-        diagram_export["layout"]["attack-action--1"][1],
-        diagram_export["layout"]["attack-action--2"][1],
-    }
+    assert "layout" not in diagram_export
     linked_latches = {
         latch
         for item in diagram_export["objects"]
@@ -591,6 +604,80 @@ def test_assemble_afb_export_bundle_uses_asset_name_for_typed_card_label() -> No
     )
 
 
+def test_assemble_afb_export_bundle_populates_required_ui_fields_for_typed_cards() -> None:
+    canonical = CanonicalFlowOutput(
+        metadata=CanonicalFlowMetadata(flow_id="attack-flow--required-fields", name="Example flow", scope="incident"),
+        nodes=[
+            CanonicalFlowActionNode(
+                id="attack-action--1",
+                name="Use observables",
+                description="The adversary used observable infrastructure.",
+                object_refs=["domain-name--1", "directory--1", "ipv4-addr--1", "network-traffic--1", "malware--1", "email-message--1"],
+            ),
+            CanonicalFlowAssetNode(
+                id="domain-name--1",
+                name="evil[.]example",
+                object_ref="domain-name--1",
+                stix_properties={"type": "domain-name", "id": "domain-name--1"},
+            ),
+            CanonicalFlowAssetNode(
+                id="directory--1",
+                name="C:\\Temp",
+                object_ref="directory--1",
+                stix_properties={"type": "directory", "id": "directory--1"},
+            ),
+            CanonicalFlowAssetNode(
+                id="ipv4-addr--1",
+                name="144.76.136[.]153",
+                object_ref="ipv4-addr--1",
+                stix_properties={"type": "ipv4-addr", "id": "ipv4-addr--1"},
+            ),
+            CanonicalFlowAssetNode(
+                id="network-traffic--1",
+                name="Observed connection",
+                object_ref="network-traffic--1",
+                stix_properties={"type": "network-traffic", "id": "network-traffic--1"},
+            ),
+            CanonicalFlowAssetNode(
+                id="malware--1",
+                name="Example malware",
+                object_ref="malware--1",
+                stix_properties={"type": "malware", "id": "malware--1", "is_family": False},
+            ),
+            CanonicalFlowAssetNode(
+                id="email-message--1",
+                name="Delivery notice",
+                object_ref="email-message--1",
+                stix_properties={"type": "email-message", "id": "email-message--1", "is_multipart": "false"},
+            ),
+        ],
+        edges=[],
+        provenance={},
+        conflicts=[],
+        validation_errors=[],
+    )
+
+    diagram_export = assemble_afb_export_bundle(canonical).to_diagram_export_ready()
+
+    domain = next(item for item in diagram_export["objects"] if item["id"] == "domain_name")
+    directory = next(item for item in diagram_export["objects"] if item["id"] == "directory")
+    ipv4 = next(item for item in diagram_export["objects"] if item["id"] == "ipv4_addr")
+    malware = next(item for item in diagram_export["objects"] if item["id"] == "malware")
+    email_message = next(item for item in diagram_export["objects"] if item["id"] == "email_message")
+    fallback_asset = next(
+        item
+        for item in diagram_export["objects"]
+        if item["id"] == "asset" and ["name", "Observed connection"] in item.get("properties", [])
+    )
+    assert ["value", "evil[.]example"] in domain["properties"]
+    assert ["path", "C:\\Temp"] in directory["properties"]
+    assert ["value", "144.76.136.153"] in ipv4["properties"]
+    assert ["is_defanged", "true"] in ipv4["properties"]
+    assert ["is_family", "false"] in malware["properties"]
+    assert ["is_multipart", "false"] in email_message["properties"]
+    assert fallback_asset["instance"] == "network-traffic--1"
+
+
 def test_assemble_afb_export_bundle_serializes_file_hashes_for_builder() -> None:
     canonical = CanonicalFlowOutput(
         metadata=CanonicalFlowMetadata(flow_id="attack-flow--file-hash", name="Example flow", scope="incident"),
@@ -625,7 +712,7 @@ def test_assemble_afb_export_bundle_serializes_file_hashes_for_builder() -> None
     assert ["hashes", [["item-1", {"hash_type": "md5", "hash_value": "d7d3e1c76d5e2fa9f7253c8ababd6349"}]]] in file["properties"]
 
 
-def test_assemble_afb_export_bundle_stacks_multiple_action_assets_vertically() -> None:
+def test_assemble_afb_export_bundle_defers_multiple_action_asset_layout() -> None:
     canonical = CanonicalFlowOutput(
         metadata=CanonicalFlowMetadata(
             flow_id="attack-flow--multiple-assets",
@@ -663,14 +750,10 @@ def test_assemble_afb_export_bundle_stacks_multiple_action_assets_vertically() -
     )
 
     diagram_export = assemble_afb_export_bundle(canonical).to_diagram_export_ready()
-    asset_positions = [
-        diagram_export["layout"][asset_id]
-        for asset_id in ["attack-asset--temp", "attack-asset--r", "attack-asset--admin"]
-    ]
+    canvas = diagram_export["objects"][0]
 
-    assert {position[0] for position in asset_positions} == {420.0}
-    assert [position[1] for position in asset_positions] == [-200.0, 0.0, 200.0]
-    assert diagram_export["layout"]["attack-action--2"] == [175.0, 420.0]
+    assert "layout" not in diagram_export
+    assert {"attack-asset--temp", "attack-asset--r", "attack-asset--admin"} <= set(canvas["objects"])
 
 
 def test_assemble_afb_export_bundle_keeps_action_technique_without_attack_pattern_block() -> None:
@@ -741,9 +824,7 @@ def test_assemble_afb_export_bundle_renders_action_to_action_connector() -> None
     diagram_export = bundle.to_diagram_export_ready()
 
     assert any(item["id"] == "dynamic_line" for item in diagram_export["objects"])
-    assert diagram_export["layout"]["attack-action--1"] == [0.0, 0.0]
-    assert diagram_export["layout"]["attack-action--2"][0] == 175.0
-    assert diagram_export["layout"]["attack-action--2"][1] > diagram_export["layout"]["attack-action--1"][1]
+    assert "layout" not in diagram_export
 
 
 def test_assemble_afb_export_bundle_renders_condition_branch_connectors() -> None:
@@ -799,10 +880,7 @@ def test_assemble_afb_export_bundle_renders_condition_branch_connectors() -> Non
     assert set(condition["anchors"]) == {
         "0", "30", "60", "90", "120", "150", "180", "210", "330", "branch:True", "branch:False"
     }
-    assert diagram_export["layout"]["attack-condition--1"] == [0.0, 0.0]
-    assert diagram_export["layout"]["attack-action--1"][1] > diagram_export["layout"]["attack-condition--1"][1]
-    assert diagram_export["layout"]["attack-action--2"][1] > diagram_export["layout"]["attack-condition--1"][1]
-    assert diagram_export["layout"]["attack-action--3"][1] > diagram_export["layout"]["attack-condition--1"][1]
+    assert "layout" not in diagram_export
 
 
 def test_assemble_afb_export_bundle_falls_back_to_sequential_action_chain() -> None:
@@ -843,10 +921,8 @@ def test_assemble_afb_export_bundle_falls_back_to_sequential_action_chain() -> N
 
     assert len(line_exports) == 2
     assert len(handle_exports) == 2
-    assert diagram_export["layout"]["attack-action--2"][0] == 175.0
-    assert diagram_export["layout"]["attack-action--3"][0] == 350.0
-    assert diagram_export["layout"]["attack-action--2"][1] > diagram_export["layout"]["attack-action--1"][1]
-    assert diagram_export["layout"]["attack-action--3"][1] > diagram_export["layout"]["attack-action--2"][1]
+    assert "layout" not in diagram_export
+    assert all("position" not in handle for handle in handle_exports)
 
 
 def test_assemble_afb_export_bundle_prefers_object_connector_over_sequential_connector() -> None:

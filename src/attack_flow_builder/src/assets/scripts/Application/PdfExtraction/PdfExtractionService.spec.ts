@@ -63,6 +63,9 @@ describe("BrowserPdfExtractionService", () => {
             extractedText: "First page text\n\nSecond page"
         });
         expect(getDocumentMock).toHaveBeenCalledTimes(1);
+        expect(getDocumentMock).toHaveBeenCalledWith(expect.objectContaining({
+            verbosity: 0
+        }));
     });
 
     it("preserves page ordering for representative samples", async () => {

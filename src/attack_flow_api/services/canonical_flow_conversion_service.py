@@ -65,13 +65,25 @@ class CanonicalFlowConversionService:
             for ref in fused_output.attack_refs
         ]
         entities = _entities_with_specific_data(fused_output.entities)
-        actions = _actions_with_resolved_asset_refs(fused_output.attack_actions, entities)
+        entity_ids = {item.object_id for item in entities if item.object_id}
+        fused_assets = [item for item in fused_output.attack_assets if item.object_id not in entity_ids]
+        actions = _actions_with_resolved_asset_refs(
+            fused_output.attack_actions,
+            entities,
+            fused_assets,
+        )
         action_assets = _convert_action_object_refs_to_assets(
             actions,
-            existing_asset_ids=[asset.object_id for asset in entities if asset.object_id is not None],
+            existing_asset_ids=[
+                asset_id
+                for asset in [*entities, *fused_assets]
+                for asset_id in [asset.object_id, asset.object_ref]
+                if asset_id is not None
+            ],
         )
         nodes = [
             *_convert_entities_to_assets(entities),
+            *_convert_fused_assets(fused_assets),
             *action_assets,
             *_convert_actions(actions),
             *_convert_conditions(fused_output.attack_conditions),
@@ -82,7 +94,7 @@ class CanonicalFlowConversionService:
             provenance=provenance,
             start_refs=_filter_start_refs(fused_output.attack_flow, nodes),
         )
-        edges = _build_edges_from_fused_output(nodes, actions, fused_output.attack_conditions, fused_output.attack_operators, fused_output.attack_assets, fused_output.relationships)
+        edges = _build_edges_from_fused_output(nodes, actions, fused_output.attack_conditions, fused_output.attack_operators, fused_assets, fused_output.relationships)
 
         return _build_canonical_flow_output(
             metadata=metadata,
@@ -223,13 +235,13 @@ def _build_attachment_bundle_from_fused_output(
         [
             ref
             for asset in fused_output.attack_assets
-            for ref in [asset.object_id, asset.source_ref, asset.target_ref]
+            for ref in [asset.object_id, asset.object_ref, asset.source_ref, asset.target_ref]
             if ref
         ]
         + [
             ref
             for asset in fused_output.source_grounded_attachments.attack_assets
-            for ref in [asset.object_id, asset.source_ref, asset.target_ref]
+            for ref in [asset.object_id, asset.object_ref, asset.source_ref, asset.target_ref]
             if ref
         ]
     )
@@ -568,20 +580,26 @@ def _convert_action_object_refs_to_assets(
 
 def _entities_with_specific_data(entities: list[MergedEntity]) -> list[MergedEntity]:
     """Keep only entities that can render as meaningful assets."""
-    return [item for item in entities if _best_entity_name(item) or _as_str(item.description)]
+    return [
+        item
+        for item in entities
+        if _best_entity_name(item) or _as_str(item.description) or item.stix_properties
+    ]
 
 
 def _actions_with_resolved_asset_refs(
     actions: list[MergedAttackAction],
     entities: list[MergedEntity],
+    assets: list[MergedEntity],
 ) -> list[MergedAttackAction]:
     """Avoid emitting placeholder asset blocks for unresolved references."""
     entity_refs = {item.object_id for item in entities if item.object_id}
+    asset_refs = {item.object_id for item in assets if item.object_id}
     return [
         action.model_copy(
             update={
                 "object_refs": [ref for ref in action.object_refs if ref in entity_refs],
-                "asset_refs": [ref for ref in action.asset_refs if ref in entity_refs],
+                "asset_refs": [ref for ref in action.asset_refs if ref in entity_refs or ref in asset_refs],
             }
         )
         for action in actions
@@ -671,6 +689,25 @@ def _convert_entities_to_assets(entities: list[MergedEntity]) -> list[CanonicalF
     ]
 
 
+def _convert_fused_assets(assets: list[MergedEntity]) -> list[CanonicalFlowAssetNode]:
+    return [
+        CanonicalFlowAssetNode(
+            id=item.object_id or _best_entity_name(item) or "attack-asset",
+            name=_best_entity_name(item) or "attack-asset",
+            description=item.description,
+            tags=list(item.tags),
+            stix_properties=dict(item.stix_properties),
+            confidence=item.confidence,
+            object_ref=item.object_ref,
+            evidence=[_convert_evidence_dict(entry) for entry in item.evidence],
+            citations=[],
+            provenance=[_convert_fusion_provenance(entry) for entry in item.provenance],
+            conflicts=list(item.conflicts),
+        )
+        for item in assets
+    ]
+
+
 def _entity_stix_properties(item: MergedEntity) -> dict[str, Any]:
     properties = dict(getattr(item, "stix_properties", {}) or {})
     object_type = _canonical_stix_object_type(getattr(item, "object_type", None))
@@ -686,6 +723,8 @@ def _canonical_stix_object_type(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
     normalized = value.strip().replace("_", "-")
+    if normalized == "email-address":
+        return "email-addr"
     return normalized or None
 
 
@@ -714,6 +753,8 @@ def _best_entity_name(item: MergedEntity) -> str:
             candidate = value.strip()
             if candidate:
                 return candidate
+        elif isinstance(value, (int, float)):
+            return str(value)
 
     return display_name
 

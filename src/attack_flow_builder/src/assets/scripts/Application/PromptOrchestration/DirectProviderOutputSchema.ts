@@ -41,7 +41,7 @@ export const DIRECT_PROVIDER_OUTPUT_SCHEMA: Record<string, unknown> = {
                 type: { const: "attack-flow" },
                 spec_version: { const: "2.1" },
                 name: { type: "string" },
-                scope: { type: "string" },
+                scope: { enum: ["incident", "campaign", "threat-actor", "malware", "emulation-plan", "attack-tree", "other"] },
                 start_refs: { type: "array", items: { type: "string" } },
                 description: { type: "string" },
                 orchestration_mode: { type: "string" },
@@ -158,6 +158,7 @@ export const DIRECT_PROVIDER_OUTPUT_SCHEMA: Record<string, unknown> = {
                     tags: {
                         anyOf: [
                             { type: "null" },
+                            { type: "array", items: { type: "string" } },
                             { type: "object", additionalProperties: { type: "boolean" } }
                         ]
                     },
@@ -169,7 +170,30 @@ export const DIRECT_PROVIDER_OUTPUT_SCHEMA: Record<string, unknown> = {
             }
         },
         deterministic_attack_refs: { type: "array", items: { type: "object" } },
-        deterministic_entities: { type: "array", items: { type: "object" } },
-        deterministic_relationships: { type: "array", items: { type: "object" } }
+        deterministic_entities: {
+            type: "array",
+            items: {
+                type: "object",
+                required: ["object_id", "object_type"],
+                properties: {
+                    object_id: { type: "string" },
+                    object_type: { type: "string" },
+                    display_name: { type: "string" }
+                }
+            }
+        },
+        deterministic_relationships: {
+            type: "array",
+            items: {
+                type: "object",
+                required: ["relationship_type", "source_ref", "target_ref"],
+                properties: {
+                    relationship_id: { type: "string" },
+                    relationship_type: { type: "string" },
+                    source_ref: { type: "string" },
+                    target_ref: { type: "string" }
+                }
+            }
+        }
     }
 };

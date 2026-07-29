@@ -233,3 +233,31 @@ describe("AttackFlowPublisher - defensive object IDs", () => {
         expect(detectionSdo.detection_id).toBe("DET0516");
     });
 });
+
+describe("AttackFlowPublisher - explicit relationships", () => {
+    it("preserves an explicit relationship type from the connecting line", () => {
+        const factory = buildFactory();
+        const file = new DiagramModelFile(factory);
+        const source = createBlock(factory, file, "action");
+        const target = createBlock(factory, file, "asset");
+        const line = factory.createNewDiagramObject("dynamic_line", Line);
+        const sourceAnchor = source.anchors.values().next().value;
+        const targetAnchor = target.anchors.values().next().value;
+        if (!sourceAnchor || !targetAnchor) {
+            throw new Error("Relationship test blocks require anchors");
+        }
+        line.source.link(sourceAnchor);
+        line.target.link(targetAnchor);
+        line.properties.get("relationship_type", StringProperty)?.setValue("drops");
+        file.canvas.addObject(line);
+
+        const bundle = publish(file);
+        const relationship = bundle.objects.find(object =>
+            object.type === "relationship"
+            && object.source_ref === `attack-action--${source.instance}`
+            && object.target_ref === `attack-asset--${target.instance}`
+        );
+
+        expect(relationship?.relationship_type).toBe("drops");
+    });
+});

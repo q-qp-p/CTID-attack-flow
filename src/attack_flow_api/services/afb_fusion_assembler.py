@@ -64,10 +64,13 @@ def build_fused_output_candidate_from_sources(
         entities,
         extraction_result.deterministic_entities,
     )
-    merged_relationships = merge_relationships_deterministic_first(relationships, [])
+    merged_relationships = merge_relationships_deterministic_first(
+        relationships,
+        extraction_result.deterministic_relationships,
+    )
 
     merged_actions = _merge_extraction_items(extraction_result.attack_actions, MergedAttackAction)
-    merged_assets = _merge_extraction_items(extraction_result.attack_assets, MergedEntity)
+    merged_assets = _merge_attack_assets(extraction_result.attack_assets)
     merged_conditions = _merge_extraction_items(extraction_result.attack_conditions, MergedCondition)
     merged_operators = _merge_extraction_items(extraction_result.attack_operators, MergedOperator)
 
@@ -219,6 +222,41 @@ def _merge_extraction_items(items: Sequence[Any], target_model: type[BaseModel])
         elif target_model is MergedOperator:
             obj = _ensure_attack_operator_provenance(obj, item)
         merged.append(obj)
+    return merged
+
+
+def _merge_attack_assets(items: Sequence[Any]) -> list[MergedEntity]:
+    merged: list[MergedEntity] = []
+    for item in items:
+        merged.append(
+            MergedEntity(
+                object_id=item.id,
+                object_type=item.type,
+                display_name=item.name,
+                description=item.description,
+                tags=list(item.tags),
+                object_ref=item.object_ref,
+                evidence=[entry.model_dump(mode="json") for entry in item.evidence],
+                confidence=item.confidence,
+                ai_confidences=[item.confidence],
+                provenance=[
+                    FusionFindingProvenance(
+                        kind=(
+                            FusionProvenanceKind.DETERMINISTIC
+                            if item.fact_origin == FactOrigin.DETERMINISTIC_SOURCE
+                            else FusionProvenanceKind.AI_DERIVED
+                        ),
+                        source_label=(
+                            "deterministic_source"
+                            if item.fact_origin == FactOrigin.DETERMINISTIC_SOURCE
+                            else "ai_generated"
+                        ),
+                        confidence=item.confidence,
+                        source_object_id=item.id,
+                    )
+                ],
+            )
+        )
     return merged
 
 

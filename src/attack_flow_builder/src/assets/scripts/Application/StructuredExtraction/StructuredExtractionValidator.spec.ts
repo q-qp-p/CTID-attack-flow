@@ -167,6 +167,48 @@ describe("StructuredExtractionValidator", () => {
         expect(result.failures.some(failure => failure.code === "structured_extraction_attack_action_description_not_verbatim")).toBe(true);
     });
 
+    it("preserves resolved deterministic entities and object references", () => {
+        const result = validateStructuredExtractionOutput({
+            outputJson: {
+                ...validOutput,
+                attack_actions: [{
+                    ...validOutput.attack_actions[0],
+                    object_refs: ["url--1"]
+                }],
+                deterministic_entities: [{
+                    object_id: "url--1",
+                    object_type: "url",
+                    value: "hxxps://evil[.]example"
+                }]
+            }
+        });
+
+        expect(result.status).toBe("valid");
+        expect(result.result?.attack_actions?.[0].object_refs).toEqual(["url--1"]);
+        expect(result.result?.deterministic_entities?.[0]).toMatchObject({
+            object_id: "url--1",
+            value: "hxxps://evil[.]example"
+        });
+    });
+
+    it("rejects unresolved object references instead of dropping them", () => {
+        const result = validateStructuredExtractionOutput({
+            outputJson: {
+                ...validOutput,
+                attack_actions: [{
+                    ...validOutput.attack_actions[0],
+                    object_refs: ["url--missing"]
+                }]
+            }
+        });
+
+        expect(result.status).toBe("invalid");
+        expect(result.failures).toContainEqual(expect.objectContaining({
+            code: "structured_extraction_reference_unresolved",
+            path: "attack_actions[0].object_refs"
+        }));
+    });
+
     it("rejects unsupported operator values", () => {
         const result = validateStructuredExtractionOutput({
             outputJson: {

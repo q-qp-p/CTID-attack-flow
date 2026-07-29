@@ -98,6 +98,7 @@ def test_entities_merge_union_lists_without_overwriting_deterministic_fields() -
                 "display_name": "Deterministic Malware",
                 "description": "deterministic description",
                 "labels": ["label-a"],
+                "value": "hxxps://source[.]example",
                 "confidence": 0.8,
             }
         ],
@@ -109,6 +110,7 @@ def test_entities_merge_union_lists_without_overwriting_deterministic_fields() -
                 "description": "ai description",
                 "labels": ["label-b", "label-a"],
                 "observed_data_refs": ["observed-data--1"],
+                "value": "https://provider.example",
                 "confidence": 0.6,
             }
         ],
@@ -121,6 +123,8 @@ def test_entities_merge_union_lists_without_overwriting_deterministic_fields() -
     assert merged.description == "deterministic description"
     assert merged.labels == ["label-a", "label-b"]
     assert merged.observed_data_refs == ["observed-data--1"]
+    assert merged.stix_properties["value"] == "hxxps://source[.]example"
+    assert any("STIX property 'value'" in conflict.message for conflict in merged.conflicts)
     assert merged.confidence == 0.8
     assert merged.deterministic_confidence == 0.8
     assert merged.ai_confidences == [0.6]

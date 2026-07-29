@@ -473,7 +473,7 @@ export class OpenAICompatibleProviderAdapter implements ProviderAdapter {
         }
 
         if (!value || typeof value !== "object") {
-            return inConfidenceField ? this.normalizeGeminiConfidence(value) : value;
+            return inConfidenceField ? 0 : value;
         }
 
         const record = value as Record<string, unknown>;
@@ -490,14 +490,7 @@ export class OpenAICompatibleProviderAdapter implements ProviderAdapter {
         if (this.isGeminiAttackNode(normalized) && typeof normalized.spec_version !== "string") {
             normalized.spec_version = "2.1";
         }
-
-        if (typeof normalized.confidence !== "number" && normalized.confidence !== undefined) {
-            const confidence = this.normalizeGeminiConfidence(normalized.confidence);
-            if (confidence !== undefined) {
-                normalized.confidence = confidence;
-            }
-        }
-
+        normalized.confidence = 0;
         normalized.evidence = this.normalizeGeminiEvidence(normalized);
 
         return normalized;

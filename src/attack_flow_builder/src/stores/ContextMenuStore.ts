@@ -74,6 +74,11 @@ export const useContextMenuStore = defineStore("contextMenuStore", {
                         type: MenuType.Action,
                         data: () => AppCommands.prepareEditorFromStixFileSystem(app),
                         shortcut: file.open_stix_file
+                    },
+                    {
+                        text: "Generate Flow",
+                        type: MenuType.Action,
+                        data: () => AppCommands.showSplashMenu(app, "ai-generation")
                     }
                 ]
             };

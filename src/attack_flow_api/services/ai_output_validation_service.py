@@ -15,6 +15,13 @@ from attack_flow_api.services.ai_orchestration_planner import ProviderOrchestrat
 from attack_flow_api.services.ai_provider_invocation_service import ProviderInvocationResult
 
 
+_VERBATIM_DESCRIPTION_ERRORS = {
+    "action_description_not_verbatim_excerpt",
+    "condition_description_not_verbatim_excerpt",
+    "asset_description_not_verbatim_excerpt",
+}
+
+
 @dataclass(frozen=True, slots=True)
 class ExtractionOutputValidationResult:
     valid: bool
@@ -86,13 +93,22 @@ def parse_validate_and_repair_extraction_output(
             error_message=str(exc),
         )
 
-    hard_constraint_error = _validate_hard_constraints(extracted)
-    if hard_constraint_error is not None:
+    hard_constraint_errors = _validate_hard_constraints(extracted)
+    if hard_constraint_errors and all(
+        error in _VERBATIM_DESCRIPTION_ERRORS for error in hard_constraint_errors
+    ):
+        if _attempt_verbatim_description_repair(extracted):
+            repair_attempted = True
+            extracted.repair_attempted = True
+            extracted.validation_state = ExtractionValidationState.REPAIRED
+            hard_constraint_errors = _validate_hard_constraints(extracted)
+
+    if hard_constraint_errors:
         return ExtractionOutputValidationResult(
             valid=False,
             extraction_result=None,
             repair_attempted=repair_attempted,
-            error_code=hard_constraint_error,
+            error_code=hard_constraint_errors[0],
             error_message="extraction output violates hard constraints",
         )
 
@@ -278,18 +294,20 @@ def _coerce_legacy_afb_extraction_output(
 
     condition_value = legacy_flow.get("attack_condition")
     if isinstance(condition_value, str) and condition_value.strip():
+        condition_description = str(
+            legacy_flow.get("attack_condition_description")
+            or metadata.get("attack_condition_description")
+            or "Legacy attack condition"
+        )
         attack_conditions.append(
             {
                 "id": str(legacy_flow.get("attack_condition_id") or "attack-condition--1"),
-                "description": str(
-                    legacy_flow.get("attack_condition_description")
-                    or metadata.get("attack_condition_description")
-                    or "Legacy attack condition"
-                ),
+                "description": condition_description,
                 "value": condition_value.strip(),
                 "confidence": _coerce_float(legacy_flow.get("attack_condition_confidence"), default=1.0),
                 "on_true_refs": [],
                 "on_false_refs": [],
+                "evidence": [{"source": "legacy_output", "excerpt": condition_description}],
             }
         )
 
@@ -553,6 +571,7 @@ def _coerce_legacy_object_to_asset(item: dict[str, Any], index: int) -> dict[str
         "id": _first_non_empty_string(_as_str(item.get("id")), _as_str(item.get("asset_id")), f"attack-asset--{index}"),
         "name": _first_non_empty_string(_as_str(item.get("name")), _as_str(item.get("display_name")), f"Legacy attack asset {index}"),
         "description": _as_str(item.get("description")) or None,
+        "tags": _as_str_list(item.get("tags")),
         "object_ref": _as_str(item.get("object_ref")) or None,
         "evidence": [entry for entry in item.get("evidence", []) if isinstance(entry, dict)] if isinstance(item.get("evidence"), list) else [],
         "confidence": _coerce_float(item.get("confidence"), default=0.5),
@@ -848,17 +867,50 @@ def _attempt_single_repair(text: str | None) -> str | None:
     return stripped
 
 
-def _validate_hard_constraints(extracted: AfbExtractionResult) -> str | None:
+def _validate_hard_constraints(extracted: AfbExtractionResult) -> list[str]:
+    errors: list[str] = []
     for action in extracted.attack_actions:
         if action.technique is not None and not action.technique.grounded_by.strip():
-            return "technique_not_explicitly_grounded"
+            errors.append("technique_not_explicitly_grounded")
 
         if action.description.strip():
             evidence_excerpts = {item.excerpt for item in action.evidence}
             if action.description not in evidence_excerpts:
-                return "action_description_not_verbatim_excerpt"
+                errors.append("action_description_not_verbatim_excerpt")
 
-    return None
+    for condition in extracted.attack_conditions:
+        if condition.description.strip():
+            evidence_excerpts = {item.excerpt for item in condition.evidence}
+            if condition.description not in evidence_excerpts:
+                errors.append("condition_description_not_verbatim_excerpt")
+
+    for asset in extracted.attack_assets:
+        if asset.description and asset.description.strip():
+            evidence_excerpts = {item.excerpt for item in asset.evidence}
+            if asset.description not in evidence_excerpts:
+                errors.append("asset_description_not_verbatim_excerpt")
+
+    return errors
+
+
+def _attempt_verbatim_description_repair(extracted: AfbExtractionResult) -> bool:
+    changed = False
+    nodes = [
+        *extracted.attack_actions,
+        *extracted.attack_conditions,
+        *extracted.attack_assets,
+    ]
+    for node in nodes:
+        description = node.description
+        if not description:
+            continue
+        excerpts = [item.excerpt for item in node.evidence if item.excerpt]
+        if not excerpts or description in excerpts:
+            continue
+        node.description = max(excerpts, key=len)
+        changed = True
+
+    return changed
 
 
 def _build_deterministic_only_result(packaged_input: ProviderOrchestrationInput) -> AfbExtractionResult:

@@ -21,6 +21,7 @@ Key variables:
 - `VITE_API_BASE_URL`: API base URL for separate-origin/local UI deployments
 - `VITE_API_BASE_URL_PROXY`: API base path for bundled proxy deployment
 - `DATA_DIR`, `SQLITE_PATH`, `UPLOAD_DIR`, `ARTIFACT_DIR`: backend persistence paths
+- `RUNTIME_PROVIDER_TIMEOUT_SECONDS`: per-attempt timeout for request-supplied providers (default `180`)
 
 Proxy certificate support:
 

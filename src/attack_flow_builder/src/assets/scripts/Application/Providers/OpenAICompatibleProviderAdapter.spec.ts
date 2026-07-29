@@ -332,7 +332,7 @@ describe("OpenAICompatibleProviderAdapter", () => {
                 attack_actions: [
                     expect.objectContaining({
                         spec_version: "2.1",
-                        confidence: 0.8,
+                        confidence: 0,
                         evidence: [
                             expect.objectContaining({
                                 source: "source",

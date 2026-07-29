@@ -37,9 +37,16 @@ export interface DirectProviderPromptConstraints {
     requireTacticForAttackTechnique: true;
     supportedFrameworksOnly: true;
     consolidateSameTechniqueSubsteps: true;
+    separateToolSetupOnlyForDistinctTechnique: true;
+    keepSourceDistinctActionsSeparate: true;
     useSpecificStixEntityTypes: true;
+    preserveDefangedObservableValues: true;
     useAttackTechniqueTables: true;
     modelMultipleOutcomesWithOperators: true;
+    modelExplicitPrerequisitesAndStateChangesAsConditions: true;
+    connectConditionTruePaths: true;
+    useExactEmittedIdsForConditionReferences: true;
+    preserveDocumentedSplitsAndJoins: true;
     descriptionsMustBeVerbatimExcerpts: true;
     onlyAndOrOperators: true;
     onlyTrueFalseConditions: true;

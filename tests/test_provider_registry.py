@@ -225,6 +225,31 @@ def test_registry_resolves_ephemeral_runtime_openai_adapter() -> None:
     assert registry.get_default_enabled_provider_id() == "default-openai"
 
 
+def test_registry_registers_runtime_provider_with_bounded_generation_settings() -> None:
+    registry = ProviderRegistry(_build_providers_config())
+
+    provider_id = registry.register_runtime_provider(
+        runtime_override=RuntimeProviderOverride(
+            provider_type="azure_openai",
+            endpoint="https://azure.example/openai",
+            api_key="runtime-secret",
+            deployment="deployment-a",
+            api_version="2025-04-01-preview",
+        ),
+        allow_runtime_provider_override=True,
+        allowed_provider_types={"azure_openai"},
+        timeout_seconds=180,
+    )
+
+    config = registry.get_provider_config(provider_id)
+    assert config.timeout_seconds == 180
+    assert config.retry_max_attempts == 1
+
+    registry.unregister_runtime_provider(provider_id)
+    with pytest.raises(ProviderNotFoundError):
+        registry.get_provider_config(provider_id)
+
+
 def test_registry_resolves_ephemeral_runtime_anthropic_adapter() -> None:
     registry = ProviderRegistry(_build_providers_config())
 

@@ -122,6 +122,8 @@ class ProviderRegistry:
         allow_runtime_provider_override: bool,
         allowed_provider_types: set[str],
         allow_extra_headers: bool = False,
+        timeout_seconds: float | None = None,
+        retry_max_attempts: int | None = None,
     ) -> ProviderAdapter:
         if not allow_runtime_provider_override:
             raise RuntimeProviderOverrideDisabledError("runtime provider override is disabled")
@@ -134,9 +136,42 @@ class ProviderRegistry:
             raise RuntimeProviderExtraHeadersNotAllowedError("runtime provider extra headers are disabled")
 
         return self._build_adapter(
-            self._build_runtime_provider_config(runtime_override),
+            self._build_runtime_provider_config(
+                runtime_override,
+                timeout_seconds=timeout_seconds,
+                retry_max_attempts=retry_max_attempts,
+            ),
             runtime_override=runtime_override,
         )
+
+    def register_runtime_provider(
+        self,
+        *,
+        runtime_override: RuntimeProviderOverride,
+        allow_runtime_provider_override: bool,
+        allowed_provider_types: set[str],
+        allow_extra_headers: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> str:
+        adapter = self.resolve_runtime_adapter(
+            runtime_override=runtime_override,
+            allow_runtime_provider_override=allow_runtime_provider_override,
+            allowed_provider_types=allowed_provider_types,
+            allow_extra_headers=allow_extra_headers,
+            timeout_seconds=timeout_seconds,
+            retry_max_attempts=1,
+        )
+        config = self._build_runtime_provider_config(
+            runtime_override,
+            timeout_seconds=timeout_seconds,
+            retry_max_attempts=1,
+        )
+        self._registrations[config.provider_id] = _ProviderRegistration(config=config, adapter=adapter)
+        return config.provider_id
+
+    def unregister_runtime_provider(self, provider_id: str) -> None:
+        if provider_id.startswith("runtime-"):
+            self._registrations.pop(provider_id, None)
 
     def plan_optional_invocation(
         self,
@@ -176,7 +211,13 @@ class ProviderRegistry:
             raise ProviderDisabledError(registration.config.provider_id)
         return registration
 
-    def _build_runtime_provider_config(self, runtime_override: RuntimeProviderOverride) -> ProviderConfig:
+    def _build_runtime_provider_config(
+        self,
+        runtime_override: RuntimeProviderOverride,
+        *,
+        timeout_seconds: float | None = None,
+        retry_max_attempts: int | None = None,
+    ) -> ProviderConfig:
         selected_model = runtime_override.deployment or runtime_override.model
         return ProviderConfig(
             provider_id=f"runtime-{runtime_override.provider_type}",
@@ -185,6 +226,8 @@ class ProviderRegistry:
             default_model=selected_model,
             base_url=runtime_override.endpoint,
             api_version=runtime_override.api_version,
+            timeout_seconds=timeout_seconds,
+            retry_max_attempts=retry_max_attempts,
         )
 
     def _build_adapter(
