@@ -6,10 +6,8 @@ export const enums = {
             "label": "[ATL] AML.TA0000 AI Model Access",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--e78b4630-6ed6-5f22-9409-f6f4fcf4e78c"
+            "stixId": "x-mitre-tactic--e78b4630-6ed6-5f22-9409-f6f4fcf4e78c",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0000"
         },
         "AML.TA0001": {
             "id": "AML.TA0001",
@@ -17,10 +15,8 @@ export const enums = {
             "label": "[ATL] AML.TA0001 AI Attack Staging",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--06017740-23bb-5d05-b6d5-366ce7f5d783"
+            "stixId": "x-mitre-tactic--06017740-23bb-5d05-b6d5-366ce7f5d783",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0001"
         },
         "AML.TA0002": {
             "id": "AML.TA0002",
@@ -28,10 +24,8 @@ export const enums = {
             "label": "[ATL] AML.TA0002 Reconnaissance",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--8d151547-7423-5bac-bc2d-a6fd02afba29"
+            "stixId": "x-mitre-tactic--8d151547-7423-5bac-bc2d-a6fd02afba29",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0002"
         },
         "AML.TA0003": {
             "id": "AML.TA0003",
@@ -39,10 +33,8 @@ export const enums = {
             "label": "[ATL] AML.TA0003 Resource Development",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--39099d7c-9fb7-5836-8e8a-9f6b594bf01b"
+            "stixId": "x-mitre-tactic--39099d7c-9fb7-5836-8e8a-9f6b594bf01b",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0003"
         },
         "AML.TA0004": {
             "id": "AML.TA0004",
@@ -50,10 +42,8 @@ export const enums = {
             "label": "[ATL] AML.TA0004 Initial Access",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--7c7c780a-8d98-5457-bc1e-d876c111a512"
+            "stixId": "x-mitre-tactic--7c7c780a-8d98-5457-bc1e-d876c111a512",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0004"
         },
         "AML.TA0005": {
             "id": "AML.TA0005",
@@ -61,10 +51,8 @@ export const enums = {
             "label": "[ATL] AML.TA0005 Execution",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--6be7de41-9e78-5b9e-b3cb-cd48b3e6bdfe"
+            "stixId": "x-mitre-tactic--6be7de41-9e78-5b9e-b3cb-cd48b3e6bdfe",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0005"
         },
         "AML.TA0006": {
             "id": "AML.TA0006",
@@ -72,10 +60,8 @@ export const enums = {
             "label": "[ATL] AML.TA0006 Persistence",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--447330f2-1345-5a48-a938-877944a0ad5c"
+            "stixId": "x-mitre-tactic--447330f2-1345-5a48-a938-877944a0ad5c",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0006"
         },
         "AML.TA0007": {
             "id": "AML.TA0007",
@@ -83,10 +69,8 @@ export const enums = {
             "label": "[ATL] AML.TA0007 Defense Evasion",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--22a483dc-1102-5fd0-94bd-b4259c537274"
+            "stixId": "x-mitre-tactic--22a483dc-1102-5fd0-94bd-b4259c537274",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0007"
         },
         "AML.TA0008": {
             "id": "AML.TA0008",
@@ -94,10 +78,8 @@ export const enums = {
             "label": "[ATL] AML.TA0008 Discovery",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--5ec2f5ad-ca32-5d36-bfb8-fad1fd429dbd"
+            "stixId": "x-mitre-tactic--5ec2f5ad-ca32-5d36-bfb8-fad1fd429dbd",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0008"
         },
         "AML.TA0009": {
             "id": "AML.TA0009",
@@ -105,10 +87,8 @@ export const enums = {
             "label": "[ATL] AML.TA0009 Collection",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--bc075036-5189-5683-98b7-1df4bf86d242"
+            "stixId": "x-mitre-tactic--bc075036-5189-5683-98b7-1df4bf86d242",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0009"
         },
         "AML.TA0010": {
             "id": "AML.TA0010",
@@ -116,10 +96,8 @@ export const enums = {
             "label": "[ATL] AML.TA0010 Exfiltration",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--3251e0ce-df2f-517f-8866-69e6981d5d9c"
+            "stixId": "x-mitre-tactic--3251e0ce-df2f-517f-8866-69e6981d5d9c",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0010"
         },
         "AML.TA0011": {
             "id": "AML.TA0011",
@@ -127,10 +105,8 @@ export const enums = {
             "label": "[ATL] AML.TA0011 Impact",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--a2fbbf3d-7e8d-5a1b-85cc-8e8fa4a76de3"
+            "stixId": "x-mitre-tactic--a2fbbf3d-7e8d-5a1b-85cc-8e8fa4a76de3",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0011"
         },
         "AML.TA0012": {
             "id": "AML.TA0012",
@@ -138,10 +114,8 @@ export const enums = {
             "label": "[ATL] AML.TA0012 Privilege Escalation",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--7507bd74-3e82-5dda-a16d-1ca38c59dd66"
+            "stixId": "x-mitre-tactic--7507bd74-3e82-5dda-a16d-1ca38c59dd66",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0012"
         },
         "AML.TA0013": {
             "id": "AML.TA0013",
@@ -149,10 +123,8 @@ export const enums = {
             "label": "[ATL] AML.TA0013 Credential Access",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--cba15346-d63f-5cdd-b001-112125f9f158"
+            "stixId": "x-mitre-tactic--cba15346-d63f-5cdd-b001-112125f9f158",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0013"
         },
         "AML.TA0014": {
             "id": "AML.TA0014",
@@ -160,10 +132,8 @@ export const enums = {
             "label": "[ATL] AML.TA0014 Command and Control",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--a3756441-3a3a-55c3-86f6-47aec26cb412"
+            "stixId": "x-mitre-tactic--a3756441-3a3a-55c3-86f6-47aec26cb412",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0014"
         },
         "AML.TA0015": {
             "id": "AML.TA0015",
@@ -171,10 +141,8 @@ export const enums = {
             "label": "[ATL] AML.TA0015 Lateral Movement",
             "type": "tactic",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "x-mitre-tactic--abaefe4f-7544-5972-840d-543910eaf5ca"
+            "stixId": "x-mitre-tactic--abaefe4f-7544-5972-840d-543910eaf5ca",
+            "url": "https://atlas.mitre.org/tactics/AML.TA0015"
         }
     },
     "techniques": {
@@ -184,10 +152,8 @@ export const enums = {
             "label": "[ATL] AML.T0000 Search Open Technical Databases",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--c02f812d-59cc-5366-b1aa-7eb05154b772"
+            "stixId": "attack-pattern--c02f812d-59cc-5366-b1aa-7eb05154b772",
+            "url": "https://atlas.mitre.org/techniques/AML.T0000"
         },
         "AML.T0000.000": {
             "id": "AML.T0000.000",
@@ -195,10 +161,8 @@ export const enums = {
             "label": "[ATL] AML.T0000.000 Journals and Conference Proceedings",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--518338b9-9239-5e02-95f5-146bc758520f"
+            "stixId": "attack-pattern--518338b9-9239-5e02-95f5-146bc758520f",
+            "url": "https://atlas.mitre.org/techniques/AML.T0000.000"
         },
         "AML.T0000.001": {
             "id": "AML.T0000.001",
@@ -206,10 +170,8 @@ export const enums = {
             "label": "[ATL] AML.T0000.001 Pre-Print Repositories",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--02ea7626-0eec-5a4b-98ff-b3f21733b783"
+            "stixId": "attack-pattern--02ea7626-0eec-5a4b-98ff-b3f21733b783",
+            "url": "https://atlas.mitre.org/techniques/AML.T0000.001"
         },
         "AML.T0000.002": {
             "id": "AML.T0000.002",
@@ -217,10 +179,8 @@ export const enums = {
             "label": "[ATL] AML.T0000.002 Technical Blogs",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--88a794e9-fa8c-5185-a677-bf476cd8890b"
+            "stixId": "attack-pattern--88a794e9-fa8c-5185-a677-bf476cd8890b",
+            "url": "https://atlas.mitre.org/techniques/AML.T0000.002"
         },
         "AML.T0001": {
             "id": "AML.T0001",
@@ -228,10 +188,8 @@ export const enums = {
             "label": "[ATL] AML.T0001 Search Open AI Vulnerability Analysis",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--4f36677b-3ba6-5556-9eba-0a2311796803"
+            "stixId": "attack-pattern--4f36677b-3ba6-5556-9eba-0a2311796803",
+            "url": "https://atlas.mitre.org/techniques/AML.T0001"
         },
         "AML.T0002": {
             "id": "AML.T0002",
@@ -239,10 +197,8 @@ export const enums = {
             "label": "[ATL] AML.T0002 Acquire Public AI Artifacts",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--a8393765-c78b-5bd3-8f92-74579e8f5a9f"
+            "stixId": "attack-pattern--a8393765-c78b-5bd3-8f92-74579e8f5a9f",
+            "url": "https://atlas.mitre.org/techniques/AML.T0002"
         },
         "AML.T0002.000": {
             "id": "AML.T0002.000",
@@ -250,10 +206,8 @@ export const enums = {
             "label": "[ATL] AML.T0002.000 Datasets",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--bbffbb39-c270-5822-8786-7bbab1a43dc3"
+            "stixId": "attack-pattern--bbffbb39-c270-5822-8786-7bbab1a43dc3",
+            "url": "https://atlas.mitre.org/techniques/AML.T0002.000"
         },
         "AML.T0002.001": {
             "id": "AML.T0002.001",
@@ -261,10 +215,8 @@ export const enums = {
             "label": "[ATL] AML.T0002.001 Models",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--cf1a7a78-0509-59a6-a8a4-35d9e1e966a4"
+            "stixId": "attack-pattern--cf1a7a78-0509-59a6-a8a4-35d9e1e966a4",
+            "url": "https://atlas.mitre.org/techniques/AML.T0002.001"
         },
         "AML.T0002.002": {
             "id": "AML.T0002.002",
@@ -272,10 +224,8 @@ export const enums = {
             "label": "[ATL] AML.T0002.002 AI Agent Configuration",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--8eb979a1-1e5a-5955-8a7d-df82ecb14088"
+            "stixId": "attack-pattern--8eb979a1-1e5a-5955-8a7d-df82ecb14088",
+            "url": "https://atlas.mitre.org/techniques/AML.T0002.002"
         },
         "AML.T0003": {
             "id": "AML.T0003",
@@ -283,10 +233,8 @@ export const enums = {
             "label": "[ATL] AML.T0003 Search Victim-Owned Websites",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--deca63a5-2a52-54ea-abe5-2cd7089d46e4"
+            "stixId": "attack-pattern--deca63a5-2a52-54ea-abe5-2cd7089d46e4",
+            "url": "https://atlas.mitre.org/techniques/AML.T0003"
         },
         "AML.T0004": {
             "id": "AML.T0004",
@@ -294,10 +242,8 @@ export const enums = {
             "label": "[ATL] AML.T0004 Search Application Repositories",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--d229d87c-9400-53f0-bca3-b9514fd9227f"
+            "stixId": "attack-pattern--d229d87c-9400-53f0-bca3-b9514fd9227f",
+            "url": "https://atlas.mitre.org/techniques/AML.T0004"
         },
         "AML.T0005": {
             "id": "AML.T0005",
@@ -305,10 +251,8 @@ export const enums = {
             "label": "[ATL] AML.T0005 Create Proxy AI Model",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--6a4ccafa-0e03-5e98-b8cd-5fccc68409d4"
+            "stixId": "attack-pattern--6a4ccafa-0e03-5e98-b8cd-5fccc68409d4",
+            "url": "https://atlas.mitre.org/techniques/AML.T0005"
         },
         "AML.T0005.000": {
             "id": "AML.T0005.000",
@@ -316,10 +260,8 @@ export const enums = {
             "label": "[ATL] AML.T0005.000 Train Proxy via Gathered AI Artifacts",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--3b4f64bf-fb3a-53ee-ac26-d5783e0f9001"
+            "stixId": "attack-pattern--3b4f64bf-fb3a-53ee-ac26-d5783e0f9001",
+            "url": "https://atlas.mitre.org/techniques/AML.T0005.000"
         },
         "AML.T0005.001": {
             "id": "AML.T0005.001",
@@ -327,10 +269,8 @@ export const enums = {
             "label": "[ATL] AML.T0005.001 Train Proxy via Replication",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--298dc6c6-5683-5475-b724-2a2a3db3a7dc"
+            "stixId": "attack-pattern--298dc6c6-5683-5475-b724-2a2a3db3a7dc",
+            "url": "https://atlas.mitre.org/techniques/AML.T0005.001"
         },
         "AML.T0005.002": {
             "id": "AML.T0005.002",
@@ -338,10 +278,8 @@ export const enums = {
             "label": "[ATL] AML.T0005.002 Use Pre-Trained Model",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--43d26237-62d6-5e56-9252-18af7c9ff7ae"
+            "stixId": "attack-pattern--43d26237-62d6-5e56-9252-18af7c9ff7ae",
+            "url": "https://atlas.mitre.org/techniques/AML.T0005.002"
         },
         "AML.T0006": {
             "id": "AML.T0006",
@@ -349,10 +287,8 @@ export const enums = {
             "label": "[ATL] AML.T0006 Active Scanning",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--cbebfc30-9124-5c7e-915c-d4af59ddb34e"
+            "stixId": "attack-pattern--cbebfc30-9124-5c7e-915c-d4af59ddb34e",
+            "url": "https://atlas.mitre.org/techniques/AML.T0006"
         },
         "AML.T0007": {
             "id": "AML.T0007",
@@ -360,10 +296,8 @@ export const enums = {
             "label": "[ATL] AML.T0007 Discover AI Artifacts",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--0855cdf6-5b4f-5586-a658-942b7222ede7"
+            "stixId": "attack-pattern--0855cdf6-5b4f-5586-a658-942b7222ede7",
+            "url": "https://atlas.mitre.org/techniques/AML.T0007"
         },
         "AML.T0008": {
             "id": "AML.T0008",
@@ -371,10 +305,8 @@ export const enums = {
             "label": "[ATL] AML.T0008 Acquire Infrastructure",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--159106db-413f-5f36-854f-09729ed0a18f"
+            "stixId": "attack-pattern--159106db-413f-5f36-854f-09729ed0a18f",
+            "url": "https://atlas.mitre.org/techniques/AML.T0008"
         },
         "AML.T0008.000": {
             "id": "AML.T0008.000",
@@ -382,10 +314,8 @@ export const enums = {
             "label": "[ATL] AML.T0008.000 AI Development Workspaces",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--b14fb0a1-a329-5982-a44c-c5da0b458d39"
+            "stixId": "attack-pattern--b14fb0a1-a329-5982-a44c-c5da0b458d39",
+            "url": "https://atlas.mitre.org/techniques/AML.T0008.000"
         },
         "AML.T0008.001": {
             "id": "AML.T0008.001",
@@ -393,10 +323,8 @@ export const enums = {
             "label": "[ATL] AML.T0008.001 Consumer Hardware",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--2bc7b6ec-2304-5913-8b0c-bb92ba135724"
+            "stixId": "attack-pattern--2bc7b6ec-2304-5913-8b0c-bb92ba135724",
+            "url": "https://atlas.mitre.org/techniques/AML.T0008.001"
         },
         "AML.T0008.002": {
             "id": "AML.T0008.002",
@@ -404,10 +332,8 @@ export const enums = {
             "label": "[ATL] AML.T0008.002 Domains",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--88ed7595-57b1-547d-8de1-436641bda943"
+            "stixId": "attack-pattern--88ed7595-57b1-547d-8de1-436641bda943",
+            "url": "https://atlas.mitre.org/techniques/AML.T0008.002"
         },
         "AML.T0008.003": {
             "id": "AML.T0008.003",
@@ -415,10 +341,8 @@ export const enums = {
             "label": "[ATL] AML.T0008.003 Physical Countermeasures",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--855d14fa-795d-5000-9116-3b54d49f42ea"
+            "stixId": "attack-pattern--855d14fa-795d-5000-9116-3b54d49f42ea",
+            "url": "https://atlas.mitre.org/techniques/AML.T0008.003"
         },
         "AML.T0008.004": {
             "id": "AML.T0008.004",
@@ -426,10 +350,8 @@ export const enums = {
             "label": "[ATL] AML.T0008.004 Serverless",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--5a78e20f-c159-58bf-8dae-81d0f5f9548b"
+            "stixId": "attack-pattern--5a78e20f-c159-58bf-8dae-81d0f5f9548b",
+            "url": "https://atlas.mitre.org/techniques/AML.T0008.004"
         },
         "AML.T0008.005": {
             "id": "AML.T0008.005",
@@ -437,10 +359,8 @@ export const enums = {
             "label": "[ATL] AML.T0008.005 AI Service Proxies",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--647ac4ac-b2bc-53f7-ab83-81f421a1f0b5"
+            "stixId": "attack-pattern--647ac4ac-b2bc-53f7-ab83-81f421a1f0b5",
+            "url": "https://atlas.mitre.org/techniques/AML.T0008.005"
         },
         "AML.T0010": {
             "id": "AML.T0010",
@@ -448,10 +368,8 @@ export const enums = {
             "label": "[ATL] AML.T0010 AI Supply Chain Compromise",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--2ea180c5-5df4-5815-8c78-a1cec1da6e18"
+            "stixId": "attack-pattern--2ea180c5-5df4-5815-8c78-a1cec1da6e18",
+            "url": "https://atlas.mitre.org/techniques/AML.T0010"
         },
         "AML.T0010.000": {
             "id": "AML.T0010.000",
@@ -459,10 +377,8 @@ export const enums = {
             "label": "[ATL] AML.T0010.000 Hardware",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--e0774a36-8183-5b12-a76c-492b904f32d7"
+            "stixId": "attack-pattern--e0774a36-8183-5b12-a76c-492b904f32d7",
+            "url": "https://atlas.mitre.org/techniques/AML.T0010.000"
         },
         "AML.T0010.001": {
             "id": "AML.T0010.001",
@@ -470,10 +386,8 @@ export const enums = {
             "label": "[ATL] AML.T0010.001 AI Software",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--3bf297c5-2ab2-573a-aa4e-f20af3d2643c"
+            "stixId": "attack-pattern--3bf297c5-2ab2-573a-aa4e-f20af3d2643c",
+            "url": "https://atlas.mitre.org/techniques/AML.T0010.001"
         },
         "AML.T0010.002": {
             "id": "AML.T0010.002",
@@ -481,10 +395,8 @@ export const enums = {
             "label": "[ATL] AML.T0010.002 Data",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--ca5a090b-feaf-575d-98c6-61930fffc5b5"
+            "stixId": "attack-pattern--ca5a090b-feaf-575d-98c6-61930fffc5b5",
+            "url": "https://atlas.mitre.org/techniques/AML.T0010.002"
         },
         "AML.T0010.003": {
             "id": "AML.T0010.003",
@@ -492,10 +404,8 @@ export const enums = {
             "label": "[ATL] AML.T0010.003 Model",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--1a1c3b28-eeab-52d0-87cf-4ba0a7ff687a"
+            "stixId": "attack-pattern--1a1c3b28-eeab-52d0-87cf-4ba0a7ff687a",
+            "url": "https://atlas.mitre.org/techniques/AML.T0010.003"
         },
         "AML.T0010.004": {
             "id": "AML.T0010.004",
@@ -503,10 +413,8 @@ export const enums = {
             "label": "[ATL] AML.T0010.004 Container Registry",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--757f3580-72e6-514d-9770-af3ee98a1a0b"
+            "stixId": "attack-pattern--757f3580-72e6-514d-9770-af3ee98a1a0b",
+            "url": "https://atlas.mitre.org/techniques/AML.T0010.004"
         },
         "AML.T0010.005": {
             "id": "AML.T0010.005",
@@ -514,10 +422,8 @@ export const enums = {
             "label": "[ATL] AML.T0010.005 AI Agent Tool",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--ffd308bb-3c90-550a-b3d4-f22f310f96d8"
+            "stixId": "attack-pattern--ffd308bb-3c90-550a-b3d4-f22f310f96d8",
+            "url": "https://atlas.mitre.org/techniques/AML.T0010.005"
         },
         "AML.T0011": {
             "id": "AML.T0011",
@@ -525,10 +431,8 @@ export const enums = {
             "label": "[ATL] AML.T0011 User Execution",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--aac7fa8d-c943-5fec-a01f-cd4d14184395"
+            "stixId": "attack-pattern--aac7fa8d-c943-5fec-a01f-cd4d14184395",
+            "url": "https://atlas.mitre.org/techniques/AML.T0011"
         },
         "AML.T0011.000": {
             "id": "AML.T0011.000",
@@ -536,10 +440,8 @@ export const enums = {
             "label": "[ATL] AML.T0011.000 Unsafe AI Artifacts",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--a5cc5062-f672-510a-8a4f-a8d1aa7f5024"
+            "stixId": "attack-pattern--a5cc5062-f672-510a-8a4f-a8d1aa7f5024",
+            "url": "https://atlas.mitre.org/techniques/AML.T0011.000"
         },
         "AML.T0011.001": {
             "id": "AML.T0011.001",
@@ -547,10 +449,8 @@ export const enums = {
             "label": "[ATL] AML.T0011.001 Malicious Package",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--08fd47ac-8b5f-5c0b-8b1d-8e915351cdc2"
+            "stixId": "attack-pattern--08fd47ac-8b5f-5c0b-8b1d-8e915351cdc2",
+            "url": "https://atlas.mitre.org/techniques/AML.T0011.001"
         },
         "AML.T0011.002": {
             "id": "AML.T0011.002",
@@ -558,10 +458,8 @@ export const enums = {
             "label": "[ATL] AML.T0011.002 Poisoned AI Agent Tool",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--5010d920-1568-56ee-ae3e-18fcf145fa40"
+            "stixId": "attack-pattern--5010d920-1568-56ee-ae3e-18fcf145fa40",
+            "url": "https://atlas.mitre.org/techniques/AML.T0011.002"
         },
         "AML.T0011.003": {
             "id": "AML.T0011.003",
@@ -569,10 +467,8 @@ export const enums = {
             "label": "[ATL] AML.T0011.003 Malicious Link",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--386bf4df-e7c7-54da-a297-fec4ffd5e1a8"
+            "stixId": "attack-pattern--386bf4df-e7c7-54da-a297-fec4ffd5e1a8",
+            "url": "https://atlas.mitre.org/techniques/AML.T0011.003"
         },
         "AML.T0012": {
             "id": "AML.T0012",
@@ -580,10 +476,8 @@ export const enums = {
             "label": "[ATL] AML.T0012 Valid Accounts",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--ed66b442-059b-54cb-a806-620e6f8109a6"
+            "stixId": "attack-pattern--ed66b442-059b-54cb-a806-620e6f8109a6",
+            "url": "https://atlas.mitre.org/techniques/AML.T0012"
         },
         "AML.T0013": {
             "id": "AML.T0013",
@@ -591,10 +485,8 @@ export const enums = {
             "label": "[ATL] AML.T0013 Discover AI Model Ontology",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--4480d7c5-7096-5360-8b2a-875cf4b710ea"
+            "stixId": "attack-pattern--4480d7c5-7096-5360-8b2a-875cf4b710ea",
+            "url": "https://atlas.mitre.org/techniques/AML.T0013"
         },
         "AML.T0014": {
             "id": "AML.T0014",
@@ -602,10 +494,8 @@ export const enums = {
             "label": "[ATL] AML.T0014 Discover AI Model Family",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--3b83b5ba-6855-592b-82a0-9bef7c6b0c7b"
+            "stixId": "attack-pattern--3b83b5ba-6855-592b-82a0-9bef7c6b0c7b",
+            "url": "https://atlas.mitre.org/techniques/AML.T0014"
         },
         "AML.T0015": {
             "id": "AML.T0015",
@@ -613,10 +503,8 @@ export const enums = {
             "label": "[ATL] AML.T0015 Evade AI Model",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--d74153d6-ac3c-52fb-9847-e0a6f675cd93"
+            "stixId": "attack-pattern--d74153d6-ac3c-52fb-9847-e0a6f675cd93",
+            "url": "https://atlas.mitre.org/techniques/AML.T0015"
         },
         "AML.T0016": {
             "id": "AML.T0016",
@@ -624,10 +512,8 @@ export const enums = {
             "label": "[ATL] AML.T0016 Obtain Capabilities",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--94e1836d-1749-5d64-8f2f-de06a218ded7"
+            "stixId": "attack-pattern--94e1836d-1749-5d64-8f2f-de06a218ded7",
+            "url": "https://atlas.mitre.org/techniques/AML.T0016"
         },
         "AML.T0016.000": {
             "id": "AML.T0016.000",
@@ -635,10 +521,8 @@ export const enums = {
             "label": "[ATL] AML.T0016.000 Adversarial AI Attack Implementations",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--e249e479-eb89-5082-a51e-e862d705ec1d"
+            "stixId": "attack-pattern--e249e479-eb89-5082-a51e-e862d705ec1d",
+            "url": "https://atlas.mitre.org/techniques/AML.T0016.000"
         },
         "AML.T0016.001": {
             "id": "AML.T0016.001",
@@ -646,10 +530,8 @@ export const enums = {
             "label": "[ATL] AML.T0016.001 Software Tools",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--f321adfd-7fd1-5a86-91e0-c8aa32fbe421"
+            "stixId": "attack-pattern--f321adfd-7fd1-5a86-91e0-c8aa32fbe421",
+            "url": "https://atlas.mitre.org/techniques/AML.T0016.001"
         },
         "AML.T0016.002": {
             "id": "AML.T0016.002",
@@ -657,10 +539,8 @@ export const enums = {
             "label": "[ATL] AML.T0016.002 Generative AI",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--6635775c-5539-5512-95f1-a0e085770699"
+            "stixId": "attack-pattern--6635775c-5539-5512-95f1-a0e085770699",
+            "url": "https://atlas.mitre.org/techniques/AML.T0016.002"
         },
         "AML.T0017": {
             "id": "AML.T0017",
@@ -668,10 +548,8 @@ export const enums = {
             "label": "[ATL] AML.T0017 Develop Capabilities",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--07ba3218-6e26-5eed-8017-4a2e8c0cbd5d"
+            "stixId": "attack-pattern--07ba3218-6e26-5eed-8017-4a2e8c0cbd5d",
+            "url": "https://atlas.mitre.org/techniques/AML.T0017"
         },
         "AML.T0017.000": {
             "id": "AML.T0017.000",
@@ -679,10 +557,8 @@ export const enums = {
             "label": "[ATL] AML.T0017.000 Adversarial AI Attacks",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--80a54397-082c-5d02-9d2e-1d30d7375c75"
+            "stixId": "attack-pattern--80a54397-082c-5d02-9d2e-1d30d7375c75",
+            "url": "https://atlas.mitre.org/techniques/AML.T0017.000"
         },
         "AML.T0018": {
             "id": "AML.T0018",
@@ -690,10 +566,8 @@ export const enums = {
             "label": "[ATL] AML.T0018 Manipulate AI Model",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--0bbf1c2c-1dd0-5376-8119-1ee01b910f69"
+            "stixId": "attack-pattern--0bbf1c2c-1dd0-5376-8119-1ee01b910f69",
+            "url": "https://atlas.mitre.org/techniques/AML.T0018"
         },
         "AML.T0018.000": {
             "id": "AML.T0018.000",
@@ -701,10 +575,8 @@ export const enums = {
             "label": "[ATL] AML.T0018.000 Poison AI Model",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--a1494aa9-35bb-52b4-bd73-15444dc04706"
+            "stixId": "attack-pattern--a1494aa9-35bb-52b4-bd73-15444dc04706",
+            "url": "https://atlas.mitre.org/techniques/AML.T0018.000"
         },
         "AML.T0018.001": {
             "id": "AML.T0018.001",
@@ -712,10 +584,8 @@ export const enums = {
             "label": "[ATL] AML.T0018.001 Modify AI Model Architecture",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--04641d66-7ecd-5b83-a3da-938e11a81254"
+            "stixId": "attack-pattern--04641d66-7ecd-5b83-a3da-938e11a81254",
+            "url": "https://atlas.mitre.org/techniques/AML.T0018.001"
         },
         "AML.T0018.002": {
             "id": "AML.T0018.002",
@@ -723,10 +593,8 @@ export const enums = {
             "label": "[ATL] AML.T0018.002 Embed Malware",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--55ad0ff6-ab08-5ea5-8204-aaa28578d805"
+            "stixId": "attack-pattern--55ad0ff6-ab08-5ea5-8204-aaa28578d805",
+            "url": "https://atlas.mitre.org/techniques/AML.T0018.002"
         },
         "AML.T0019": {
             "id": "AML.T0019",
@@ -734,10 +602,8 @@ export const enums = {
             "label": "[ATL] AML.T0019 Publish Poisoned Datasets",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--c38896b2-974c-5ed5-adeb-c2477b311353"
+            "stixId": "attack-pattern--c38896b2-974c-5ed5-adeb-c2477b311353",
+            "url": "https://atlas.mitre.org/techniques/AML.T0019"
         },
         "AML.T0020": {
             "id": "AML.T0020",
@@ -745,10 +611,8 @@ export const enums = {
             "label": "[ATL] AML.T0020 Poison Training Data",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--4f25f684-63f5-5dfa-a286-20dfbd6db4c1"
+            "stixId": "attack-pattern--4f25f684-63f5-5dfa-a286-20dfbd6db4c1",
+            "url": "https://atlas.mitre.org/techniques/AML.T0020"
         },
         "AML.T0021": {
             "id": "AML.T0021",
@@ -756,10 +620,8 @@ export const enums = {
             "label": "[ATL] AML.T0021 Establish Accounts",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--d3d7763a-58e1-5e38-84fd-3abea967cb08"
+            "stixId": "attack-pattern--d3d7763a-58e1-5e38-84fd-3abea967cb08",
+            "url": "https://atlas.mitre.org/techniques/AML.T0021"
         },
         "AML.T0024": {
             "id": "AML.T0024",
@@ -767,10 +629,8 @@ export const enums = {
             "label": "[ATL] AML.T0024 Exfiltration via AI Inference API",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--85fed2c6-e2df-595e-88bf-f356a17cec21"
+            "stixId": "attack-pattern--85fed2c6-e2df-595e-88bf-f356a17cec21",
+            "url": "https://atlas.mitre.org/techniques/AML.T0024"
         },
         "AML.T0024.000": {
             "id": "AML.T0024.000",
@@ -778,10 +638,8 @@ export const enums = {
             "label": "[ATL] AML.T0024.000 Infer Training Data Membership",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--df4da5b6-5fad-5c93-a854-be2b187d1fbc"
+            "stixId": "attack-pattern--df4da5b6-5fad-5c93-a854-be2b187d1fbc",
+            "url": "https://atlas.mitre.org/techniques/AML.T0024.000"
         },
         "AML.T0024.001": {
             "id": "AML.T0024.001",
@@ -789,10 +647,8 @@ export const enums = {
             "label": "[ATL] AML.T0024.001 Invert AI Model",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--9e0f6fd8-948c-508e-8d36-8b6517c6aaa1"
+            "stixId": "attack-pattern--9e0f6fd8-948c-508e-8d36-8b6517c6aaa1",
+            "url": "https://atlas.mitre.org/techniques/AML.T0024.001"
         },
         "AML.T0024.002": {
             "id": "AML.T0024.002",
@@ -800,10 +656,8 @@ export const enums = {
             "label": "[ATL] AML.T0024.002 Extract AI Model",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--3f567912-629a-5e0b-ab0c-0102977c2d6c"
+            "stixId": "attack-pattern--3f567912-629a-5e0b-ab0c-0102977c2d6c",
+            "url": "https://atlas.mitre.org/techniques/AML.T0024.002"
         },
         "AML.T0025": {
             "id": "AML.T0025",
@@ -811,10 +665,8 @@ export const enums = {
             "label": "[ATL] AML.T0025 Exfiltration via Cyber Means",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--f13dede7-12ee-5f0e-985a-4f801aecb681"
+            "stixId": "attack-pattern--f13dede7-12ee-5f0e-985a-4f801aecb681",
+            "url": "https://atlas.mitre.org/techniques/AML.T0025"
         },
         "AML.T0029": {
             "id": "AML.T0029",
@@ -822,10 +674,8 @@ export const enums = {
             "label": "[ATL] AML.T0029 Denial of AI Service",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--c4bae5b7-482f-572f-b44b-6a829b186a2e"
+            "stixId": "attack-pattern--c4bae5b7-482f-572f-b44b-6a829b186a2e",
+            "url": "https://atlas.mitre.org/techniques/AML.T0029"
         },
         "AML.T0031": {
             "id": "AML.T0031",
@@ -833,10 +683,8 @@ export const enums = {
             "label": "[ATL] AML.T0031 Erode AI Model Integrity",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--030c4477-af33-5676-9723-1ecc6314b1ce"
+            "stixId": "attack-pattern--030c4477-af33-5676-9723-1ecc6314b1ce",
+            "url": "https://atlas.mitre.org/techniques/AML.T0031"
         },
         "AML.T0034": {
             "id": "AML.T0034",
@@ -844,10 +692,8 @@ export const enums = {
             "label": "[ATL] AML.T0034 Cost Harvesting",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--7bbac64e-2b1d-5cb0-a442-bb7573b0a328"
+            "stixId": "attack-pattern--7bbac64e-2b1d-5cb0-a442-bb7573b0a328",
+            "url": "https://atlas.mitre.org/techniques/AML.T0034"
         },
         "AML.T0034.000": {
             "id": "AML.T0034.000",
@@ -855,10 +701,8 @@ export const enums = {
             "label": "[ATL] AML.T0034.000 Excessive Queries",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--4929e22c-64a1-59cf-a25e-543f88840889"
+            "stixId": "attack-pattern--4929e22c-64a1-59cf-a25e-543f88840889",
+            "url": "https://atlas.mitre.org/techniques/AML.T0034.000"
         },
         "AML.T0034.001": {
             "id": "AML.T0034.001",
@@ -866,10 +710,8 @@ export const enums = {
             "label": "[ATL] AML.T0034.001 Resource-Intensive Queries",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--c54f84ef-93fd-560c-bbbb-5490753a2f97"
+            "stixId": "attack-pattern--c54f84ef-93fd-560c-bbbb-5490753a2f97",
+            "url": "https://atlas.mitre.org/techniques/AML.T0034.001"
         },
         "AML.T0034.002": {
             "id": "AML.T0034.002",
@@ -877,10 +719,8 @@ export const enums = {
             "label": "[ATL] AML.T0034.002 Agentic Resource Consumption",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--4c31af04-b547-525a-975a-fbd371286b6e"
+            "stixId": "attack-pattern--4c31af04-b547-525a-975a-fbd371286b6e",
+            "url": "https://atlas.mitre.org/techniques/AML.T0034.002"
         },
         "AML.T0035": {
             "id": "AML.T0035",
@@ -888,10 +728,8 @@ export const enums = {
             "label": "[ATL] AML.T0035 AI Artifact Collection",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--801658f2-81cd-5935-93c7-5e6e2d80e669"
+            "stixId": "attack-pattern--801658f2-81cd-5935-93c7-5e6e2d80e669",
+            "url": "https://atlas.mitre.org/techniques/AML.T0035"
         },
         "AML.T0036": {
             "id": "AML.T0036",
@@ -899,10 +737,8 @@ export const enums = {
             "label": "[ATL] AML.T0036 Data from Information Repositories",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--bea143b9-41d8-5b7d-a72f-7f3400010641"
+            "stixId": "attack-pattern--bea143b9-41d8-5b7d-a72f-7f3400010641",
+            "url": "https://atlas.mitre.org/techniques/AML.T0036"
         },
         "AML.T0037": {
             "id": "AML.T0037",
@@ -910,10 +746,8 @@ export const enums = {
             "label": "[ATL] AML.T0037 Data from Local System",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--60f738d1-1f94-5976-8cb0-ab4355b3f848"
+            "stixId": "attack-pattern--60f738d1-1f94-5976-8cb0-ab4355b3f848",
+            "url": "https://atlas.mitre.org/techniques/AML.T0037"
         },
         "AML.T0040": {
             "id": "AML.T0040",
@@ -921,10 +755,8 @@ export const enums = {
             "label": "[ATL] AML.T0040 AI Model Inference API Access",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--5ac1f849-523e-51bf-a1e9-1a97ab91cc91"
+            "stixId": "attack-pattern--5ac1f849-523e-51bf-a1e9-1a97ab91cc91",
+            "url": "https://atlas.mitre.org/techniques/AML.T0040"
         },
         "AML.T0041": {
             "id": "AML.T0041",
@@ -932,10 +764,8 @@ export const enums = {
             "label": "[ATL] AML.T0041 Physical Environment Access",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--065b0269-0d72-558c-a840-2012f0481f07"
+            "stixId": "attack-pattern--065b0269-0d72-558c-a840-2012f0481f07",
+            "url": "https://atlas.mitre.org/techniques/AML.T0041"
         },
         "AML.T0042": {
             "id": "AML.T0042",
@@ -943,10 +773,8 @@ export const enums = {
             "label": "[ATL] AML.T0042 Verify Attack",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--8981726f-193d-5528-9adf-5e4a2cebfeab"
+            "stixId": "attack-pattern--8981726f-193d-5528-9adf-5e4a2cebfeab",
+            "url": "https://atlas.mitre.org/techniques/AML.T0042"
         },
         "AML.T0043": {
             "id": "AML.T0043",
@@ -954,10 +782,8 @@ export const enums = {
             "label": "[ATL] AML.T0043 Craft Adversarial Data",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--c9122fef-2e35-5d75-9e0a-6ae552ee208f"
+            "stixId": "attack-pattern--c9122fef-2e35-5d75-9e0a-6ae552ee208f",
+            "url": "https://atlas.mitre.org/techniques/AML.T0043"
         },
         "AML.T0043.000": {
             "id": "AML.T0043.000",
@@ -965,10 +791,8 @@ export const enums = {
             "label": "[ATL] AML.T0043.000 White-Box Optimization",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--5f8f898d-1e29-52a7-bf95-2d420313aee8"
+            "stixId": "attack-pattern--5f8f898d-1e29-52a7-bf95-2d420313aee8",
+            "url": "https://atlas.mitre.org/techniques/AML.T0043.000"
         },
         "AML.T0043.001": {
             "id": "AML.T0043.001",
@@ -976,10 +800,8 @@ export const enums = {
             "label": "[ATL] AML.T0043.001 Black-Box Optimization",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--cf1f989f-9b4e-5dae-aaf8-719e71b2fb8b"
+            "stixId": "attack-pattern--cf1f989f-9b4e-5dae-aaf8-719e71b2fb8b",
+            "url": "https://atlas.mitre.org/techniques/AML.T0043.001"
         },
         "AML.T0043.002": {
             "id": "AML.T0043.002",
@@ -987,10 +809,8 @@ export const enums = {
             "label": "[ATL] AML.T0043.002 Black-Box Transfer",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--079c33e1-722c-58ad-983d-1bcd94a35c7b"
+            "stixId": "attack-pattern--079c33e1-722c-58ad-983d-1bcd94a35c7b",
+            "url": "https://atlas.mitre.org/techniques/AML.T0043.002"
         },
         "AML.T0043.003": {
             "id": "AML.T0043.003",
@@ -998,10 +818,8 @@ export const enums = {
             "label": "[ATL] AML.T0043.003 Manual Modification",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--d7874f78-a3bf-52a2-9add-428d6801be62"
+            "stixId": "attack-pattern--d7874f78-a3bf-52a2-9add-428d6801be62",
+            "url": "https://atlas.mitre.org/techniques/AML.T0043.003"
         },
         "AML.T0043.004": {
             "id": "AML.T0043.004",
@@ -1009,10 +827,8 @@ export const enums = {
             "label": "[ATL] AML.T0043.004 Insert Backdoor Trigger",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--e9e0c817-539a-5977-9238-ad88d7e301a6"
+            "stixId": "attack-pattern--e9e0c817-539a-5977-9238-ad88d7e301a6",
+            "url": "https://atlas.mitre.org/techniques/AML.T0043.004"
         },
         "AML.T0044": {
             "id": "AML.T0044",
@@ -1020,10 +836,8 @@ export const enums = {
             "label": "[ATL] AML.T0044 Full AI Model Access",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--5e652b34-b92f-5b43-afca-36f9cbf9d7c1"
+            "stixId": "attack-pattern--5e652b34-b92f-5b43-afca-36f9cbf9d7c1",
+            "url": "https://atlas.mitre.org/techniques/AML.T0044"
         },
         "AML.T0046": {
             "id": "AML.T0046",
@@ -1031,10 +845,8 @@ export const enums = {
             "label": "[ATL] AML.T0046 Spamming AI System with Chaff Data",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--b72ea3f4-fd80-5d95-bf47-abbfab0e813c"
+            "stixId": "attack-pattern--b72ea3f4-fd80-5d95-bf47-abbfab0e813c",
+            "url": "https://atlas.mitre.org/techniques/AML.T0046"
         },
         "AML.T0047": {
             "id": "AML.T0047",
@@ -1042,10 +854,8 @@ export const enums = {
             "label": "[ATL] AML.T0047 AI-Enabled Product or Service",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--a18245d0-2fb1-5f72-a069-5c176a0a11df"
+            "stixId": "attack-pattern--a18245d0-2fb1-5f72-a069-5c176a0a11df",
+            "url": "https://atlas.mitre.org/techniques/AML.T0047"
         },
         "AML.T0048": {
             "id": "AML.T0048",
@@ -1053,10 +863,8 @@ export const enums = {
             "label": "[ATL] AML.T0048 External Harms",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--2093defe-1976-5bca-9c88-f63072c90073"
+            "stixId": "attack-pattern--2093defe-1976-5bca-9c88-f63072c90073",
+            "url": "https://atlas.mitre.org/techniques/AML.T0048"
         },
         "AML.T0048.000": {
             "id": "AML.T0048.000",
@@ -1064,10 +872,8 @@ export const enums = {
             "label": "[ATL] AML.T0048.000 Financial Harm",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--37f5d47b-5f1c-5831-be6d-218371ac7eb9"
+            "stixId": "attack-pattern--37f5d47b-5f1c-5831-be6d-218371ac7eb9",
+            "url": "https://atlas.mitre.org/techniques/AML.T0048.000"
         },
         "AML.T0048.001": {
             "id": "AML.T0048.001",
@@ -1075,10 +881,8 @@ export const enums = {
             "label": "[ATL] AML.T0048.001 Reputational Harm",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--780c1969-4275-5327-ba93-8987888429e1"
+            "stixId": "attack-pattern--780c1969-4275-5327-ba93-8987888429e1",
+            "url": "https://atlas.mitre.org/techniques/AML.T0048.001"
         },
         "AML.T0048.002": {
             "id": "AML.T0048.002",
@@ -1086,10 +890,8 @@ export const enums = {
             "label": "[ATL] AML.T0048.002 Societal Harm",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--d6a38c02-ad95-5958-ab29-759c0ff495ee"
+            "stixId": "attack-pattern--d6a38c02-ad95-5958-ab29-759c0ff495ee",
+            "url": "https://atlas.mitre.org/techniques/AML.T0048.002"
         },
         "AML.T0048.003": {
             "id": "AML.T0048.003",
@@ -1097,10 +899,8 @@ export const enums = {
             "label": "[ATL] AML.T0048.003 User Harm",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--154cff1b-1e2d-5437-9ec4-1812d38c8f57"
+            "stixId": "attack-pattern--154cff1b-1e2d-5437-9ec4-1812d38c8f57",
+            "url": "https://atlas.mitre.org/techniques/AML.T0048.003"
         },
         "AML.T0048.004": {
             "id": "AML.T0048.004",
@@ -1108,10 +908,8 @@ export const enums = {
             "label": "[ATL] AML.T0048.004 AI Intellectual Property Theft",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--73772ced-edba-578c-bacd-703e082a9c57"
+            "stixId": "attack-pattern--73772ced-edba-578c-bacd-703e082a9c57",
+            "url": "https://atlas.mitre.org/techniques/AML.T0048.004"
         },
         "AML.T0049": {
             "id": "AML.T0049",
@@ -1119,10 +917,8 @@ export const enums = {
             "label": "[ATL] AML.T0049 Exploit Public-Facing Application",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--ebeed0c7-c5de-5049-8f27-efcae5f88b00"
+            "stixId": "attack-pattern--ebeed0c7-c5de-5049-8f27-efcae5f88b00",
+            "url": "https://atlas.mitre.org/techniques/AML.T0049"
         },
         "AML.T0050": {
             "id": "AML.T0050",
@@ -1130,10 +926,8 @@ export const enums = {
             "label": "[ATL] AML.T0050 Command and Scripting Interpreter",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--07421f1a-a5ae-5936-9713-c77e4758177c"
+            "stixId": "attack-pattern--07421f1a-a5ae-5936-9713-c77e4758177c",
+            "url": "https://atlas.mitre.org/techniques/AML.T0050"
         },
         "AML.T0051": {
             "id": "AML.T0051",
@@ -1141,10 +935,8 @@ export const enums = {
             "label": "[ATL] AML.T0051 LLM Prompt Injection",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--6ff098e9-2864-579e-bebb-a0f1c92ec772"
+            "stixId": "attack-pattern--6ff098e9-2864-579e-bebb-a0f1c92ec772",
+            "url": "https://atlas.mitre.org/techniques/AML.T0051"
         },
         "AML.T0051.000": {
             "id": "AML.T0051.000",
@@ -1152,10 +944,8 @@ export const enums = {
             "label": "[ATL] AML.T0051.000 Direct",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--073f16fc-c4c0-5351-8a22-9c77aaaab91f"
+            "stixId": "attack-pattern--073f16fc-c4c0-5351-8a22-9c77aaaab91f",
+            "url": "https://atlas.mitre.org/techniques/AML.T0051.000"
         },
         "AML.T0051.001": {
             "id": "AML.T0051.001",
@@ -1163,10 +953,8 @@ export const enums = {
             "label": "[ATL] AML.T0051.001 Indirect",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--59e47398-ebf9-5606-857a-94da5ee0079d"
+            "stixId": "attack-pattern--59e47398-ebf9-5606-857a-94da5ee0079d",
+            "url": "https://atlas.mitre.org/techniques/AML.T0051.001"
         },
         "AML.T0051.002": {
             "id": "AML.T0051.002",
@@ -1174,10 +962,8 @@ export const enums = {
             "label": "[ATL] AML.T0051.002 Triggered",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--8932f230-c3b0-57eb-b6ad-0c21927963a8"
+            "stixId": "attack-pattern--8932f230-c3b0-57eb-b6ad-0c21927963a8",
+            "url": "https://atlas.mitre.org/techniques/AML.T0051.002"
         },
         "AML.T0052": {
             "id": "AML.T0052",
@@ -1185,10 +971,8 @@ export const enums = {
             "label": "[ATL] AML.T0052 Phishing",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--c9a9741c-6c66-5456-807f-1d47140851a9"
+            "stixId": "attack-pattern--c9a9741c-6c66-5456-807f-1d47140851a9",
+            "url": "https://atlas.mitre.org/techniques/AML.T0052"
         },
         "AML.T0052.000": {
             "id": "AML.T0052.000",
@@ -1196,10 +980,8 @@ export const enums = {
             "label": "[ATL] AML.T0052.000 Spearphishing via Social Engineering LLM",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--2eeced6c-9800-55c1-a285-2a34ee79c244"
+            "stixId": "attack-pattern--2eeced6c-9800-55c1-a285-2a34ee79c244",
+            "url": "https://atlas.mitre.org/techniques/AML.T0052.000"
         },
         "AML.T0052.001": {
             "id": "AML.T0052.001",
@@ -1207,10 +989,8 @@ export const enums = {
             "label": "[ATL] AML.T0052.001 Deepfake-Assisted Phishing",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--d017d9b8-ad90-5b6a-804f-229b342b05a3"
+            "stixId": "attack-pattern--d017d9b8-ad90-5b6a-804f-229b342b05a3",
+            "url": "https://atlas.mitre.org/techniques/AML.T0052.001"
         },
         "AML.T0053": {
             "id": "AML.T0053",
@@ -1218,10 +998,8 @@ export const enums = {
             "label": "[ATL] AML.T0053 AI Agent Tool Invocation",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--b23b5475-a05e-5b4a-8e9f-8c758dd0cda8"
+            "stixId": "attack-pattern--b23b5475-a05e-5b4a-8e9f-8c758dd0cda8",
+            "url": "https://atlas.mitre.org/techniques/AML.T0053"
         },
         "AML.T0054": {
             "id": "AML.T0054",
@@ -1229,10 +1007,8 @@ export const enums = {
             "label": "[ATL] AML.T0054 LLM Jailbreak",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--9bf148ad-b901-5aeb-a029-6c0a8ce0a564"
+            "stixId": "attack-pattern--9bf148ad-b901-5aeb-a029-6c0a8ce0a564",
+            "url": "https://atlas.mitre.org/techniques/AML.T0054"
         },
         "AML.T0055": {
             "id": "AML.T0055",
@@ -1240,10 +1016,8 @@ export const enums = {
             "label": "[ATL] AML.T0055 Unsecured Credentials",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--1b2fb3ca-e233-5cf5-8103-2b1fa37524eb"
+            "stixId": "attack-pattern--1b2fb3ca-e233-5cf5-8103-2b1fa37524eb",
+            "url": "https://atlas.mitre.org/techniques/AML.T0055"
         },
         "AML.T0056": {
             "id": "AML.T0056",
@@ -1251,10 +1025,8 @@ export const enums = {
             "label": "[ATL] AML.T0056 Extract LLM System Prompt",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--b8b16dac-3b95-59f7-8bf7-60e39b0c062f"
+            "stixId": "attack-pattern--b8b16dac-3b95-59f7-8bf7-60e39b0c062f",
+            "url": "https://atlas.mitre.org/techniques/AML.T0056"
         },
         "AML.T0057": {
             "id": "AML.T0057",
@@ -1262,10 +1034,8 @@ export const enums = {
             "label": "[ATL] AML.T0057 LLM Data Leakage",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--0c8eca96-8d33-5fd4-a9c0-51db41128b89"
+            "stixId": "attack-pattern--0c8eca96-8d33-5fd4-a9c0-51db41128b89",
+            "url": "https://atlas.mitre.org/techniques/AML.T0057"
         },
         "AML.T0058": {
             "id": "AML.T0058",
@@ -1273,10 +1043,8 @@ export const enums = {
             "label": "[ATL] AML.T0058 Publish Poisoned Models",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--d4c7f78e-4609-555c-a2eb-3d344dab3309"
+            "stixId": "attack-pattern--d4c7f78e-4609-555c-a2eb-3d344dab3309",
+            "url": "https://atlas.mitre.org/techniques/AML.T0058"
         },
         "AML.T0059": {
             "id": "AML.T0059",
@@ -1284,10 +1052,8 @@ export const enums = {
             "label": "[ATL] AML.T0059 Erode Dataset Integrity",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--6cc31098-f336-5fd8-932e-0289ff502d16"
+            "stixId": "attack-pattern--6cc31098-f336-5fd8-932e-0289ff502d16",
+            "url": "https://atlas.mitre.org/techniques/AML.T0059"
         },
         "AML.T0060": {
             "id": "AML.T0060",
@@ -1295,10 +1061,8 @@ export const enums = {
             "label": "[ATL] AML.T0060 Publish Hallucinated Entities",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--7ef953bd-97c4-5fac-af50-8619601046e2"
+            "stixId": "attack-pattern--7ef953bd-97c4-5fac-af50-8619601046e2",
+            "url": "https://atlas.mitre.org/techniques/AML.T0060"
         },
         "AML.T0061": {
             "id": "AML.T0061",
@@ -1306,10 +1070,8 @@ export const enums = {
             "label": "[ATL] AML.T0061 LLM Prompt Self-Replication",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--7c3e684b-70cd-53e8-b50b-5dfae6d4b4f7"
+            "stixId": "attack-pattern--7c3e684b-70cd-53e8-b50b-5dfae6d4b4f7",
+            "url": "https://atlas.mitre.org/techniques/AML.T0061"
         },
         "AML.T0062": {
             "id": "AML.T0062",
@@ -1317,10 +1079,8 @@ export const enums = {
             "label": "[ATL] AML.T0062 Discover LLM Hallucinations",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--3fa94ab1-4033-559a-971d-4419d0ecdcbd"
+            "stixId": "attack-pattern--3fa94ab1-4033-559a-971d-4419d0ecdcbd",
+            "url": "https://atlas.mitre.org/techniques/AML.T0062"
         },
         "AML.T0063": {
             "id": "AML.T0063",
@@ -1328,10 +1088,8 @@ export const enums = {
             "label": "[ATL] AML.T0063 Discover AI Model Outputs",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--727ea6be-7237-553d-a02b-416caedc37c3"
+            "stixId": "attack-pattern--727ea6be-7237-553d-a02b-416caedc37c3",
+            "url": "https://atlas.mitre.org/techniques/AML.T0063"
         },
         "AML.T0064": {
             "id": "AML.T0064",
@@ -1339,10 +1097,8 @@ export const enums = {
             "label": "[ATL] AML.T0064 Gather RAG-Indexed Targets",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--fe09131c-0035-5e17-b1b9-1ca7b39d9611"
+            "stixId": "attack-pattern--fe09131c-0035-5e17-b1b9-1ca7b39d9611",
+            "url": "https://atlas.mitre.org/techniques/AML.T0064"
         },
         "AML.T0065": {
             "id": "AML.T0065",
@@ -1350,10 +1106,8 @@ export const enums = {
             "label": "[ATL] AML.T0065 LLM Prompt Crafting",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--6e148299-0460-5d0b-9741-467437464d3d"
+            "stixId": "attack-pattern--6e148299-0460-5d0b-9741-467437464d3d",
+            "url": "https://atlas.mitre.org/techniques/AML.T0065"
         },
         "AML.T0066": {
             "id": "AML.T0066",
@@ -1361,10 +1115,8 @@ export const enums = {
             "label": "[ATL] AML.T0066 Retrieval Content Crafting",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--0077e3e5-5405-5df5-8731-1085c5b385ae"
+            "stixId": "attack-pattern--0077e3e5-5405-5df5-8731-1085c5b385ae",
+            "url": "https://atlas.mitre.org/techniques/AML.T0066"
         },
         "AML.T0067": {
             "id": "AML.T0067",
@@ -1372,10 +1124,8 @@ export const enums = {
             "label": "[ATL] AML.T0067 LLM Trusted Output Components Manipulation",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--ab0f8614-31f1-5014-a3e5-4520341c4933"
+            "stixId": "attack-pattern--ab0f8614-31f1-5014-a3e5-4520341c4933",
+            "url": "https://atlas.mitre.org/techniques/AML.T0067"
         },
         "AML.T0067.000": {
             "id": "AML.T0067.000",
@@ -1383,10 +1133,8 @@ export const enums = {
             "label": "[ATL] AML.T0067.000 Citations",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--c89e98ce-f3a5-5351-9d5a-f2d8fd59ba5f"
+            "stixId": "attack-pattern--c89e98ce-f3a5-5351-9d5a-f2d8fd59ba5f",
+            "url": "https://atlas.mitre.org/techniques/AML.T0067.000"
         },
         "AML.T0068": {
             "id": "AML.T0068",
@@ -1394,10 +1142,8 @@ export const enums = {
             "label": "[ATL] AML.T0068 LLM Prompt Obfuscation",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--dfe0aa79-7d8a-56c3-a663-74afaff00805"
+            "stixId": "attack-pattern--dfe0aa79-7d8a-56c3-a663-74afaff00805",
+            "url": "https://atlas.mitre.org/techniques/AML.T0068"
         },
         "AML.T0069": {
             "id": "AML.T0069",
@@ -1405,10 +1151,8 @@ export const enums = {
             "label": "[ATL] AML.T0069 Discover LLM System Information",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--cd64aa83-e5e5-586c-a300-a7355666feca"
+            "stixId": "attack-pattern--cd64aa83-e5e5-586c-a300-a7355666feca",
+            "url": "https://atlas.mitre.org/techniques/AML.T0069"
         },
         "AML.T0069.000": {
             "id": "AML.T0069.000",
@@ -1416,10 +1160,8 @@ export const enums = {
             "label": "[ATL] AML.T0069.000 Special Character Sets",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--4b181b36-775a-5201-b19e-89b77f107d3a"
+            "stixId": "attack-pattern--4b181b36-775a-5201-b19e-89b77f107d3a",
+            "url": "https://atlas.mitre.org/techniques/AML.T0069.000"
         },
         "AML.T0069.001": {
             "id": "AML.T0069.001",
@@ -1427,10 +1169,8 @@ export const enums = {
             "label": "[ATL] AML.T0069.001 System Instruction Keywords",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--117e643b-de9e-5c83-8763-ae1df2fe25da"
+            "stixId": "attack-pattern--117e643b-de9e-5c83-8763-ae1df2fe25da",
+            "url": "https://atlas.mitre.org/techniques/AML.T0069.001"
         },
         "AML.T0069.002": {
             "id": "AML.T0069.002",
@@ -1438,10 +1178,8 @@ export const enums = {
             "label": "[ATL] AML.T0069.002 System Prompt",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--40f3245e-8b7b-576e-b943-76a922da8521"
+            "stixId": "attack-pattern--40f3245e-8b7b-576e-b943-76a922da8521",
+            "url": "https://atlas.mitre.org/techniques/AML.T0069.002"
         },
         "AML.T0070": {
             "id": "AML.T0070",
@@ -1449,10 +1187,8 @@ export const enums = {
             "label": "[ATL] AML.T0070 RAG Poisoning",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--5904bab7-d9b6-53fc-91b3-11f0573bbf53"
+            "stixId": "attack-pattern--5904bab7-d9b6-53fc-91b3-11f0573bbf53",
+            "url": "https://atlas.mitre.org/techniques/AML.T0070"
         },
         "AML.T0071": {
             "id": "AML.T0071",
@@ -1460,10 +1196,8 @@ export const enums = {
             "label": "[ATL] AML.T0071 False RAG Entry Injection",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--f39e7bd2-bebd-5d04-ba5d-5797764e0db3"
+            "stixId": "attack-pattern--f39e7bd2-bebd-5d04-ba5d-5797764e0db3",
+            "url": "https://atlas.mitre.org/techniques/AML.T0071"
         },
         "AML.T0072": {
             "id": "AML.T0072",
@@ -1471,10 +1205,8 @@ export const enums = {
             "label": "[ATL] AML.T0072 Reverse Shell",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--bc436fa1-27f7-5eb0-abd1-cd6760d0237b"
+            "stixId": "attack-pattern--bc436fa1-27f7-5eb0-abd1-cd6760d0237b",
+            "url": "https://atlas.mitre.org/techniques/AML.T0072"
         },
         "AML.T0073": {
             "id": "AML.T0073",
@@ -1482,10 +1214,8 @@ export const enums = {
             "label": "[ATL] AML.T0073 Impersonation",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--cb172e61-1612-58ae-a022-2ef35b237987"
+            "stixId": "attack-pattern--cb172e61-1612-58ae-a022-2ef35b237987",
+            "url": "https://atlas.mitre.org/techniques/AML.T0073"
         },
         "AML.T0074": {
             "id": "AML.T0074",
@@ -1493,10 +1223,8 @@ export const enums = {
             "label": "[ATL] AML.T0074 Masquerading",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--f2826909-8806-54da-829d-1159a3526332"
+            "stixId": "attack-pattern--f2826909-8806-54da-829d-1159a3526332",
+            "url": "https://atlas.mitre.org/techniques/AML.T0074"
         },
         "AML.T0075": {
             "id": "AML.T0075",
@@ -1504,10 +1232,8 @@ export const enums = {
             "label": "[ATL] AML.T0075 Cloud Service Discovery",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--59fc3797-1686-503b-9212-26e1eecb5a69"
+            "stixId": "attack-pattern--59fc3797-1686-503b-9212-26e1eecb5a69",
+            "url": "https://atlas.mitre.org/techniques/AML.T0075"
         },
         "AML.T0076": {
             "id": "AML.T0076",
@@ -1515,10 +1241,8 @@ export const enums = {
             "label": "[ATL] AML.T0076 Corrupt AI Model",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--50640a13-8791-5642-bbe7-c199c93d1b45"
+            "stixId": "attack-pattern--50640a13-8791-5642-bbe7-c199c93d1b45",
+            "url": "https://atlas.mitre.org/techniques/AML.T0076"
         },
         "AML.T0077": {
             "id": "AML.T0077",
@@ -1526,10 +1250,8 @@ export const enums = {
             "label": "[ATL] AML.T0077 LLM Response Rendering",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--8b9b393b-38ff-5d2a-9a7a-f9b6cdc4f44b"
+            "stixId": "attack-pattern--8b9b393b-38ff-5d2a-9a7a-f9b6cdc4f44b",
+            "url": "https://atlas.mitre.org/techniques/AML.T0077"
         },
         "AML.T0078": {
             "id": "AML.T0078",
@@ -1537,10 +1259,8 @@ export const enums = {
             "label": "[ATL] AML.T0078 Drive-by Compromise",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--ebf8a653-b5cf-562e-be14-0cc5c0b1217a"
+            "stixId": "attack-pattern--ebf8a653-b5cf-562e-be14-0cc5c0b1217a",
+            "url": "https://atlas.mitre.org/techniques/AML.T0078"
         },
         "AML.T0079": {
             "id": "AML.T0079",
@@ -1548,10 +1268,8 @@ export const enums = {
             "label": "[ATL] AML.T0079 Stage Capabilities",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--fc992978-dd6d-58dc-861f-c3429a75e3ee"
+            "stixId": "attack-pattern--fc992978-dd6d-58dc-861f-c3429a75e3ee",
+            "url": "https://atlas.mitre.org/techniques/AML.T0079"
         },
         "AML.T0080": {
             "id": "AML.T0080",
@@ -1559,10 +1277,8 @@ export const enums = {
             "label": "[ATL] AML.T0080 AI Agent Context Poisoning",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--785ca1b4-7d17-51f1-a605-46a9f21fb9b0"
+            "stixId": "attack-pattern--785ca1b4-7d17-51f1-a605-46a9f21fb9b0",
+            "url": "https://atlas.mitre.org/techniques/AML.T0080"
         },
         "AML.T0080.000": {
             "id": "AML.T0080.000",
@@ -1570,10 +1286,8 @@ export const enums = {
             "label": "[ATL] AML.T0080.000 Memory",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--3e837ada-a07a-5891-b801-0c75c0ffbe80"
+            "stixId": "attack-pattern--3e837ada-a07a-5891-b801-0c75c0ffbe80",
+            "url": "https://atlas.mitre.org/techniques/AML.T0080.000"
         },
         "AML.T0080.001": {
             "id": "AML.T0080.001",
@@ -1581,10 +1295,8 @@ export const enums = {
             "label": "[ATL] AML.T0080.001 Thread",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--6497a349-9403-5b0b-91ee-22537d783bd4"
+            "stixId": "attack-pattern--6497a349-9403-5b0b-91ee-22537d783bd4",
+            "url": "https://atlas.mitre.org/techniques/AML.T0080.001"
         },
         "AML.T0081": {
             "id": "AML.T0081",
@@ -1592,10 +1304,8 @@ export const enums = {
             "label": "[ATL] AML.T0081 Modify AI Agent Configuration",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--8a6e541e-b33f-522f-8f57-f83fd33902ea"
+            "stixId": "attack-pattern--8a6e541e-b33f-522f-8f57-f83fd33902ea",
+            "url": "https://atlas.mitre.org/techniques/AML.T0081"
         },
         "AML.T0082": {
             "id": "AML.T0082",
@@ -1603,10 +1313,8 @@ export const enums = {
             "label": "[ATL] AML.T0082 RAG Credential Harvesting",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--050087b9-3411-5fbf-ba6a-74c910c6ad86"
+            "stixId": "attack-pattern--050087b9-3411-5fbf-ba6a-74c910c6ad86",
+            "url": "https://atlas.mitre.org/techniques/AML.T0082"
         },
         "AML.T0083": {
             "id": "AML.T0083",
@@ -1614,10 +1322,8 @@ export const enums = {
             "label": "[ATL] AML.T0083 Credentials from AI Agent Configuration",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--7d34fce6-1c7e-542d-9218-05a4bb7b0826"
+            "stixId": "attack-pattern--7d34fce6-1c7e-542d-9218-05a4bb7b0826",
+            "url": "https://atlas.mitre.org/techniques/AML.T0083"
         },
         "AML.T0084": {
             "id": "AML.T0084",
@@ -1625,10 +1331,8 @@ export const enums = {
             "label": "[ATL] AML.T0084 Discover AI Agent Configuration",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--e896e539-86bb-502e-8aa5-dd9630fe8337"
+            "stixId": "attack-pattern--e896e539-86bb-502e-8aa5-dd9630fe8337",
+            "url": "https://atlas.mitre.org/techniques/AML.T0084"
         },
         "AML.T0084.000": {
             "id": "AML.T0084.000",
@@ -1636,10 +1340,8 @@ export const enums = {
             "label": "[ATL] AML.T0084.000 Embedded Knowledge",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--491c911b-3ae5-5c7c-b81c-4fc2aceaa3a2"
+            "stixId": "attack-pattern--491c911b-3ae5-5c7c-b81c-4fc2aceaa3a2",
+            "url": "https://atlas.mitre.org/techniques/AML.T0084.000"
         },
         "AML.T0084.001": {
             "id": "AML.T0084.001",
@@ -1647,10 +1349,8 @@ export const enums = {
             "label": "[ATL] AML.T0084.001 Tool Definitions",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--c97ec0eb-db08-5787-89a0-0c8fc9462a83"
+            "stixId": "attack-pattern--c97ec0eb-db08-5787-89a0-0c8fc9462a83",
+            "url": "https://atlas.mitre.org/techniques/AML.T0084.001"
         },
         "AML.T0084.002": {
             "id": "AML.T0084.002",
@@ -1658,10 +1358,8 @@ export const enums = {
             "label": "[ATL] AML.T0084.002 Activation Triggers",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--9b9a3289-1c15-5719-9501-707bac954fee"
+            "stixId": "attack-pattern--9b9a3289-1c15-5719-9501-707bac954fee",
+            "url": "https://atlas.mitre.org/techniques/AML.T0084.002"
         },
         "AML.T0084.003": {
             "id": "AML.T0084.003",
@@ -1669,10 +1367,8 @@ export const enums = {
             "label": "[ATL] AML.T0084.003 Call Chains",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--a1bfff2c-02a5-5104-b2bb-8def8acf1255"
+            "stixId": "attack-pattern--a1bfff2c-02a5-5104-b2bb-8def8acf1255",
+            "url": "https://atlas.mitre.org/techniques/AML.T0084.003"
         },
         "AML.T0085": {
             "id": "AML.T0085",
@@ -1680,10 +1376,8 @@ export const enums = {
             "label": "[ATL] AML.T0085 Data from AI Services",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--536e5c26-d36d-583d-a441-bc259d170fab"
+            "stixId": "attack-pattern--536e5c26-d36d-583d-a441-bc259d170fab",
+            "url": "https://atlas.mitre.org/techniques/AML.T0085"
         },
         "AML.T0085.000": {
             "id": "AML.T0085.000",
@@ -1691,10 +1385,8 @@ export const enums = {
             "label": "[ATL] AML.T0085.000 RAG Databases",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--ba288685-9038-5a8d-99b2-ae738e39e825"
+            "stixId": "attack-pattern--ba288685-9038-5a8d-99b2-ae738e39e825",
+            "url": "https://atlas.mitre.org/techniques/AML.T0085.000"
         },
         "AML.T0085.001": {
             "id": "AML.T0085.001",
@@ -1702,10 +1394,8 @@ export const enums = {
             "label": "[ATL] AML.T0085.001 AI Agent Tools",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--bfa79523-214f-57f5-a445-c8a563f141f5"
+            "stixId": "attack-pattern--bfa79523-214f-57f5-a445-c8a563f141f5",
+            "url": "https://atlas.mitre.org/techniques/AML.T0085.001"
         },
         "AML.T0086": {
             "id": "AML.T0086",
@@ -1713,10 +1403,8 @@ export const enums = {
             "label": "[ATL] AML.T0086 Exfiltration via AI Agent Tool Invocation",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--66188cfa-76df-546b-be79-aa06debc8d79"
+            "stixId": "attack-pattern--66188cfa-76df-546b-be79-aa06debc8d79",
+            "url": "https://atlas.mitre.org/techniques/AML.T0086"
         },
         "AML.T0087": {
             "id": "AML.T0087",
@@ -1724,10 +1412,8 @@ export const enums = {
             "label": "[ATL] AML.T0087 Gather Victim Identity Information",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--c9f8f4b0-e377-55b1-bad3-aa5f13389216"
+            "stixId": "attack-pattern--c9f8f4b0-e377-55b1-bad3-aa5f13389216",
+            "url": "https://atlas.mitre.org/techniques/AML.T0087"
         },
         "AML.T0088": {
             "id": "AML.T0088",
@@ -1735,10 +1421,8 @@ export const enums = {
             "label": "[ATL] AML.T0088 Generate Deepfakes",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--fa9aa1b8-8084-569e-9253-232b0fa8d107"
+            "stixId": "attack-pattern--fa9aa1b8-8084-569e-9253-232b0fa8d107",
+            "url": "https://atlas.mitre.org/techniques/AML.T0088"
         },
         "AML.T0089": {
             "id": "AML.T0089",
@@ -1746,10 +1430,8 @@ export const enums = {
             "label": "[ATL] AML.T0089 Process Discovery",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--a48cde58-6c7d-5126-98b3-edc24f83b49b"
+            "stixId": "attack-pattern--a48cde58-6c7d-5126-98b3-edc24f83b49b",
+            "url": "https://atlas.mitre.org/techniques/AML.T0089"
         },
         "AML.T0090": {
             "id": "AML.T0090",
@@ -1757,10 +1439,8 @@ export const enums = {
             "label": "[ATL] AML.T0090 OS Credential Dumping",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--a3c78531-c795-507b-8cfd-4ad6ed57d217"
+            "stixId": "attack-pattern--a3c78531-c795-507b-8cfd-4ad6ed57d217",
+            "url": "https://atlas.mitre.org/techniques/AML.T0090"
         },
         "AML.T0091": {
             "id": "AML.T0091",
@@ -1768,10 +1448,8 @@ export const enums = {
             "label": "[ATL] AML.T0091 Use Alternate Authentication Material",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--dcbb91c4-3fcc-5c1b-b851-795600618124"
+            "stixId": "attack-pattern--dcbb91c4-3fcc-5c1b-b851-795600618124",
+            "url": "https://atlas.mitre.org/techniques/AML.T0091"
         },
         "AML.T0091.000": {
             "id": "AML.T0091.000",
@@ -1779,10 +1457,8 @@ export const enums = {
             "label": "[ATL] AML.T0091.000 Application Access Token",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--7c36d546-bb69-5a52-a1ac-6d52cb10fc48"
+            "stixId": "attack-pattern--7c36d546-bb69-5a52-a1ac-6d52cb10fc48",
+            "url": "https://atlas.mitre.org/techniques/AML.T0091.000"
         },
         "AML.T0092": {
             "id": "AML.T0092",
@@ -1790,10 +1466,8 @@ export const enums = {
             "label": "[ATL] AML.T0092 Manipulate User LLM Chat History",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--b8baf5c1-606b-5fb0-8dff-a360462eccf6"
+            "stixId": "attack-pattern--b8baf5c1-606b-5fb0-8dff-a360462eccf6",
+            "url": "https://atlas.mitre.org/techniques/AML.T0092"
         },
         "AML.T0093": {
             "id": "AML.T0093",
@@ -1801,10 +1475,8 @@ export const enums = {
             "label": "[ATL] AML.T0093 Prompt Infiltration via Public-Facing Application",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--8f32b668-8420-5569-bbbe-f39c6b493aff"
+            "stixId": "attack-pattern--8f32b668-8420-5569-bbbe-f39c6b493aff",
+            "url": "https://atlas.mitre.org/techniques/AML.T0093"
         },
         "AML.T0094": {
             "id": "AML.T0094",
@@ -1812,10 +1484,8 @@ export const enums = {
             "label": "[ATL] AML.T0094 Delay Execution of LLM Instructions",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--ced5d1be-a572-58e3-bb3f-9f8c22de02b5"
+            "stixId": "attack-pattern--ced5d1be-a572-58e3-bb3f-9f8c22de02b5",
+            "url": "https://atlas.mitre.org/techniques/AML.T0094"
         },
         "AML.T0095": {
             "id": "AML.T0095",
@@ -1823,10 +1493,8 @@ export const enums = {
             "label": "[ATL] AML.T0095 Search Open Websites/Domains",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--f36ec430-2908-5472-b19a-6e89409739dd"
+            "stixId": "attack-pattern--f36ec430-2908-5472-b19a-6e89409739dd",
+            "url": "https://atlas.mitre.org/techniques/AML.T0095"
         },
         "AML.T0095.000": {
             "id": "AML.T0095.000",
@@ -1834,10 +1502,8 @@ export const enums = {
             "label": "[ATL] AML.T0095.000 Code Repositories",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--47789eb8-2a21-5a8b-a380-57e17bde15e2"
+            "stixId": "attack-pattern--47789eb8-2a21-5a8b-a380-57e17bde15e2",
+            "url": "https://atlas.mitre.org/techniques/AML.T0095.000"
         },
         "AML.T0096": {
             "id": "AML.T0096",
@@ -1845,10 +1511,8 @@ export const enums = {
             "label": "[ATL] AML.T0096 AI Service API",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--92a68652-d864-5c9c-9c1d-64ec09587390"
+            "stixId": "attack-pattern--92a68652-d864-5c9c-9c1d-64ec09587390",
+            "url": "https://atlas.mitre.org/techniques/AML.T0096"
         },
         "AML.T0097": {
             "id": "AML.T0097",
@@ -1856,10 +1520,8 @@ export const enums = {
             "label": "[ATL] AML.T0097 Virtualization/Sandbox Evasion",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--d21c2e27-f274-50d0-947c-b44bae1e6b66"
+            "stixId": "attack-pattern--d21c2e27-f274-50d0-947c-b44bae1e6b66",
+            "url": "https://atlas.mitre.org/techniques/AML.T0097"
         },
         "AML.T0098": {
             "id": "AML.T0098",
@@ -1867,10 +1529,8 @@ export const enums = {
             "label": "[ATL] AML.T0098 AI Agent Tool Credential Harvesting",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--daca6b9c-9073-5aef-8017-737d1aa51f6d"
+            "stixId": "attack-pattern--daca6b9c-9073-5aef-8017-737d1aa51f6d",
+            "url": "https://atlas.mitre.org/techniques/AML.T0098"
         },
         "AML.T0099": {
             "id": "AML.T0099",
@@ -1878,10 +1538,8 @@ export const enums = {
             "label": "[ATL] AML.T0099 AI Agent Tool Data Poisoning",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--7330bae1-3905-5446-838f-c9476ef52978"
+            "stixId": "attack-pattern--7330bae1-3905-5446-838f-c9476ef52978",
+            "url": "https://atlas.mitre.org/techniques/AML.T0099"
         },
         "AML.T0100": {
             "id": "AML.T0100",
@@ -1889,10 +1547,8 @@ export const enums = {
             "label": "[ATL] AML.T0100 AI Agent Clickbait",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--bd74bd28-20ce-5f69-972e-0afe627b7147"
+            "stixId": "attack-pattern--bd74bd28-20ce-5f69-972e-0afe627b7147",
+            "url": "https://atlas.mitre.org/techniques/AML.T0100"
         },
         "AML.T0101": {
             "id": "AML.T0101",
@@ -1900,10 +1556,8 @@ export const enums = {
             "label": "[ATL] AML.T0101 Data Destruction via AI Agent Tool Invocation",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--4a9bacd2-7c04-5c4b-bed3-b469450d0f9e"
+            "stixId": "attack-pattern--4a9bacd2-7c04-5c4b-bed3-b469450d0f9e",
+            "url": "https://atlas.mitre.org/techniques/AML.T0101"
         },
         "AML.T0102": {
             "id": "AML.T0102",
@@ -1911,10 +1565,8 @@ export const enums = {
             "label": "[ATL] AML.T0102 Generate Malicious Commands",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--4c46c93f-47b3-5ace-8c6c-a15cb1a55dd2"
+            "stixId": "attack-pattern--4c46c93f-47b3-5ace-8c6c-a15cb1a55dd2",
+            "url": "https://atlas.mitre.org/techniques/AML.T0102"
         },
         "AML.T0103": {
             "id": "AML.T0103",
@@ -1922,10 +1574,8 @@ export const enums = {
             "label": "[ATL] AML.T0103 Deploy AI Agent",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--f8d5be4e-b5f8-5b61-bdc9-3a8818327210"
+            "stixId": "attack-pattern--f8d5be4e-b5f8-5b61-bdc9-3a8818327210",
+            "url": "https://atlas.mitre.org/techniques/AML.T0103"
         },
         "AML.T0104": {
             "id": "AML.T0104",
@@ -1933,10 +1583,8 @@ export const enums = {
             "label": "[ATL] AML.T0104 Publish Poisoned AI Agent Tool",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--04842d98-bb69-586e-9765-6ff1f56ef722"
+            "stixId": "attack-pattern--04842d98-bb69-586e-9765-6ff1f56ef722",
+            "url": "https://atlas.mitre.org/techniques/AML.T0104"
         },
         "AML.T0105": {
             "id": "AML.T0105",
@@ -1944,10 +1592,8 @@ export const enums = {
             "label": "[ATL] AML.T0105 Escape to Host",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--8a98b993-8854-5fdd-ae81-4256db9e7a2d"
+            "stixId": "attack-pattern--8a98b993-8854-5fdd-ae81-4256db9e7a2d",
+            "url": "https://atlas.mitre.org/techniques/AML.T0105"
         },
         "AML.T0106": {
             "id": "AML.T0106",
@@ -1955,10 +1601,8 @@ export const enums = {
             "label": "[ATL] AML.T0106 Exploitation for Credential Access",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--61bd1eb1-b526-59aa-9b1c-86a7dc5fa0d8"
+            "stixId": "attack-pattern--61bd1eb1-b526-59aa-9b1c-86a7dc5fa0d8",
+            "url": "https://atlas.mitre.org/techniques/AML.T0106"
         },
         "AML.T0107": {
             "id": "AML.T0107",
@@ -1966,10 +1610,8 @@ export const enums = {
             "label": "[ATL] AML.T0107 Exploitation for Defense Evasion",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--1f612544-c939-5d60-ad34-2d0644622e1f"
+            "stixId": "attack-pattern--1f612544-c939-5d60-ad34-2d0644622e1f",
+            "url": "https://atlas.mitre.org/techniques/AML.T0107"
         },
         "AML.T0108": {
             "id": "AML.T0108",
@@ -1977,10 +1619,8 @@ export const enums = {
             "label": "[ATL] AML.T0108 AI Agent",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--cf34558d-6970-51aa-a43e-d345b9cf7d38"
+            "stixId": "attack-pattern--cf34558d-6970-51aa-a43e-d345b9cf7d38",
+            "url": "https://atlas.mitre.org/techniques/AML.T0108"
         },
         "AML.T0109": {
             "id": "AML.T0109",
@@ -1988,10 +1628,8 @@ export const enums = {
             "label": "[ATL] AML.T0109 AI Supply Chain Rug Pull",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--885eb980-23c3-5b11-a310-9e1e65c010d4"
+            "stixId": "attack-pattern--885eb980-23c3-5b11-a310-9e1e65c010d4",
+            "url": "https://atlas.mitre.org/techniques/AML.T0109"
         },
         "AML.T0110": {
             "id": "AML.T0110",
@@ -1999,10 +1637,8 @@ export const enums = {
             "label": "[ATL] AML.T0110 AI Agent Tool Poisoning",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--b1b2cc5a-7312-5f26-93d3-8b8ee1baf97d"
+            "stixId": "attack-pattern--b1b2cc5a-7312-5f26-93d3-8b8ee1baf97d",
+            "url": "https://atlas.mitre.org/techniques/AML.T0110"
         },
         "AML.T0111": {
             "id": "AML.T0111",
@@ -2010,10 +1646,8 @@ export const enums = {
             "label": "[ATL] AML.T0111 AI Supply Chain Reputation Inflation",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--c4730fd0-ec0d-5bf5-8f03-e42faaa5055b"
+            "stixId": "attack-pattern--c4730fd0-ec0d-5bf5-8f03-e42faaa5055b",
+            "url": "https://atlas.mitre.org/techniques/AML.T0111"
         },
         "AML.T0112": {
             "id": "AML.T0112",
@@ -2021,10 +1655,8 @@ export const enums = {
             "label": "[ATL] AML.T0112 Machine Compromise",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--00d819a2-6a7f-5021-9c42-f02f6f0254c1"
+            "stixId": "attack-pattern--00d819a2-6a7f-5021-9c42-f02f6f0254c1",
+            "url": "https://atlas.mitre.org/techniques/AML.T0112"
         },
         "AML.T0112.000": {
             "id": "AML.T0112.000",
@@ -2032,10 +1664,8 @@ export const enums = {
             "label": "[ATL] AML.T0112.000 Local AI Agent",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--6354a977-1913-513b-bddf-21a3ba2947b7"
+            "stixId": "attack-pattern--6354a977-1913-513b-bddf-21a3ba2947b7",
+            "url": "https://atlas.mitre.org/techniques/AML.T0112.000"
         },
         "AML.T0112.001": {
             "id": "AML.T0112.001",
@@ -2043,10 +1673,8 @@ export const enums = {
             "label": "[ATL] AML.T0112.001 AI Artifacts",
             "type": "technique",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "attack-pattern--bd0fd9ca-cc30-542e-9c1a-de9f66c9455b"
+            "stixId": "attack-pattern--bd0fd9ca-cc30-542e-9c1a-de9f66c9455b",
+            "url": "https://atlas.mitre.org/techniques/AML.T0112.001"
         }
     },
     "mitigations": {
@@ -2056,10 +1684,8 @@ export const enums = {
             "label": "[ATL] AML.M0000 Limit Public Release of Information",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--c35b59f9-60f8-5bd1-ad76-9cbb549a97ce"
+            "stixId": "course-of-action--c35b59f9-60f8-5bd1-ad76-9cbb549a97ce",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0000"
         },
         "AML.M0001": {
             "id": "AML.M0001",
@@ -2067,10 +1693,8 @@ export const enums = {
             "label": "[ATL] AML.M0001 Limit Model Artifact Release",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--68a1c707-b05e-5588-b0a3-01aa35182ed0"
+            "stixId": "course-of-action--68a1c707-b05e-5588-b0a3-01aa35182ed0",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0001"
         },
         "AML.M0002": {
             "id": "AML.M0002",
@@ -2078,10 +1702,8 @@ export const enums = {
             "label": "[ATL] AML.M0002 Passive AI Output Obfuscation",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--8aaa7934-9c52-56f0-a48d-1f5258e4288b"
+            "stixId": "course-of-action--8aaa7934-9c52-56f0-a48d-1f5258e4288b",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0002"
         },
         "AML.M0003": {
             "id": "AML.M0003",
@@ -2089,10 +1711,8 @@ export const enums = {
             "label": "[ATL] AML.M0003 Model Hardening",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--e3e2c4e7-ecc1-5e0b-a276-9b00c0b30204"
+            "stixId": "course-of-action--e3e2c4e7-ecc1-5e0b-a276-9b00c0b30204",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0003"
         },
         "AML.M0004": {
             "id": "AML.M0004",
@@ -2100,10 +1720,8 @@ export const enums = {
             "label": "[ATL] AML.M0004 Restrict Number of AI Model Queries",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--1b15d839-8893-5005-aba7-62c3cc8b48ac"
+            "stixId": "course-of-action--1b15d839-8893-5005-aba7-62c3cc8b48ac",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0004"
         },
         "AML.M0005": {
             "id": "AML.M0005",
@@ -2111,10 +1729,8 @@ export const enums = {
             "label": "[ATL] AML.M0005 Control Access to AI Models and Data at Rest",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--1fc2879c-d3c3-5dbf-882d-4ca4721f30d4"
+            "stixId": "course-of-action--1fc2879c-d3c3-5dbf-882d-4ca4721f30d4",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0005"
         },
         "AML.M0006": {
             "id": "AML.M0006",
@@ -2122,10 +1738,8 @@ export const enums = {
             "label": "[ATL] AML.M0006 Use Ensemble Methods",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--0f15844f-7146-5bcd-8787-4e6f688f9a2c"
+            "stixId": "course-of-action--0f15844f-7146-5bcd-8787-4e6f688f9a2c",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0006"
         },
         "AML.M0007": {
             "id": "AML.M0007",
@@ -2133,10 +1747,8 @@ export const enums = {
             "label": "[ATL] AML.M0007 Sanitize Training Data",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--aba79819-27d3-5204-9fed-011613fa8136"
+            "stixId": "course-of-action--aba79819-27d3-5204-9fed-011613fa8136",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0007"
         },
         "AML.M0008": {
             "id": "AML.M0008",
@@ -2144,10 +1756,8 @@ export const enums = {
             "label": "[ATL] AML.M0008 Validate AI Model",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--b1132427-33bb-5055-9e86-9df87ad144e7"
+            "stixId": "course-of-action--b1132427-33bb-5055-9e86-9df87ad144e7",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0008"
         },
         "AML.M0009": {
             "id": "AML.M0009",
@@ -2155,10 +1765,8 @@ export const enums = {
             "label": "[ATL] AML.M0009 Use Multi-Modal Sensors",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--6c1c5f7a-986c-5c1f-ac9b-bde692d0b3fe"
+            "stixId": "course-of-action--6c1c5f7a-986c-5c1f-ac9b-bde692d0b3fe",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0009"
         },
         "AML.M0010": {
             "id": "AML.M0010",
@@ -2166,10 +1774,8 @@ export const enums = {
             "label": "[ATL] AML.M0010 Input Restoration",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--1c8b96b0-c21f-5a9b-b478-ddd9ac40f686"
+            "stixId": "course-of-action--1c8b96b0-c21f-5a9b-b478-ddd9ac40f686",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0010"
         },
         "AML.M0011": {
             "id": "AML.M0011",
@@ -2177,10 +1783,8 @@ export const enums = {
             "label": "[ATL] AML.M0011 Restrict Library Loading",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--94cf1dc2-512c-5d81-b073-891d7113c194"
+            "stixId": "course-of-action--94cf1dc2-512c-5d81-b073-891d7113c194",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0011"
         },
         "AML.M0012": {
             "id": "AML.M0012",
@@ -2188,10 +1792,8 @@ export const enums = {
             "label": "[ATL] AML.M0012 Encrypt Sensitive Information",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--33f3432f-83e7-5d59-924c-ed2b817c2214"
+            "stixId": "course-of-action--33f3432f-83e7-5d59-924c-ed2b817c2214",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0012"
         },
         "AML.M0013": {
             "id": "AML.M0013",
@@ -2199,10 +1801,8 @@ export const enums = {
             "label": "[ATL] AML.M0013 Code Signing",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--0fd2a106-347e-51b2-8c78-2fdd4b091548"
+            "stixId": "course-of-action--0fd2a106-347e-51b2-8c78-2fdd4b091548",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0013"
         },
         "AML.M0014": {
             "id": "AML.M0014",
@@ -2210,10 +1810,8 @@ export const enums = {
             "label": "[ATL] AML.M0014 Verify AI Artifacts",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--bf670d38-5978-5e5e-ba61-9b61dbc70122"
+            "stixId": "course-of-action--bf670d38-5978-5e5e-ba61-9b61dbc70122",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0014"
         },
         "AML.M0015": {
             "id": "AML.M0015",
@@ -2221,10 +1819,8 @@ export const enums = {
             "label": "[ATL] AML.M0015 Adversarial Input Detection",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--20c3de3a-045a-5c5d-883b-4bb074cc427e"
+            "stixId": "course-of-action--20c3de3a-045a-5c5d-883b-4bb074cc427e",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0015"
         },
         "AML.M0016": {
             "id": "AML.M0016",
@@ -2232,10 +1828,8 @@ export const enums = {
             "label": "[ATL] AML.M0016 Vulnerability Scanning",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--c578b076-802d-50d7-9d88-25d62ea569c8"
+            "stixId": "course-of-action--c578b076-802d-50d7-9d88-25d62ea569c8",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0016"
         },
         "AML.M0017": {
             "id": "AML.M0017",
@@ -2243,10 +1837,8 @@ export const enums = {
             "label": "[ATL] AML.M0017 AI Model Distribution Methods",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--3c7d2fc8-7b70-54d5-b722-2a5c9292f88a"
+            "stixId": "course-of-action--3c7d2fc8-7b70-54d5-b722-2a5c9292f88a",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0017"
         },
         "AML.M0018": {
             "id": "AML.M0018",
@@ -2254,10 +1846,8 @@ export const enums = {
             "label": "[ATL] AML.M0018 User Training",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--291b6312-52da-583e-bebe-bbc4cb40db4a"
+            "stixId": "course-of-action--291b6312-52da-583e-bebe-bbc4cb40db4a",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0018"
         },
         "AML.M0019": {
             "id": "AML.M0019",
@@ -2265,10 +1855,8 @@ export const enums = {
             "label": "[ATL] AML.M0019 Control Access to AI Models and Data in Production",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--9ae01d8c-c75b-5d11-944f-16edbb7d754f"
+            "stixId": "course-of-action--9ae01d8c-c75b-5d11-944f-16edbb7d754f",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0019"
         },
         "AML.M0020": {
             "id": "AML.M0020",
@@ -2276,10 +1864,8 @@ export const enums = {
             "label": "[ATL] AML.M0020 Generative AI Guardrails",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--eae4dfbe-1a12-5a2e-bad8-d5adbbf39cb6"
+            "stixId": "course-of-action--eae4dfbe-1a12-5a2e-bad8-d5adbbf39cb6",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0020"
         },
         "AML.M0021": {
             "id": "AML.M0021",
@@ -2287,10 +1873,8 @@ export const enums = {
             "label": "[ATL] AML.M0021 Generative AI Guidelines",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--4f43e1d3-1198-56e6-91ac-654ee9972acd"
+            "stixId": "course-of-action--4f43e1d3-1198-56e6-91ac-654ee9972acd",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0021"
         },
         "AML.M0022": {
             "id": "AML.M0022",
@@ -2298,10 +1882,8 @@ export const enums = {
             "label": "[ATL] AML.M0022 Generative AI Model Alignment",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--5af67059-b0e6-5e35-b3d6-ef4f2a46a559"
+            "stixId": "course-of-action--5af67059-b0e6-5e35-b3d6-ef4f2a46a559",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0022"
         },
         "AML.M0023": {
             "id": "AML.M0023",
@@ -2309,10 +1891,8 @@ export const enums = {
             "label": "[ATL] AML.M0023 AI Bill of Materials",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--816f193f-8d87-5199-bc54-107b74f283c3"
+            "stixId": "course-of-action--816f193f-8d87-5199-bc54-107b74f283c3",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0023"
         },
         "AML.M0024": {
             "id": "AML.M0024",
@@ -2320,10 +1900,8 @@ export const enums = {
             "label": "[ATL] AML.M0024 AI Telemetry Logging",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--1f45c127-eb18-5e17-a136-28ceef04edec"
+            "stixId": "course-of-action--1f45c127-eb18-5e17-a136-28ceef04edec",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0024"
         },
         "AML.M0025": {
             "id": "AML.M0025",
@@ -2331,10 +1909,8 @@ export const enums = {
             "label": "[ATL] AML.M0025 Maintain AI Dataset Provenance",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--beae4fe4-c289-5c57-b8b9-6febb24d5c9a"
+            "stixId": "course-of-action--beae4fe4-c289-5c57-b8b9-6febb24d5c9a",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0025"
         },
         "AML.M0026": {
             "id": "AML.M0026",
@@ -2342,10 +1918,8 @@ export const enums = {
             "label": "[ATL] AML.M0026 Privileged AI Agent Permissions Configuration",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--08ed40a8-34fb-59c1-a889-c4dafa4bc134"
+            "stixId": "course-of-action--08ed40a8-34fb-59c1-a889-c4dafa4bc134",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0026"
         },
         "AML.M0027": {
             "id": "AML.M0027",
@@ -2353,10 +1927,8 @@ export const enums = {
             "label": "[ATL] AML.M0027 Single-User AI Agent Permissions Configuration",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--5537712b-0001-5d3a-b12f-041d78a837a7"
+            "stixId": "course-of-action--5537712b-0001-5d3a-b12f-041d78a837a7",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0027"
         },
         "AML.M0028": {
             "id": "AML.M0028",
@@ -2364,10 +1936,8 @@ export const enums = {
             "label": "[ATL] AML.M0028 AI Agent Tools Permissions Configuration",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--70836747-6dd7-52ee-82a8-547def5d2c6c"
+            "stixId": "course-of-action--70836747-6dd7-52ee-82a8-547def5d2c6c",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0028"
         },
         "AML.M0029": {
             "id": "AML.M0029",
@@ -2375,10 +1945,8 @@ export const enums = {
             "label": "[ATL] AML.M0029 Human In-the-Loop for AI Agent Actions",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--215593c6-9371-51f0-997a-9080c6786b2a"
+            "stixId": "course-of-action--215593c6-9371-51f0-997a-9080c6786b2a",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0029"
         },
         "AML.M0030": {
             "id": "AML.M0030",
@@ -2386,10 +1954,8 @@ export const enums = {
             "label": "[ATL] AML.M0030 Restrict AI Agent Tool Invocation on Untrusted Data",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--ca58e864-8980-5b45-a405-093d6803ad97"
+            "stixId": "course-of-action--ca58e864-8980-5b45-a405-093d6803ad97",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0030"
         },
         "AML.M0031": {
             "id": "AML.M0031",
@@ -2397,10 +1963,8 @@ export const enums = {
             "label": "[ATL] AML.M0031 Memory Hardening",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--689cbf83-609f-55ce-95d6-9d05df6da1f4"
+            "stixId": "course-of-action--689cbf83-609f-55ce-95d6-9d05df6da1f4",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0031"
         },
         "AML.M0032": {
             "id": "AML.M0032",
@@ -2408,10 +1972,8 @@ export const enums = {
             "label": "[ATL] AML.M0032 Segmentation of AI Agent Components",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--9fb0623f-14f3-58e1-a44b-16dbb0fd0bae"
+            "stixId": "course-of-action--9fb0623f-14f3-58e1-a44b-16dbb0fd0bae",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0032"
         },
         "AML.M0033": {
             "id": "AML.M0033",
@@ -2419,10 +1981,8 @@ export const enums = {
             "label": "[ATL] AML.M0033 Input and Output Validation for AI Agent Components",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--daf56cc6-425a-5cbf-a2b0-dbe9af3d9b82"
+            "stixId": "course-of-action--daf56cc6-425a-5cbf-a2b0-dbe9af3d9b82",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0033"
         },
         "AML.M0034": {
             "id": "AML.M0034",
@@ -2430,10 +1990,8 @@ export const enums = {
             "label": "[ATL] AML.M0034 Deepfake Detection",
             "type": "mitigation",
             "source": "ATLAS",
-            "domains": [
-                "atlas"
-            ],
-            "stixId": "course-of-action--b5f63458-7f5c-5631-9056-1dfa6e7cf946"
+            "stixId": "course-of-action--b5f63458-7f5c-5631-9056-1dfa6e7cf946",
+            "url": "https://atlas.mitre.org/mitigations/AML.M0034"
         }
     },
     "detections": {},
