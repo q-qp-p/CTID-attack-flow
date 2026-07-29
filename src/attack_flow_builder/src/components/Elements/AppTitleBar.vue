@@ -1,17 +1,21 @@
 <template>
   <div class="app-title-bar-container">
-    <TitleBar class="app-title-bar-element" :menus="menus" @select="onItemSelect">
+    <TitleBar
+      class="app-title-bar-element"
+      :menus="menus"
+      @select="onItemSelect"
+    >
       <template #icon>
         <span class="logo">
-          <img alt="Logo" title="Logo" :src="icon">
+          <img
+            alt="Logo"
+            title="Logo"
+            :src="icon"
+          >
         </span>
       </template>
     </TitleBar>
-    <div class="classification-marking" v-if="classificationMarking && classificationMarking.value"
-      :data-value="classificationMarking.value">
-      {{ classificationMarking?.toString() }}
-      <span v-if="classificationGroup?.value">:{{ classificationGroup.value }}</span>
-    </div>
+    <ClassificationMarking />
   </div>
 </template>
 
@@ -25,7 +29,8 @@ import type { CommandEmitter } from "@/assets/scripts/Application";
 import type { ContextMenuSubmenu } from "@/assets/scripts/Browser";
 // Components
 import TitleBar from "@/components/Controls/TitleBar.vue";
-import { EnumProperty, StringProperty, TupleProperty } from "@/assets/scripts/OpenChart/DiagramModel";
+import ClassificationMarking from "./ClassificationMarking.vue";
+import type { EnumProperty, StringProperty, TupleProperty } from "@/assets/scripts/OpenChart/DiagramModel/index.ts";
 
 export default defineComponent({
   name: "AppTitleBar",
@@ -69,9 +74,6 @@ export default defineComponent({
       const result: StringProperty | undefined = tup?.value.get("group") as StringProperty;
       return result
     }
-
-
-
   },
   methods: {
 
@@ -94,7 +96,7 @@ export default defineComponent({
     }
 
   },
-  components: { TitleBar }
+  components: { TitleBar, ClassificationMarking }
 });
 </script>
 
@@ -110,49 +112,9 @@ export default defineComponent({
 }
 
 .app-title-bar-container {
-  display: flex;
-  position: relative;
-  z-index: 2;
-  /* Make sure find-dialog hides underneath title bar. */
+    display: flex;
+    position: relative;
+    z-index: 2; /* Make sure find-dialog hides underneath title bar. */
 }
 
-/* Styling similar to classification markings in DiagramImage.ts. Change both together. */
-.classification-marking {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-weight: 600;
-  padding: 0 5px 0 5px;
-  color: white;
-}
-
-.classification-marking[data-value="tlp-red"] {
-  background-color: black;
-  color: #FF2B2B;
-}
-
-.classification-marking[data-value="tlp-amber"],
-.classification-marking[data-value="tlp-amber-strict"] {
-  background-color: black;
-  color: #FFC000;
-}
-
-.classification-marking[data-value="tlp-green"] {
-  background-color: black;
-  color: #33FF00;
-}
-
-.classification-marking[data-value="tlp-clear"] {
-  background-color: black;
-  color: #FFFFFF;
-}
-
-.classification-marking[data-value="unclassified"] {
-  background-color: black;
-  color: #33FF00;
-}
 </style>

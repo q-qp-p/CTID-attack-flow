@@ -17,6 +17,19 @@ import { fetchJson } from "./source_utils.mjs";
  *  The object's STIX id.
  * @property {boolean} deprecated
  *  True if the object has been deprecated, false otherwise.
+ * @property {StixRelationship[]} stixRelationships
+ *  The object's parsed outgoing STIX relationships.
+ * @property {{name: string, channel: string}[]} [log_sources]
+ *  Aggregated log sources from associated analytics.
+ */
+
+/**
+ * @typedef {Object} StixRelationship
+ *  A relationship between Source Objects.
+ * @property {string} relationshipType
+ *  The STIX relationship type.
+ * @property {string} targetRef
+ *  The STIX id of the target object.
  */
 
 /**
@@ -29,6 +42,7 @@ const STIX_TO_ATTACK = {
     "malware": "software",
     "tool": "software",
     "x-mitre-data-source": "data_source",
+    "x-mitre-detection-strategy": "detection",
     "x-mitre-tactic": "tactic",
     "attack-pattern": "technique"
 }
@@ -43,6 +57,96 @@ const MITRE_SOURCES = new Set([
     "mitre-atlas",
     "mitre-f3"
 ])
+
+/**
+ * Extracts a detection strategy id from an analytic STIX object.
+ * @remarks
+ *  MITRE links analytics to detection strategies through the analytic's
+ *  external reference URL (e.g. .../detectionstrategies/DET0516#AN1429), not
+ *  through a STIX relationship object.
+ * @param {Object} analytic
+ *  The analytic STIX object.
+ * @returns {string | undefined}
+ *  The detection strategy id, if present.
+ */
+function getDetectionIdFromAnalytic(analytic) {
+    for (const ref of analytic.external_references ?? []) {
+        const match = ref.url?.match(/\/detectionstrategies\/(DET\d+)/);
+        if (match) {
+            return match[1];
+        }
+    }
+}
+
+/**
+ * Parses log source references from an analytic STIX object.
+ * @remarks
+ *  Log sources use MITRE's PRE:POST naming (e.g. wineventlog:security) with a
+ *  channel field for event IDs, operations, or match strings.
+ * @param {Object} analytic
+ *  The analytic STIX object.
+ * @returns {{name: string, channel: string}[]}
+ *  The parsed log sources.
+ */
+function parseAnalyticLogSources(analytic) {
+    return (analytic.x_mitre_log_source_references ?? [])
+        .map(reference => ({
+            name: reference.name ?? "",
+            channel: reference.channel ?? ""
+        }))
+        .filter(reference => reference.name.length > 0);
+}
+
+/**
+ * Aggregates log sources from analytics onto detection strategy objects.
+ * @remarks
+ *  x-mitre-analytic objects are not added to STIX_TO_ATTACK because they are
+ *  not standalone catalog entries. Instead, each analytic contributes zero or
+ *  more entries to detection.log_sources (deduplicated union).
+ * @param {Object} data
+ *  The STIX manifest.
+ * @param {Map<string, SourceObject>} objects
+ *  The parsed source objects.
+ */
+function attachDetectionLogSources(data, objects) {
+    const logSourcesByDetectionId = new Map();
+    const seenLogSourcesByDetectionId = new Map();
+
+    for (const obj of data.objects) {
+        if (obj.type !== "x-mitre-analytic" || obj.x_mitre_deprecated || obj.revoked) {
+            continue;
+        }
+
+        const detectionId = getDetectionIdFromAnalytic(obj);
+        if (!detectionId) {
+            continue;
+        }
+
+        if (!logSourcesByDetectionId.has(detectionId)) {
+            logSourcesByDetectionId.set(detectionId, []);
+            seenLogSourcesByDetectionId.set(detectionId, new Set());
+        }
+
+        // Deduplicate log sources that appear across multiple analytics.
+        const seen = seenLogSourcesByDetectionId.get(detectionId);
+        const logSources = logSourcesByDetectionId.get(detectionId);
+        for (const logSource of parseAnalyticLogSources(obj)) {
+            const key = `${logSource.name}\0${logSource.channel}`;
+            if (seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+            logSources.push(logSource);
+        }
+    }
+
+    for (const obj of objects.values()) {
+        if (obj.type !== "detection") {
+            continue;
+        }
+        obj.log_sources = logSourcesByDetectionId.get(obj.id) ?? [];
+    }
+}
 
 
 /**
@@ -62,7 +166,8 @@ function parseStixToSourceObject(obj) {
         description: obj.description,
         external_references: obj.external_references,
         platforms: obj.x_mitre_platforms,
-        domains: obj.x_mitre_domains
+        domains: obj.x_mitre_domains,
+        stixRelationships: []
     }
 
     // Parse MITRE reference information
@@ -99,21 +204,17 @@ function parseStixToSourceObject(obj) {
  * @returns {SourceObject[]}
  *  The parsed source objects.
  */
-function parseSourceObjectsFromManifest(data) {
+export function parseSourceObjectsFromManifest(data) {
 
-    // Parse objects and relationships
-    const relationships = new Map();
+    // Parse objects and STIX relationships
+    const stixRelationships = [];
     let objects = new Map();
     for (let obj of data.objects) {
         if (obj.type === "relationship") {
-            if (!relationships.has(obj.source_ref)) {
-                relationships.set(obj.source_ref, new Set());
+            if (obj.x_mitre_deprecated || obj.revoked) {
+                continue;
             }
-            if (!relationships.has(obj.target_ref)) {
-                relationships.set(obj.target_ref, new Set());
-            }
-            relationships.get(obj.source_ref).add(obj.target_ref);
-            relationships.get(obj.target_ref).add(obj.source_ref);
+            stixRelationships.push(obj);
             continue;
         }
         if (!(obj.type in STIX_TO_ATTACK)) {
@@ -123,23 +224,17 @@ function parseSourceObjectsFromManifest(data) {
         objects.set(parse.stixId, parse);
     }
 
-    // Construct relationships
-    for (const [object, relations] of relationships) {
-        const source = objects.get(object);
-        if (!source) {
+    // Add outgoing STIX relationships to parsed objects
+    for (const relation of stixRelationships) {
+        const source = objects.get(relation.source_ref);
+        const target = objects.get(relation.target_ref);
+        if (!source || !target) {
             continue;
         }
-        for (const relation of relations) {
-            const target = objects.get(relation);
-            if (!target) {
-                continue;
-            }
-            const type = target.type;
-            if (source[`${type}s`] === undefined) {
-                source[`${type}s`] = [];
-            }
-            source[`${type}s`].push(target);
-        }
+        source.stixRelationships.push({
+            relationshipType: relation.relationship_type,
+            targetRef: relation.target_ref
+        });
     }
 
     // Collect tactics
@@ -159,7 +254,7 @@ function parseSourceObjectsFromManifest(data) {
         const tactics = [];
         for(const tacticShortName of technique.tactics ?? []) {
             // Add tactic to technique
-            const tactic = tacticsMap.get(tacticShortName); 
+            const tactic = tacticsMap.get(tacticShortName);
             tactics.push(tactic);
             // Add technique to tactic
             if(!tactic.techniques) {
@@ -169,6 +264,9 @@ function parseSourceObjectsFromManifest(data) {
         }
         technique.tactics = tactics;
     }
+
+    // Link x-mitre-analytic log sources to x-mitre-detection-strategy objects.
+    attachDetectionLogSources(data, objects);
 
     // Return catalog
     return [...objects.values()];
@@ -194,7 +292,7 @@ export async function fetchSourceData(...urls) {
             catalog.set(obj.stixId, obj);
         }
     }
-    
+
     // Categorize catalog
     let types = new Map(
         Object.values(STIX_TO_ATTACK).map(v => [v, []])

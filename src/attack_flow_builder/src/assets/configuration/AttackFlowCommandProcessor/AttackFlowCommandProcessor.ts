@@ -1,8 +1,9 @@
 import * as EditorCommands from "@OpenChart/DiagramEditor/Commands";
 import { SetStringProperty, SetTupleSubproperty } from "@OpenChart/DiagramEditor/Commands/index.commands";
 import { SynchronousEditorCommand } from "@OpenChart/DiagramEditor";
-import { RootProperty, StringProperty, TupleProperty } from "@OpenChart/DiagramModel";
+import { RootProperty, StringProperty, TTPTupleProperty } from "@OpenChart/DiagramModel";
 import type { SynchronousCommandProcessor } from "@OpenChart/DiagramEditor";
+import { getTacticNameFromLabel, getTechniqueNameFromLabel } from "../AttackFlowTemplates/TTPFrameworkConstants";
 
 export class AttackFlowCommandProcessor implements SynchronousCommandProcessor {
 
@@ -14,7 +15,7 @@ export class AttackFlowCommandProcessor implements SynchronousCommandProcessor {
      *  The command to execute in its place.
      */
     public process(cmd: SynchronousEditorCommand): SynchronousEditorCommand | undefined {
-        if (!this.isSettingTtp(cmd)) {
+        if (!this.isSettingTTP(cmd)) {
             return undefined;
         }
         // Get root property
@@ -72,13 +73,13 @@ export class AttackFlowCommandProcessor implements SynchronousCommandProcessor {
     /**
      * Gets the name of selected tactic.
      * @param prop
-     *  The tactic's {@link TupleProperty}.
+     *  The tactic's {@link TTPTupleProperty}.
      * @param value
      *  The tactic's next value.
      * @returns
      *  The name of the selected tactic.
      */
-    public getTacticName(prop: TupleProperty, value?: string | null): string | null {
+    public getTacticName(prop: TTPTupleProperty, value?: string | null): string | null {
         const tact = prop.get("tactic", StringProperty);
         if (!tact) {
             return null;
@@ -93,32 +94,19 @@ export class AttackFlowCommandProcessor implements SynchronousCommandProcessor {
         if (tactText === undefined) {
             return null;
         }
-        // Remove bracketed domain prefix like [ENT], [ATL], [D3F]
-        const strippedText = tactText.replace(/^\[[^\]]+\]\s*/, "");
-        // Match ATT&CK/ATLAS tactic ID format (has a leading 'TA'), capture trailing name if present
-        const taTactText = strippedText.match(/TA\d+\s+(.*)$/);
-        if (taTactText) {
-            return taTactText[1].trim();
-        }
-        // Match F3 tactic ID format (has a leading 'F3.'), capture trailing name if present
-        const f3TactText = strippedText.match(/F3\.[A-Z]\d+(?:\.\d+)?\s+(.*)$/);
-        if (f3TactText) {
-            return f3TactText[1].trim();
-        }
-        // D3FEND tactics do not have an explicit ID format, return remaining text
-        return strippedText.trim();
+        return getTacticNameFromLabel(tactText);
     }
 
     /**
      * Gets the name of selected technique.
      * @param prop
-     *  The technique's {@link TupleProperty}.
+     *  The technique's {@link TTPTupleProperty}.
      * @param value
      *  The technique's next value.
      * @returns
      *  The name of the selected technique.
      */
-    public getTechniqueName(prop: TupleProperty, value?: string | null): string | null {
+    public getTechniqueName(prop: TTPTupleProperty, value?: string | null): string | null {
         const tech = prop.get("technique", StringProperty);
         if (!tech) {
             return null;
@@ -133,25 +121,7 @@ export class AttackFlowCommandProcessor implements SynchronousCommandProcessor {
         if (techText === undefined) {
             return null;
         }
-        // Remove bracketed domain prefix like [ENT], [ATL], [D3F]
-        const strippedText = techText.replace(/^\[[^\]]+\]\s*/, "");
-        // Match ATT&CK/ATLAS technique ID format (has a leading 'T'), capture trailing name if present
-        const tTechText = strippedText.match(/T\d+(?:\.\d+)?\s+(.*)$/);
-        if (tTechText) {
-            return tTechText[1].trim();
-        }
-        // Match D3FEND technique ID format (has a leading 'D3'), capture trailing name if present
-        const d3TechText = strippedText.match(/D3-[A-Z0-9.-]+\s+(.*)$/);
-        if (d3TechText) {
-            return d3TechText[1].trim();
-        }
-        // Match F3 technique ID format (has a leading 'F3.), capture trailing name if present
-        const f3TechText = strippedText.match(/F3\.[A-Z]\d+(?:\.\d+)?\s+(.*)$/);
-        if (f3TechText) {
-            return f3TechText[1].trim();
-        }
-        // Fallback: return remaining text
-        return strippedText.trim();
+        return getTechniqueNameFromLabel(techText);
     }
 
     /**
@@ -161,7 +131,7 @@ export class AttackFlowCommandProcessor implements SynchronousCommandProcessor {
      * @returns
      *  True if the command is setting a TTP, false otherwise.
      */
-    private isSettingTtp(cmd: SynchronousEditorCommand): cmd is SetTupleSubproperty {
+    private isSettingTTP(cmd: SynchronousEditorCommand): cmd is SetTupleSubproperty {
         return cmd instanceof SetTupleSubproperty
             && cmd.property.id === "ttp";
     }

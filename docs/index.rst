@@ -16,6 +16,7 @@ globally. The project is funded by our `research participants
 
     overview
     introduction
+    generation
     example_flows
     builder
     training

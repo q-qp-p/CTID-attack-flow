@@ -251,10 +251,10 @@ export default defineComponent({
 .options-list-field-control {
   position: absolute;
   width: 100%;
-  border: solid 1px #3d3d3d;
+  border: solid 1px var(--af-border-color-primary);
   border-radius: 4px;
   box-sizing: border-box;
-  background: #242424;
+  background: var(--af-bg-color-primary);
   z-index: 1;
 }
 
@@ -304,8 +304,8 @@ export default defineComponent({
 .options li.active span,
 .options li.active.dim span,
 .options li.active.null span {
-  color: #fff;
-  background: #726de2;
+  color: var(--af-text-color-hover-action);
+  background: var(--af-bg-color-hover-action);
 }
 
 .options li.dim span,
@@ -322,7 +322,7 @@ export default defineComponent({
 /** === Scroll Box === */
 
 .options-list-field-control:deep(.scroll-bar) {
-  border-left: dotted 1px #3b3b3b;  
+  border-left: dotted 1px var(--af-border-color-primary);  
 }
 
 </style>
