@@ -195,21 +195,6 @@ point for the adversary: if they obtained a credential then they can move on to 
 in with it. But if the spearphshing fails, then the adversary falls back to a password
 spraying technique in another attempt to obtain a valid credential.
 
-Additional STIX Objects
------------------------
-This introduction focuses on the core Attack Flow objects, but Attack Flow is based on
-the STIX industry standard, so you can also use any available STIX object in your flows!
-STIX contains a variety of useful objects to enrich your flow with including IOCs and
-contextual details. This next example shows the standard STIX **process** object being
-used to provide details about how the file discovery technique was executed.
-
-.. figure:: _static/stix-sdo.png
-   :scale: 80%
-   :alt: An action points to a process object.
-   :align: center
-
-   The process object provides technical details regarding how the action was executed.
-
 
 Detections and Mitigations Objects
 ----------------------------------
@@ -230,6 +215,21 @@ Detections and Mitigations may be used in a flow to include pseudocode, ATT&CK/A
    A detection or mitigation may showcase defensive measures that may alert or prevent the adversary actions.
 
 In this example of the Equifax Breach with included Mitigations, Detections, and CAR Splunk analytics, the adversary exploited a public-facing application and executed a web shell to conduct reconnaissance.
+
+Additional STIX Objects
+-----------------------
+This introduction focuses on the core Attack Flow objects, but Attack Flow is based on
+the STIX industry standard, so you can also use any available STIX object in your flows!
+STIX contains a variety of useful objects to enrich your flow with including IOCs and
+contextual details. This next example shows the standard STIX **process** object being
+used to provide details about how the file discovery technique was executed.
+
+.. figure:: _static/stix-sdo.png
+   :scale: 80%
+   :alt: An action points to a process object.
+   :align: center
+
+   The process object provides technical details regarding how the action was executed.
 
 
 Frameworks
