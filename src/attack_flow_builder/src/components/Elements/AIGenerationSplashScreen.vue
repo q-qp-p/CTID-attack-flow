@@ -798,8 +798,9 @@ export default defineComponent({
                 console.debug("Job result: ", result);
                 if (result.status === "completed") {
                     const afbContents = await fetchJobResultArtifact(result.job_id, "afb");
-                    this.applicationStore.execute(await prepareEditorFromExistingFile(this.applicationStore, afbContents));
+                    await this.applicationStore.execute(await prepareEditorFromExistingFile(this.applicationStore, afbContents));
                     this.generationStatus = 'success';
+                    this.generationMessage = "Generated flow opened in the editor.";
                 } else {
                     throw new Error(`Flow result failed: ${result.error_message}`);
                 }

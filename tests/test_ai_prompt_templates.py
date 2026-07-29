@@ -24,8 +24,16 @@ def test_full_extraction_prompt_contains_required_rules() -> None:
     assert "also emit its corresponding ATT&CK tactic" in bundle.system_instruction
     assert "Use a concise action name and make its description the most complete contiguous verbatim source excerpt available" in bundle.system_instruction
     assert "Do not shorten or summarize away material details" in bundle.system_instruction
-    assert "Use AND only for documented parallel requirements and OR only for documented alternatives" in bundle.system_instruction
-    assert "connect that action to an operator and connect the operator to each outcome action" in bundle.system_instruction
+    assert "Use AND only for documented concurrent activity, parallel requirements" in bundle.system_instruction
+    assert "Use OR only for documented alternatives" in bundle.system_instruction
+    assert "connecting the predecessor to an operator and the operator to each outcome" in bundle.system_instruction
+    assert "state or prerequisite that gates a later action" in bundle.system_instruction
+    assert "upon execution, after, before, when, once, with those credentials" in bundle.system_instruction
+    assert "model a documented join by connecting each supported predecessor" in bundle.system_instruction
+    assert "that condition's on_true_refs must point to the next source-supported action" in bundle.system_instruction
+    assert "Leave on_false_refs empty unless the source documents a false or alternative path" in bundle.system_instruction
+    assert "Do not merge source-distinct steps when they have different techniques" in bundle.system_instruction
+    assert "Treat tool setup as part of its runtime action unless the setup itself maps to a distinct ATT&CK technique" in bundle.system_instruction
     assert "For every non-terminal action, use effect_refs" in bundle.system_instruction
     assert "do not leave otherwise sequential source-grounded actions disconnected" in bundle.system_instruction
     assert "never guess branching" in bundle.system_instruction
@@ -33,6 +41,8 @@ def test_full_extraction_prompt_contains_required_rules() -> None:
     assert "the evidence must contain the verbatim excerpt used for its description" in bundle.system_instruction
     assert "include its object_id in that action's object_refs" in bundle.system_instruction
     assert "Default to the most specific supported STIX object or observable type" in bundle.system_instruction
+    assert "Preserve defanged observables exactly as written in the source" in bundle.system_instruction
+    assert "never refang indicators such as [.] or [:]" in bundle.system_instruction
     assert "Do not create a linked entity for a generic category" in bundle.system_instruction
     assert "never use an internal identifier such as software-1 or tool-1 as its name" in bundle.system_instruction
     assert "Do not create standalone attack-pattern nodes" in bundle.system_instruction
@@ -57,17 +67,29 @@ def test_full_extraction_prompt_contains_required_rules() -> None:
     assert '"preserve_explicit_branching_logic": true' in bundle.user_prompt
     assert '"allow_inferred_branching_when_supported": false' in bundle.user_prompt
     assert '"emit_attack_conditions_for_decisions": true' in bundle.user_prompt
+    assert '"emit_attack_conditions_for_explicit_prerequisites_and_state_changes": true' in bundle.user_prompt
+    assert '"connect_condition_true_paths_to_next_supported_step": true' in bundle.user_prompt
+    assert '"condition_references_must_use_exact_emitted_ids": true' in bundle.user_prompt
     assert '"use_and_operator_for_explicit_parallel_steps": true' in bundle.user_prompt
     assert '"use_or_operator_for_documented_alternatives": true' in bundle.user_prompt
     assert '"use_operators_for_multiple_documented_outcomes": true' in bundle.user_prompt
+    assert '"preserve_documented_flow_joins": true' in bundle.user_prompt
     assert '"require_tactic_for_attack_technique": true' in bundle.user_prompt
     assert '"consolidate_contiguous_same_technique_substeps": true' in bundle.user_prompt
+    assert '"separate_tool_setup_action_only_when_distinct_technique": true' in bundle.user_prompt
     assert '"default_entities_to_supported_stix_types": true' in bundle.user_prompt
+    assert '"preserve_defanged_observable_values": true' in bundle.user_prompt
     assert '"use_attack_technique_table_when_present": true' in bundle.user_prompt
+    assert '"preserve_defanged_observable_values": true' in bundle.user_prompt
     assert '"prefer_linked_objects_over_actions": true' in bundle.user_prompt
     assert '"prefer_attached_stix_catalog_objects": true' in bundle.user_prompt
     assert '"flow_modeling_requirements": {' in bundle.user_prompt
     assert '"next_step_field": "attack_actions[*].effect_refs"' in bundle.user_prompt
+    assert '"model_explicit_prerequisites_and_state_changes_as_conditions": true' in bundle.user_prompt
+    assert '"connect_condition_true_paths": true' in bundle.user_prompt
+    assert '"condition_references_use_exact_emitted_ids": true' in bundle.user_prompt
+    assert '"preserve_documented_splits_and_joins": true' in bundle.user_prompt
+    assert '"keep_source_distinct_actions_separate": true' in bundle.user_prompt
     assert '"generic_entity_placeholders_forbidden": true' in bundle.user_prompt
     assert '"allow_actions_without_techniques": false' in bundle.user_prompt
     assert '"explicit_attack_refs_only": false' in bundle.user_prompt
@@ -113,6 +135,9 @@ def test_enrichment_prompt_preserves_deterministic_findings() -> None:
     assert '"preserve_explicit_branching_logic": true' in bundle.user_prompt
     assert '"use_and_operator_for_explicit_parallel_steps": true' in bundle.user_prompt
     assert '"use_or_operator_for_documented_alternatives": true' in bundle.user_prompt
+    assert '"emit_attack_conditions_for_explicit_prerequisites_and_state_changes": true' in bundle.user_prompt
+    assert '"connect_condition_true_paths_to_next_supported_step": true' in bundle.user_prompt
+    assert '"preserve_documented_flow_joins": true' in bundle.user_prompt
     assert '"require_tactic_for_attack_technique": true' in bundle.user_prompt
     assert '"use_attack_technique_table_when_present": true' in bundle.user_prompt
     assert '"prefer_linked_objects_over_actions": true' in bundle.user_prompt

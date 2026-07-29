@@ -203,6 +203,11 @@ class CanonicalFlowValidator:
 
             source = node_index.get(edge.source_ref)
             target = node_index.get(edge.target_ref)
+            if edge.edge_type != CanonicalFlowEdgeKind.RELATIONSHIP:
+                if source is None:
+                    errors.append(_error("edge_source_missing_node", f"edge source does not reference an existing node: {edge.source_ref}", CanonicalFlowValidationCategory.INVALID_REFERENCE, edge_id=f"{edge.source_ref}->{edge.target_ref}"))
+                if target is None:
+                    errors.append(_error("edge_target_missing_node", f"edge target does not reference an existing node: {edge.target_ref}", CanonicalFlowValidationCategory.INVALID_REFERENCE, edge_id=f"{edge.source_ref}->{edge.target_ref}"))
             if source is not None and target is not None:
                 self._validate_edge_semantics(edge, source, target, errors)
 

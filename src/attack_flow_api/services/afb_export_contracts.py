@@ -1120,31 +1120,14 @@ def _build_diagram_export_json_ready(bundle: AfbExportBundle) -> dict[str, Any]:
         if target_anchor is not None:
             target_anchor.setdefault("latches", []).append(target_latch["instance"])
 
-    layout = _build_diagram_layout(block_specs, relations)
-    for rel, line_export, handle_export in zip(relations, line_exports, handle_exports):
-        source_position = layout.get(rel["source_instance"])
-        target_position = layout.get(rel["target_instance"])
-        if source_position is not None and target_position is not None:
-            handle_position = [
-                round((source_position[0] + target_position[0]) / 2.0, 1),
-                round((source_position[1] + target_position[1]) / 2.0, 1),
-            ]
-            handle_export["position"] = handle_position
-            layout[handle_export["instance"]] = handle_position
-
     canvas_export = _build_canvas_export(canvas, bundle.metadata.authors, bundle.metadata.external_references)
     canvas_export["objects"] = [spec["instance"] for spec in block_specs] + [line["instance"] for line in line_exports]
 
     objects: list[dict[str, Any]] = [canvas_export, *block_exports, *anchor_exports, *latch_exports, *handle_exports, *line_exports]
     payload: dict[str, Any] = {
         "schema": "attack_flow_v2",
-        # The builder calculates real card dimensions after import. Mark this
-        # generated layout as provisional so it can apply its dimension-aware
-        # automatic layout instead of trusting fallback coordinates.
-        "generated_layout": "auto",
+        # dp not set layout so that we fall back on the automated layout engine
         "objects": objects,
-        "layout": layout,
-        "camera": {"x": 0, "y": 0, "k": 1},
     }
     return payload
 

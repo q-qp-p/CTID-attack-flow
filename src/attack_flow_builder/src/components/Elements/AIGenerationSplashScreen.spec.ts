@@ -561,6 +561,7 @@ describe("AIGenerationSplashScreen", () => {
         expect(prepareExistingEditorMock).toHaveBeenCalledWith(app, "generated-afb");
         expect(executeSpy).toHaveBeenCalledWith(command);
         expect(wrapper.vm.generationStatus).toBe("success");
+        expect(wrapper.vm.generationMessage).toBe("Generated flow opened in the editor.");
     });
 
     it("surfaces direct-provider URL fetch failures before provider invocation", async () => {

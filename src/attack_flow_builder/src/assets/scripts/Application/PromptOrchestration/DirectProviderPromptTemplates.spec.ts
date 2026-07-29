@@ -23,6 +23,8 @@ describe("DirectProviderPromptTemplates", () => {
         expect(bundle.systemInstruction).toContain("Do not omit technique for an attack-action");
         expect(bundle.systemInstruction).toContain("corresponding ATT&CK tactic");
         expect(bundle.systemInstruction).toContain("Merge contiguous substeps");
+        expect(bundle.systemInstruction).toContain("Treat tool setup as part of its runtime action unless the setup itself maps to a distinct ATT&CK technique");
+        expect(bundle.systemInstruction).toContain("that condition's on_true_refs must point to the next source-supported action");
         expect(bundle.systemInstruction).toContain("multiple documented follow-on outcomes");
         expect(bundle.systemInstruction).toContain("ATT&CK technique table, appendix, or matrix");
         expect(bundle.systemInstruction).toContain("For every non-terminal action, use effect_refs");
@@ -36,6 +38,10 @@ describe("DirectProviderPromptTemplates", () => {
         expect(bundle.userPrompt).toContain("\"allow_actions_without_techniques\": false");
         expect(bundle.userPrompt).toContain("\"require_tactic_for_attack_technique\": true");
         expect(bundle.userPrompt).toContain("\"consolidate_contiguous_same_technique_substeps\": true");
+        expect(bundle.userPrompt).toContain("\"separate_tool_setup_action_only_when_distinct_technique\": true");
+        expect(bundle.userPrompt).toContain("\"connect_condition_true_paths_to_next_supported_step\": true");
+        expect(bundle.userPrompt).toContain("\"condition_references_must_use_exact_emitted_ids\": true");
+        expect(bundle.userPrompt).toContain("\"connect_condition_true_paths\": true");
         expect(bundle.userPrompt).toContain("\"default_entities_to_supported_stix_types\": true");
         expect(bundle.userPrompt).toContain("\"use_attack_technique_table_when_present\": true");
         expect(bundle.userPrompt).toContain("\"use_or_operator_for_documented_alternatives\": true");

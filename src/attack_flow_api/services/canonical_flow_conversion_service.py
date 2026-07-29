@@ -761,17 +761,17 @@ def _build_edges_from_fused_output(
     edges: list[CanonicalFlowEdge] = []
     for action in actions:
         for ref in action.asset_refs:
-            edges.append(CanonicalFlowEdge(source_ref=action.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.ASSET))
+            edges.append(CanonicalFlowEdge(source_ref=_normalize_canonical_ref(action.id), target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.ASSET))
         for ref in action.effect_refs:
-            edges.append(CanonicalFlowEdge(source_ref=action.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.EFFECT))
+            edges.append(CanonicalFlowEdge(source_ref=_normalize_canonical_ref(action.id), target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.EFFECT))
     for condition in conditions:
         for ref in condition.on_true_refs:
-            edges.append(CanonicalFlowEdge(source_ref=condition.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.TRUE_BRANCH))
+            edges.append(CanonicalFlowEdge(source_ref=_normalize_canonical_ref(condition.id), target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.TRUE_BRANCH))
         for ref in condition.on_false_refs:
-            edges.append(CanonicalFlowEdge(source_ref=condition.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.FALSE_BRANCH))
+            edges.append(CanonicalFlowEdge(source_ref=_normalize_canonical_ref(condition.id), target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.FALSE_BRANCH))
     for operator in operators:
         for ref in operator.effect_refs:
-            edges.append(CanonicalFlowEdge(source_ref=operator.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.EFFECT))
+            edges.append(CanonicalFlowEdge(source_ref=_normalize_canonical_ref(operator.id), target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.EFFECT))
     for relationship in relationships:
         edges.append(
             CanonicalFlowEdge(
@@ -798,17 +798,17 @@ def _build_edges_from_afb_output(
     edges: list[CanonicalFlowEdge] = []
     for action in actions:
         for ref in action.asset_refs:
-            edges.append(CanonicalFlowEdge(source_ref=action.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.ASSET))
+            edges.append(CanonicalFlowEdge(source_ref=_normalize_canonical_ref(action.id), target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.ASSET))
         for ref in action.effect_refs:
-            edges.append(CanonicalFlowEdge(source_ref=action.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.EFFECT))
+            edges.append(CanonicalFlowEdge(source_ref=_normalize_canonical_ref(action.id), target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.EFFECT))
     for condition in conditions:
         for ref in condition.on_true_refs:
-            edges.append(CanonicalFlowEdge(source_ref=condition.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.TRUE_BRANCH))
+            edges.append(CanonicalFlowEdge(source_ref=_normalize_canonical_ref(condition.id), target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.TRUE_BRANCH))
         for ref in condition.on_false_refs:
-            edges.append(CanonicalFlowEdge(source_ref=condition.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.FALSE_BRANCH))
+            edges.append(CanonicalFlowEdge(source_ref=_normalize_canonical_ref(condition.id), target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.FALSE_BRANCH))
     for operator in operators:
         for ref in operator.effect_refs:
-            edges.append(CanonicalFlowEdge(source_ref=operator.id, target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.EFFECT))
+            edges.append(CanonicalFlowEdge(source_ref=_normalize_canonical_ref(operator.id), target_ref=_normalize_canonical_ref(ref), edge_type=CanonicalFlowEdgeKind.EFFECT))
     for relationship in relationships:
         source_ref = _as_str(relationship.get("source_ref"))
         target_ref = _as_str(relationship.get("target_ref"))

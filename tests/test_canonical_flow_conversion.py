@@ -251,6 +251,51 @@ def test_conversion_from_fused_output_preserves_flow_and_conflicts() -> None:
     assert canonical.conflicts[0].category == FusionConflictCategory.DUPLICATE_STEP
 
 
+def test_conversion_normalizes_legacy_condition_edge_source_refs() -> None:
+    fused = FusedOutputCandidate(
+        attack_flow=AttackFlowMetadata(
+            id="attack-flow--legacy-refs",
+            name="Legacy references",
+            scope="incident",
+            orchestration_mode=OrchestrationMode.AI_ENRICHMENT,
+            source_classification=SourceClassification.DOCUMENT_EXTRACTED_TEXT,
+            start_refs=["action-1"],
+        ),
+        attack_actions=[
+            MergedAttackAction(
+                id="action-1",
+                name="First action",
+                description="First action occurred.",
+                confidence=0.8,
+                effect_refs=["condition-1"],
+                evidence=[{"source": "report", "excerpt": "First action occurred."}],
+                provenance=[FusionFindingProvenance(kind=FusionProvenanceKind.AI_DERIVED, source_label="ai")],
+            )
+        ],
+        attack_conditions=[
+            MergedCondition(
+                id="condition-1",
+                description="The prerequisite was met.",
+                value="true",
+                confidence=0.8,
+                on_true_refs=["action-1"],
+                evidence=[{"source": "report", "excerpt": "The prerequisite was met."}],
+                provenance=[FusionFindingProvenance(kind=FusionProvenanceKind.AI_DERIVED, source_label="ai")],
+            )
+        ],
+    )
+
+    canonical = build_canonical_flow_output(fused_output=fused)
+
+    assert canonical is not None
+    assert any(
+        edge.source_ref == "attack-condition--1"
+        and edge.target_ref == "attack-action--1"
+        and edge.edge_type == CanonicalFlowEdgeKind.TRUE_BRANCH
+        for edge in canonical.edges
+    )
+
+
 def test_conversion_from_fused_output_omits_unresolved_asset_refs_and_keeps_operator_evidence() -> None:
     fused = FusedOutputCandidate(
         attack_flow=AttackFlowMetadata(

@@ -17,6 +17,7 @@ from attack_flow_api.services.afb_fusion_assembler import FusedOutputCandidate
 from attack_flow_api.services.afb_fusion_contracts import FusionFindingProvenance, FusionProvenanceKind
 from attack_flow_api.services.afb_fusion_dedup import MergedAttackAction, MergedAttackRef, MergedAttachmentBundle, MergedCondition, MergedEntity, MergedOperator, MergedRelationship
 from attack_flow_api.services.canonical_flow_conversion_service import build_canonical_flow_output
+from attack_flow_api.services.canonical_flow_contracts import CanonicalFlowEdge, CanonicalFlowEdgeKind
 from attack_flow_api.services.canonical_flow_validation_service import validate_canonical_flow_output
 
 
@@ -233,6 +234,27 @@ def test_canonical_flow_validation_rejects_invalid_start_ref() -> None:
 
     assert result.valid is False
     assert any(item.code == "start_ref_invalid_node_kind" for item in result.errors)
+
+
+def test_canonical_flow_validation_rejects_edges_with_missing_nodes() -> None:
+    canonical = build_canonical_flow_output(fused_output=_build_fused_canonical())
+    invalid = canonical.model_copy(
+        update={
+            "edges": [
+                *canonical.edges,
+                CanonicalFlowEdge(
+                    source_ref="attack-action--missing",
+                    target_ref="attack-action--1",
+                    edge_type=CanonicalFlowEdgeKind.EFFECT,
+                ),
+            ]
+        }
+    )
+
+    result = validate_canonical_flow_output(invalid)
+
+    assert result.valid is False
+    assert any(item.code == "edge_source_missing_node" for item in result.errors)
 
 
 def test_canonical_flow_validation_rejects_missing_action_provenance() -> None:
