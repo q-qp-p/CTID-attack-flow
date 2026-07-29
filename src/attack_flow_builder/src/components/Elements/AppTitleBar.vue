@@ -30,6 +30,7 @@ import type { ContextMenuSubmenu } from "@/assets/scripts/Browser";
 // Components
 import TitleBar from "@/components/Controls/TitleBar.vue";
 import ClassificationMarking from "./ClassificationMarking.vue";
+import type { EnumProperty, StringProperty, TupleProperty } from "@/assets/scripts/OpenChart/DiagramModel/index.ts";
 
 export default defineComponent({
   name: "AppTitleBar",
