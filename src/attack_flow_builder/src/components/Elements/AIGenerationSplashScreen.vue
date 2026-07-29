@@ -10,7 +10,10 @@
     <h2 class="generation-title">
       Generate Attack Flow
     </h2>
-    <div class="section source-type">
+    <div
+      class="section source-type"
+      :style="apiHealthCheckInProgress ? 'visibility: hidden' : ''"
+    >
       <p class="section-title">
         SOURCE TYPE
       </p>
@@ -377,19 +380,6 @@ export default defineComponent({
       llmAzureApiVersion: ""
     }
   },
-  created() {
-    const model = this.runtimeProviderStore.runtimeProviderConfig?.model.trim();
-    if (model) {
-      this.llmModel = model;
-    }
-
-    const runtimeProviderConfig = this.runtimeProviderStore.runtimeProviderConfig;
-    if (runtimeProviderConfig) {
-      this.llmType = runtimeProviderConfig.providerType;
-      this.llmUseAzure = !!runtimeProviderConfig.useAzure;
-      this.llmAzureApiVersion = runtimeProviderConfig.azureApiVersion?.trim() ?? "";
-    }
-  },
   computed: {
 
     /**
@@ -429,7 +419,7 @@ export default defineComponent({
       const normalizedInput = this.normalizedInputPackage;
       const runtimeProviderConfig = this.runtimeProviderStore.runtimeProviderConfig;
 
-      const model = this.llmModel.trim() || runtimeProviderConfig?.model.trim();
+      const model = this.llmModel.trim();
       if (!normalizedInput || !model) {
         return null;
       }
@@ -579,7 +569,7 @@ export default defineComponent({
           && this.llmEndpoint.trim()
           && this.llmToken.trim()
           && (!this.llmUseAzure || this.llmAzureApiVersion.trim())
-          && (this.llmModel.trim() || this.runtimeProviderStore.runtimeProviderConfig?.model.trim())
+          && (this.llmModel.trim())
         );
     },
 
@@ -632,6 +622,16 @@ export default defineComponent({
         console.log("API health check succeeded. Using AFB API.");
     } else {
         console.log("API health check failed. Using LLM API.")
+        const runtimeProviderConfig = this.runtimeProviderStore.runtimeProviderConfig;
+
+        if (runtimeProviderConfig) {
+            // Load values from local storage.
+            this.llmModel = runtimeProviderConfig.model?.trim() ?? "";
+            this.llmEndpoint = runtimeProviderConfig.endpoint?.trim() ?? "";
+            this.llmType = runtimeProviderConfig.providerType;
+            this.llmUseAzure = !!runtimeProviderConfig.useAzure;
+            this.llmAzureApiVersion = runtimeProviderConfig.azureApiVersion?.trim() ?? "";
+        }
     }
   },
   methods: {
@@ -642,6 +642,11 @@ export default defineComponent({
      *  The selected source type.
      */
     selectSourceType(sourceType: Exclude<SourceType, null>) {
+
+      if (this.generationStatus === 'loading') {
+        return;
+      }
+
       if(this.sourceType !== sourceType) {
         this.clearSourceData();
       }
@@ -738,9 +743,6 @@ export default defineComponent({
       this.pdfExtractionState = { status: "idle" };
       this.sourceUrl = "";
       this.sourceText = "";
-      this.llmModel = "";
-      this.llmUseAzure = false;
-      this.llmAzureApiVersion = "";
     },
 
     async buildNormalizedInputPackage(): Promise<NormalizedInputPackage | null> {
@@ -806,8 +808,8 @@ export default defineComponent({
                 }
             } else {
                 const runtimeProviderConfig = this.runtimeProviderStore.runtimeProviderConfig;
-                const model = runtimeProviderConfig?.model.trim();
-                if (!runtimeProviderConfig || !model) {
+                const model = this.llmModel;
+                if (!model) {
                     throw new Error("Direct provider mode requires a configured model.");
                 }
 
@@ -823,7 +825,7 @@ export default defineComponent({
                         endpoint: this.llmEndpoint.trim(),
                         apiKey: this.llmToken.trim(),
                         model,
-                        extraHeaders: runtimeProviderConfig.extraHeaders
+                        extraHeaders: runtimeProviderConfig?.extraHeaders
                     }
                 };
 
@@ -851,6 +853,14 @@ export default defineComponent({
                 const command = await prepareEditorFromValidatedStructuredExtraction(this.applicationStore, extraction);
                 await this.applicationStore.execute(command);
                 this.generationStatus = 'success'
+
+                // On success, save direct-provider inputs to local storage.
+                this.runtimeProviderStore.setRuntimeProviderConfig({
+                    providerType: this.directProviderType,
+                    endpoint: this.llmEndpoint.trim(),
+                    apiKey: "",
+                    model
+                })
             }
         } catch (error: unknown) {
             this.generationStatus = 'error';
@@ -878,7 +888,7 @@ export default defineComponent({
     async generateAttackFlow() {
       const request = this.directProviderStructuredGenerationRequest;
       const runtimeProviderConfig = this.runtimeProviderStore.runtimeProviderConfig;
-      const model = this.llmModel.trim() || runtimeProviderConfig?.model.trim();
+      const model = this.llmModel.trim();
       const providerEndpoint = this.llmEndpoint.trim();
       const providerApiKey = this.llmToken.trim();
 
@@ -953,6 +963,7 @@ export default defineComponent({
     justify-content: center;
     align-items: center;
     flex-direction: column;
+    color: var(--af-text-color-primary);
 }
 
 .generation-title {
@@ -1247,6 +1258,10 @@ export default defineComponent({
   margin: 14px auto 0;
   min-width: 210px;
 }
+
+[data-theme="light_theme"] .generate-button, [data-theme="blog_theme"] .generate-button {
+    color: #eee;
+} 
 
 .generate-button:disabled {
   cursor: default;

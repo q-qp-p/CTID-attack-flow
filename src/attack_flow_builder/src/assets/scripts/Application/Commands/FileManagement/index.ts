@@ -86,10 +86,16 @@ export async function loadExistingFile(
     }
     // Construct factory
     const factory = await getObjectFactory(context, jsonFile.schema);
+
+    const generatedAutoLayout = (jsonFile as { generated_layout?: unknown }).generated_layout === "auto";
+    if (generatedAutoLayout) {
+        // Explicitly clear generated layout to let auto layout engine take over.
+        jsonFile.layout = undefined;
+    }
+
     // Construct file
     const viewFile = new DiagramViewFile(factory, jsonFile);
     // Run layout
-    const generatedAutoLayout = (jsonFile as { generated_layout?: unknown }).generated_layout === "auto";
     if (generatedAutoLayout || !isValidLayout(jsonFile.layout)) {
         viewFile.runLayout(autoLayoutEngine);
     }
