@@ -131,8 +131,7 @@ Publish Attack Flow
 
    The Attack Flow Builder does not automatically save your work. If you accidentally
    close the tab or navigate forward or backward, you will lose any unsaved work.
-   Remember to save your work frequently. (This issue will be addressed in a future
-   release.)
+   Remember to save your work frequently.
 
 **There are a ton of useful features in the builder!** Way more than we can cover here.
 To fully master this tool, we encourage you to experiment with all of the different

@@ -1,3 +1,4 @@
+import { ConfidenceProperty } from "./ConfidenceProperty";
 import { DiagramObjectType } from "@OpenChart/DiagramModel";
 import type { DiagramObjectTemplate } from "@OpenChart/DiagramModel";
 
@@ -10,7 +11,10 @@ export const BaseObjects: DiagramObjectTemplate[] = [
             source: "generic_latch",
             target: "generic_latch"
         },
-        handle_template: "generic_handle"
+        handle_template: "generic_handle",
+        properties: {
+            confidence: ConfidenceProperty
+        }
     },
     {
         name: "vertical_anchor",

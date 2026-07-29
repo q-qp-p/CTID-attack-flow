@@ -1,7 +1,9 @@
 import { BoolEnum } from "./BoolEnum";
 import { AnchorConfiguration } from "./AnchorFormat";
+import { TagsProperty } from "./TagsProperty";
 import { DiagramObjectType, PropertyType } from "@OpenChart/DiagramModel";
 import type { DiagramObjectTemplate } from "@OpenChart/DiagramModel";
+import { AccountTypeOv } from "./StixOpenVocabularies";
 
 export const StixObservables: DiagramObjectTemplate[] = [
     {
@@ -61,7 +63,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
             },
             decryption_key: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -84,7 +87,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
             },
             rir: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -113,7 +117,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
             },
             atime: {
                 type: PropertyType.Date
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -129,7 +134,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
                         is_required: true
                     }
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -148,7 +154,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
             },
             display_name: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -189,7 +196,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
             },
             body_multipart: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -251,7 +259,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
             },
             atime: {
                 type: PropertyType.Date
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -267,7 +276,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
                         is_required: true
                     }
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -283,7 +293,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
                         is_required: true
                     }
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -299,7 +310,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
                         is_required: true
                     }
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -315,7 +327,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
                         is_required: true
                     }
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -375,7 +388,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
             },
             ipfix: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -405,7 +419,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
             },
             environment_variables: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -435,7 +450,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
             },
             version: {
                 type: PropertyType.String
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -451,7 +467,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
                         is_required: true
                     }
                 }
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -470,7 +487,12 @@ export const StixObservables: DiagramObjectTemplate[] = [
                 type: PropertyType.String
             },
             account_type: {
-                type: PropertyType.String
+                type: PropertyType.String,
+                options: {
+                    type: PropertyType.List,
+                    form: { type: PropertyType.String },
+                    default: AccountTypeOv
+                }
             },
             display_name: {
                 type: PropertyType.String,
@@ -499,7 +521,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
             },
             account_last_login: {
                 type: PropertyType.Date
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -556,7 +579,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
             number_of_subkeys: {
                 type: PropertyType.Int,
                 min: 0
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     },
@@ -631,7 +655,8 @@ export const StixObservables: DiagramObjectTemplate[] = [
             subject_public_key_exponent: {
                 type: PropertyType.Int,
                 min: 0
-            }
+            },
+            tags: TagsProperty
         },
         anchors: AnchorConfiguration
     }

@@ -1,4 +1,4 @@
-[![MITRE ATT&CK® 17](https://img.shields.io/badge/MITRE%20ATT%26CK®-v17-red)](https://attack.mitre.org/versions/v17/)
+[![MITRE ATT&CK® 19.1](https://img.shields.io/badge/MITRE%20ATT%26CK®-v19.1-red)](https://attack.mitre.org/resources/updates/)
 [![build](https://github.com/center-for-threat-informed-defense/attack-flow/actions/workflows/build.yml/badge.svg)](https://github.com/center-for-threat-informed-defense/attack-flow/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/center-for-threat-informed-defense/attack-flow/branch/main/graph/badge.svg?token=MSGpc9mM6U)](https://codecov.io/gh/center-for-threat-informed-defense/attack-flow)
 
@@ -34,6 +34,8 @@ review the Example Flows and JSON Schema for the language.
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | [Documentation](https://center-for-threat-informed-defense.github.io/attack-flow/)          | Complete documentation for the Attack Flow project.    |
 | [Attack Flow Builder](https://center-for-threat-informed-defense.github.io/attack-flow/ui/) | An online GUI tool for building Attack Flows.          |
+| [Self-Hosting Deployment](docs/deployment-self-hosting.md)                                   | Deploy API and UI separately with Docker.              |
+| [API Notes](src/attack_flow_api/README.md)                                                     | API runtime behavior and worker fusion notes.          |
 | [JSON Schema](/stix/attack-flow-schema-2.0.0.json)                                          | The language specification expressed as a JSON Schema. |
 | [Example Flows](/corpus/)                                                                   | A corpus of example Attack Flows.                      |
 

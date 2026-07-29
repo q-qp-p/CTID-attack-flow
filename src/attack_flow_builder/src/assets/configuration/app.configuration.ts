@@ -2,6 +2,13 @@ import AttackFlowValidator from "./AttackFlowValidator/AttackFlowValidator.ts";
 import AttackFlowPublisher from "./AttackFlowPublisher/AttackFlowPublisher.ts";
 import AttackFlowFilePreprocessor from "./AttackFlowFilePreprocessor/AttackFlowFilePreprocessor.ts";
 import AttackFlowCommandProcessor from "./AttackFlowCommandProcessor/AttackFlowCommandProcessor.ts";
+import { AttackFlowRecommender } from "./AttackFlowRecommender/AttackFlowRecommender.ts";
+import { TacticTableVisualization } from "./AttackFlowVisualizations/TacticTableVisualization.ts";
+import { TimelineVisualization } from "./AttackFlowVisualizations/TimelineVisualization.ts";
+import { TreemapVisualization } from "./AttackFlowVisualizations/TreemapVisualization.ts";
+import { PresentationVisualization } from "./AttackFlowVisualizations/PresentationVisualization.ts";
+import { MatrixViewVisualization } from "./AttackFlowVisualizations/MatrixViewVisualization.ts";
+import { IOCTableVisualization } from "./AttackFlowVisualizations/IOCTableVisualization.ts";
 import { DarkTheme } from "./AttackFlowThemes/DarkTheme.ts";
 import { BlogTheme } from "./AttackFlowThemes/BlogTheme.ts";
 import { LightTheme } from "./AttackFlowThemes/LightTheme.ts";
@@ -13,7 +20,8 @@ import {
     StixObjects,
     StixObservables
 } from "./AttackFlowTemplates";
-import type { AppConfiguration } from "../scripts/Application";
+import { BasicVisualizationModal } from "../scripts/Application/Visualization";
+import type { AppConfiguration } from "../scripts/Application/Configuration/AppConfiguration";
 
 const configuration: AppConfiguration = {
 
@@ -49,6 +57,10 @@ const configuration: AppConfiguration = {
         open_file: {
             title: "Open Flow",
             description: "Open an existing flow."
+        },
+        generate_flow: {
+            title: "Generate Flow",
+            description: "Generate a flow out of a security incident report."
         },
         import_stix: {
             title: "Import STIX",
@@ -136,7 +148,24 @@ const configuration: AppConfiguration = {
 
     cmdProcessor: {
         create: () => new AttackFlowCommandProcessor()
-    }
+    },
+
+    recommender: {
+        create: () => new AttackFlowRecommender()
+    },
+
+    visualizationModal: {
+        create: visualizations => new BasicVisualizationModal(visualizations)
+    },
+
+    visualizations: [
+        TacticTableVisualization,
+        PresentationVisualization,
+        MatrixViewVisualization,
+        TimelineVisualization,
+        TreemapVisualization,
+        IOCTableVisualization
+    ]
 
 };
 
