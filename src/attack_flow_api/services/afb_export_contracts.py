@@ -228,7 +228,8 @@ class AfbExportBundle(BaseModel):
         return json.dumps(self.to_export_json_ready(), sort_keys=True, separators=(",", ":")).encode("utf-8")
 
     def to_diagram_export_ready(self) -> dict[str, Any]:
-        return _build_diagram_export_json_ready(self)
+        return _build_builder_diagram_export_json_ready(self)
+
 
     def to_diagram_export_bytes(self) -> bytes:
         import json
@@ -628,6 +629,77 @@ def _validate_object_collection(
 
     return object_index
 
+def _build_builder_diagram_export_json_ready(bundle: AfbExportBundle) -> dict[str, Any]:
+    canvas = next((item for item in bundle.objects.objects if item.get("type") == "attack-flow"), None)
+    if canvas is None:
+        canvas = {
+            "type": "attack-flow",
+            "id": "flow",
+            "name": "Untitled Document",
+            "scope": "incident",
+            "start_refs": [],
+        }
+
+    block_specs, relations = _collect_diagram_graph(bundle)
+    block_exports: list[dict[str, Any]] = []
+    anchor_exports: list[dict[str, Any]] = []
+    latch_exports: list[dict[str, Any]] = []
+    handle_exports: list[dict[str, Any]] = []
+    line_exports: list[dict[str, Any]] = []
+    anchor_index: dict[str, dict[str, Any]] = {}
+
+    for spec in block_specs:
+        block_export, anchors = _build_diagram_block_export(spec)
+        block_exports.append(block_export)
+        anchor_exports.extend(anchors)
+        for anchor in anchors:
+            anchor_index[anchor["instance"]] = anchor
+
+    for rel in relations:
+        line_export, source_latch, target_latch, handle_export = _build_diagram_line_export(rel)
+        line_exports.append(line_export)
+        latch_exports.extend([source_latch, target_latch])
+        handle_exports.append(handle_export)
+
+        source_anchor = anchor_index.get(rel["source_anchor_instance"])
+        target_anchor = anchor_index.get(rel["target_anchor_instance"])
+        if source_anchor is not None:
+            source_anchor.setdefault("latches", []).append(source_latch["instance"])
+        if target_anchor is not None:
+            target_anchor.setdefault("latches", []).append(target_latch["instance"])
+
+    layout = _build_diagram_layout(block_specs, relations)
+
+    for rel, line_export, handle_export in zip(relations, line_exports, handle_exports):
+        source_position = layout.get(rel["source_instance"])
+        target_position = layout.get(rel["target_instance"])
+        if source_position is not None and target_position is not None:
+            handle_position = [
+                round((source_position[0] + target_position[0]) / 2.0, 1),
+                round((source_position[1] + target_position[1]) / 2.0, 1),
+            ]
+            handle_export["position"] = handle_position
+            layout[handle_export["instance"]] = handle_position
+
+    canvas_export = _build_canvas_export(canvas, bundle.metadata.authors, bundle.metadata.external_references)
+    canvas_export["objects"] = [spec["instance"] for spec in block_specs] + [line["instance"] for line in line_exports]
+
+    objects: list[dict[str, Any]] = [
+        canvas_export,
+        *block_exports,
+        *anchor_exports,
+        *latch_exports,
+        *handle_exports,
+        *line_exports,
+    ]
+
+    return {
+        "schema": "attack_flow_v2",
+        "generated_layout": "auto",
+        "objects": objects,
+        "layout": layout,
+        "camera": {"x": 0, "y": 0, "k": 1},
+    }
 
 def _validate_object_count(bundle: AfbExportBundle, errors: list[AfbExportCompatibilityError]) -> None:
     if bundle.metadata.object_count != len(bundle.objects.objects):

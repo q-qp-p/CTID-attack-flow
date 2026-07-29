@@ -211,10 +211,10 @@ describe("AttackFlowPublisher - defensive object IDs", () => {
         mitigation.properties.get("mitigation_id", StringProperty)?.setValue("M1021");
 
         const bundle = publish(file);
-        const mitigationSdo = bundle.objects.find(o => o.type === "mitigation");
+        const mitigationSdo = bundle.objects.find(o => o.type === "x-mitigation");
 
         expect(mitigationSdo).toBeDefined();
-        expect(mitigationSdo.id).toBe(`mitigation--${mitigation.instance}`);
+        expect(mitigationSdo.id).toBe(`x-mitigation--${mitigation.instance}`);
         expect(mitigationSdo.mitigation_id).toBe("M1021");
     });
 
@@ -226,10 +226,10 @@ describe("AttackFlowPublisher - defensive object IDs", () => {
         detection.properties.get("detection_id", StringProperty)?.setValue("DET0516");
 
         const bundle = publish(file);
-        const detectionSdo = bundle.objects.find(o => o.type === "detection");
+        const detectionSdo = bundle.objects.find(o => o.type === "x-detection");
 
         expect(detectionSdo).toBeDefined();
-        expect(detectionSdo.id).toBe(`detection--${detection.instance}`);
+        expect(detectionSdo.id).toBe(`x-detection--${detection.instance}`);
         expect(detectionSdo.detection_id).toBe("DET0516");
     });
 });

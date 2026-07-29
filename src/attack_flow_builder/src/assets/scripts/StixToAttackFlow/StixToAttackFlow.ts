@@ -153,25 +153,119 @@ export class StixToAttackFlowConverter {
      */
     private translateStix<T extends DiagramObject>(stix: StixObject, type?: Constructor<T>): T | null {
         // Resolve template
-        let template = StixToTemplate[stix.type as keyof typeof StixToTemplate];
-        if (stix.type === "attack-operator") {
-            if (stix.operator == "AND") {
-                template = "AND_operator";
-            } else if (stix.operator == "OR") {
-                template = "OR_operator";
-            } else {
-                return null;
-            }
-        }
+        const template = this.resolveTemplate(stix);
         if (template === null) {
             return null;
         }
+
+        // Normalize custom STIX objects before property population
+        const normalizedStix = this.normalizeStixObject(stix);
+
         // Create object
         const object = this.factory.createNewDiagramObject(template, type);
+
         // Set properties
-        populateProperties(stix, object.properties);
+        populateProperties(normalizedStix, object.properties);
+
         // Return
         return object;
+    }
+
+    /**
+     * Resolves the internal template name for a STIX object.
+     * Supports built-in Attack Flow mappings and custom x-* objects.
+     * @param stix
+     *  The STIX object.
+     * @returns
+     *  The template name, or null if the object should not be imported.
+     */
+    private resolveTemplate(stix: StixObject): string | null {
+        const type = stix.type as string;
+        switch (type) {
+            case "x-detection":
+                return "detection";
+            case "x-mitigation":
+                return "mitigation";
+            case "attack-operator":
+                const op = (stix as { operator?: string }).operator;
+                if (op == "AND") {
+                    return "AND_operator";
+                } else if (op == "OR") {
+                    return "OR_operator";
+                } else {
+                    return null;
+                }
+            default:
+                return StixToTemplate[type as keyof typeof StixToTemplate];
+        }
+    }
+
+    /**
+     * Normalizes imported STIX objects for property population.
+     *
+     * Custom STIX object properties are exported with x_-prefixed keys, so we
+     * strip that prefix during import in order to match the diagram schema.
+     *
+     * @param stix
+     *  The STIX object to normalize.
+     * @returns
+     *  A normalized STIX-like object suitable for populateProperties().
+     */
+    private normalizeStixObject(stix: StixObject): StixObject {
+        const type = stix.type as string;
+        switch (type) {
+            case "x-detection":
+                return this.denormalizeCustomObject(stix, "detection") as StixObject;
+            case "x-mitigation":
+                return this.denormalizeCustomObject(stix, "mitigation") as StixObject;
+            default:
+                return stix;
+        }
+    }
+
+    /**
+     * Recursively converts a custom STIX object into a property shape expected by
+     * the diagram schema:
+     *   - type is rewritten from x-foo to foo
+     *   - x_bar keys are rewritten to bar
+     *
+     * @param value
+     *  The value to normalize.
+     * @param rootType
+     *  Optional replacement for the top-level type.
+     * @returns
+     *  The normalized value.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private denormalizeCustomObject(value: any, rootType?: string): any {
+        if (Array.isArray(value)) {
+            return value.map(v => this.denormalizeCustomObject(v));
+        }
+
+        if (value && typeof value === "object") {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const result: any = {};
+
+            for (const [key, child] of Object.entries(value)) {
+                let nextKey = key;
+
+                if (key === "type" && rootType) {
+                    nextKey = "type";
+                    result[nextKey] = rootType;
+                    continue;
+                }
+
+                if (key.startsWith("x_")) {
+                    nextKey = key.slice(2);
+                }
+
+                result[nextKey] = this.denormalizeCustomObject(child);
+            }
+
+            return result;
+        }
+
+        return value;
     }
 
     /**
