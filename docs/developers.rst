@@ -56,7 +56,7 @@ dependencies do not conflict with other Python packages you may have installed.
 
     ...
 
-    Installing the current project: attack-flow (3.0.0)
+    Installing the current project: attack-flow (4.0)
 
 Finally, enter the virtualenv. You can check if the installation succeeded by running
 the ``af`` command.
@@ -65,7 +65,7 @@ the ``af`` command.
 
     $ poetry shell
     py[attack-flow] $ af version
-    Attack Flow version 3.0.0
+    Attack Flow version 4.0
 
 .. warning::
 
@@ -312,7 +312,7 @@ To update the Intelligence File for a given source, simply invoke its npm script
 
     $ npm run update-attack
 
-    > attack-flow-builder@3.0.0 update-attack
+    > attack-flow-builder@4.0 update-attack
     > node ./attack/update_mitre_attack.mjs
 
     → Downloading ATT&CK Data...
@@ -385,7 +385,7 @@ Once the script is compiled, run the script using Node.js:
 .. code:: shell
 
     $ node dist-cli/cli.mjs --version
-    3.0.0
+    4.0
 
     $ node dist-cli/cli.mjs --help
     Usage: Attack Flow Builder CLI [options] [command]

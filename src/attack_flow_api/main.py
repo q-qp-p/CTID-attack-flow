@@ -124,7 +124,7 @@ def _resolve_package_version() -> str:
     try:
         return package_version("attack-flow")
     except PackageNotFoundError:
-        return "3.0.0"
+        return "4.0"
 
 
 app = create_app()
