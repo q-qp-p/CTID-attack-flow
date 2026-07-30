@@ -10,6 +10,10 @@ the state of the art and the state of the practice in threat-informed defense
 globally. The project is funded by our `research participants
 <https://ctid.mitre.org/projects/attack-flow#participants-section>`__. The development of these usage guides has been shaped by direct input and feedback from our members—practitioners at large, international organizations with advanced cybersecurity programs. Their real-world experience and operational insights have grounded this work in practical, applicable guidance for defenders around the world.
 
+.. container:: whats-new-banner
+
+   :doc:`What's new with Attack Flow 4.0 <changelog>`
+
 .. toctree::
     :maxdepth: 1
     :caption: Contents
@@ -24,6 +28,7 @@ globally. The project is funded by our `research participants
     visualization
     language
     developers
+    changelog
 
 Notice
 ------
