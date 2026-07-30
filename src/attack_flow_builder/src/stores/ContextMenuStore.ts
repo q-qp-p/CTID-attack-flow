@@ -19,6 +19,8 @@ import type { ContextMenu, ContextMenuItem, ContextMenuSection, ContextMenuSubme
 import type { DiagramViewEditor } from "@OpenChart/DiagramEditor";
 import LocalStorageManager from "@/LocalStorageManager";
 
+const displayVersion = version.split(".").slice(0, 2).join(".");
+
 export const useContextMenuStore = defineStore("contextMenuStore", {
     getters: {
 
@@ -851,7 +853,7 @@ export const useContextMenuStore = defineStore("contextMenuStore", {
                         id: "version",
                         items: [
                             {
-                                text: `${name} v${version}`,
+                                text: `${name} v${displayVersion}`,
                                 type: MenuType.Action,
                                 data: () => AppCommands.doNothing(),
                                 disabled: true

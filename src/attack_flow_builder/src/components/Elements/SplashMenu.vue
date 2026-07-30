@@ -172,13 +172,15 @@ import EmptyPageIcon from "@/components/Icons/EmptyPageIcon.vue";
 import ScrollBox from "../Containers/ScrollBox.vue";
 import AIGenerationSplashScreen from "./AIGenerationSplashScreen.vue";
 
+const displayVersion = version.split(".").slice(0, 2).join(".");
+
 export default defineComponent({
   name: 'SplashMenu',
   data() {
     return {
       application: useApplicationStore(),
       applicationName: Configuration.application_name,
-      applicationVersion: version,
+      applicationVersion: displayVersion,
       organization: Configuration.splash.organization,
       newFile: Configuration.splash.new_file,
       openFile: Configuration.splash.open_file,
