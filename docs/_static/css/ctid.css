@@ -55,6 +55,26 @@ body {
   color: var(--mitre-navy) !important;
 }
 
+/* Homepage release banner */
+.whats-new-banner {
+  background-color: var(--mitre-blue);
+  margin: 1.5rem 0 2rem;
+  padding: 1rem 1.25rem;
+  text-align: center;
+}
+
+.whats-new-banner a {
+  color: var(--text-color-inverse);
+  font-size: 1.15rem;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.whats-new-banner a:hover {
+  color: var(--text-color-inverse);
+  text-decoration: underline;
+}
+
 figure img {
   border-radius: 0;
   box-shadow: none;
