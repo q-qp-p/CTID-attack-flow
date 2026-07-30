@@ -57,14 +57,16 @@ body {
 
 /* Homepage release banner */
 .whats-new-banner {
-  background-color: var(--mitre-blue);
+  background: var(--mitre-blue) !important;
+  display: block;
   margin: 1.5rem 0 2rem;
   padding: 1rem 1.25rem;
   text-align: center;
 }
 
 .whats-new-banner a {
-  color: var(--text-color-inverse);
+  color: var(--text-color-inverse) !important;
+  display: block;
   font-size: 1.15rem;
   font-weight: bold;
   text-decoration: none;
@@ -73,6 +75,10 @@ body {
 .whats-new-banner a:hover {
   color: var(--text-color-inverse);
   text-decoration: underline;
+}
+
+body.theme-dark .whats-new-banner {
+  background: var(--mitre-blue) !important;
 }
 
 figure img {
